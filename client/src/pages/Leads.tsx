@@ -74,9 +74,9 @@ export default function Leads() {
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-semibold mb-2 text-foreground">Leads</h2>
+          <h2 className="text-2xl font-semibold mb-2 text-foreground">Prospectos</h2>
           <p className="text-muted-foreground">
-            Track and manage leads generated through AI conversations
+            Rastrea y administra prospectos generados a través de conversaciones de IA
           </p>
         </div>
 

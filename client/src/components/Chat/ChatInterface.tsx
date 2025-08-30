@@ -21,7 +21,7 @@ export default function ChatInterface({ onClose }: ChatInterfaceProps) {
       {/* Chat Header */}
       <div className="p-4 border-b border-border bg-card">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-foreground">Active Conversations</h3>
+          <h3 className="text-lg font-semibold text-foreground">Conversaciones Activas</h3>
           <div className="flex items-center space-x-2">
             <Badge 
               variant={isConnected ? "default" : "destructive"}
@@ -56,9 +56,9 @@ export default function ChatInterface({ onClose }: ChatInterfaceProps) {
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <MessageCircle className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No conversation selected</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">Ninguna conversación seleccionada</h3>
               <p className="text-sm text-muted-foreground">
-                Select a conversation to start monitoring or take over from AI
+                Selecciona una conversación para comenzar a supervisar o tomar el control de la IA
               </p>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default function ChatInterface({ onClose }: ChatInterfaceProps) {
             </Button>
             <div className="flex-1">
               <Input
-                placeholder={isMonitoring ? "Monitor conversation..." : "Type your message..."}
+                placeholder={isMonitoring ? "Supervisar conversación..." : "Escribe tu mensaje..."}
                 className="bg-background border-border"
                 disabled={isMonitoring}
                 data-testid="input-chat-message"

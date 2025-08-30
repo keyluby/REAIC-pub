@@ -34,8 +34,8 @@ export default function ConversationList({ selectedConversation, onSelectConvers
         <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
           <User className="w-6 h-6 text-muted-foreground" />
         </div>
-        <p className="text-sm text-muted-foreground">No active conversations</p>
-        <p className="text-xs text-muted-foreground mt-1">Connect WhatsApp to start receiving messages</p>
+        <p className="text-sm text-muted-foreground">No hay conversaciones activas</p>
+        <p className="text-xs text-muted-foreground mt-1">Conecta WhatsApp para comenzar a recibir mensajes</p>
       </div>
     );
   }
@@ -73,7 +73,7 @@ export default function ConversationList({ selectedConversation, onSelectConvers
                 {conversation.clientName || conversation.clientPhone}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                {conversation.isEscalated ? 'Escalated to human' : 'AI handling...'}
+                {conversation.isEscalated ? 'Escalado a humano' : 'IA gestionando...'}
               </p>
             </div>
             <div className="flex flex-col items-end">
@@ -89,7 +89,7 @@ export default function ConversationList({ selectedConversation, onSelectConvers
               )}
               {conversation.isEscalated && (
                 <Badge variant="destructive" className="text-xs mt-1">
-                  Human
+                  Humano
                 </Badge>
               )}
             </div>

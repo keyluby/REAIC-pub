@@ -14,14 +14,14 @@ export default function Landing() {
             </div>
             <div>
               <h1 className="text-lg font-semibold text-foreground">RealEstate AI</h1>
-              <p className="text-xs text-muted-foreground">Assistant</p>
+              <p className="text-xs text-muted-foreground">Asistente</p>
             </div>
           </div>
           <Button 
             onClick={() => window.location.href = '/api/login'}
             data-testid="button-login"
           >
-            Get Started
+            Comenzar
           </Button>
         </div>
       </header>
@@ -30,13 +30,13 @@ export default function Landing() {
       <section className="py-20 px-4">
         <div className="container mx-auto text-center">
           <h1 className="text-4xl md:text-6xl font-bold mb-6 text-foreground">
-            Automate Your Real Estate
+            Automatiza tu Negocio Inmobiliario
             <span className="text-primary"> WhatsApp </span>
-            Conversations
+            con IA
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Transform your real estate business with AI-powered WhatsApp automation. 
-            Generate leads, schedule appointments, and close deals 24/7.
+            Transforma tu negocio inmobiliario con automatización de WhatsApp impulsada por IA. 
+            Genera prospectos, agenda citas y cierra ventas las 24 horas.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
@@ -44,10 +44,10 @@ export default function Landing() {
               onClick={() => window.location.href = '/api/login'}
               data-testid="button-start-free"
             >
-              Start Free Trial
+              Prueba Gratuita
             </Button>
             <Button variant="outline" size="lg" data-testid="button-watch-demo">
-              Watch Demo
+              Ver Demo
             </Button>
           </div>
         </div>
@@ -57,10 +57,10 @@ export default function Landing() {
       <section className="py-20 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4 text-foreground">Why Choose RealEstate AI?</h2>
+            <h2 className="text-3xl font-bold mb-4 text-foreground">¿Por Qué Elegir RealEstate AI?</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Our platform combines cutting-edge AI with seamless integrations to revolutionize 
-              how real estate professionals handle customer interactions.
+              Nuestra plataforma combina IA de vanguardia con integraciones perfectas para revolucionar 
+              cómo los profesionales inmobiliarios manejan las interacciones con clientes.
             </p>
           </div>
 
@@ -70,10 +70,10 @@ export default function Landing() {
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
                   <MessageCircle className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-foreground">Smart Conversations</h3>
+                <h3 className="text-xl font-semibold mb-3 text-foreground">Conversaciones Inteligentes</h3>
                 <p className="text-muted-foreground">
-                  AI-powered chat that understands real estate terminology and guides 
-                  prospects through the buying journey naturally.
+                  Chat impulsado por IA que entiende terminología inmobiliaria y guía 
+                  a los prospectos en el proceso de compra de manera natural.
                 </p>
               </CardContent>
             </Card>
@@ -83,10 +83,10 @@ export default function Landing() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-accent" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-foreground">Automated Scheduling</h3>
+                <h3 className="text-xl font-semibold mb-3 text-foreground">Agendamiento Automático</h3>
                 <p className="text-muted-foreground">
-                  Seamlessly book property viewings and meetings directly through WhatsApp 
-                  with calendar integration.
+                  Agenda visitas a propiedades y reuniones directamente por WhatsApp 
+                  con integración de calendario.
                 </p>
               </CardContent>
             </Card>
@@ -96,10 +96,10 @@ export default function Landing() {
                 <div className="w-12 h-12 bg-chart-3/10 rounded-lg flex items-center justify-center mb-4">
                   <TrendingUp className="w-6 h-6 text-green-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-foreground">Lead Generation</h3>
+                <h3 className="text-xl font-semibold mb-3 text-foreground">Generación de Prospectos</h3>
                 <p className="text-muted-foreground">
-                  Automatically qualify leads and integrate with your CRM to track 
-                  every prospect from first contact to closing.
+                  Califica prospectos automáticamente e integra con tu CRM para rastrear 
+                  cada cliente desde el primer contacto hasta el cierre.
                 </p>
               </CardContent>
             </Card>
@@ -113,7 +113,7 @@ export default function Landing() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl font-bold mb-6 text-foreground">
-                Everything You Need to Scale Your Business
+                Todo lo que Necesitas para Hacer Crecer tu Negocio
               </h2>
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
@@ -121,8 +121,8 @@ export default function Landing() {
                     <Zap className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">24/7 Availability</h3>
-                    <p className="text-muted-foreground">Your AI assistant never sleeps, capturing leads and answering questions around the clock.</p>
+                    <h3 className="font-semibold text-foreground">Disponibilidad 24/7</h3>
+                    <p className="text-muted-foreground">Tu asistente de IA nunca duerme, capturando prospectos y respondiendo preguntas las 24 horas.</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
@@ -130,8 +130,8 @@ export default function Landing() {
                     <Shield className="w-4 h-4 text-accent" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Secure & Compliant</h3>
-                    <p className="text-muted-foreground">Enterprise-grade security with full compliance for real estate regulations.</p>
+                    <h3 className="font-semibold text-foreground">Seguro y Conforme</h3>
+                    <p className="text-muted-foreground">Seguridad empresarial con cumplimiento total de regulaciones inmobiliarias.</p>
                   </div>
                 </div>
                 <div className="flex items-start space-x-4">
@@ -139,8 +139,8 @@ export default function Landing() {
                     <Building className="w-4 h-4 text-green-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">CRM Integration</h3>
-                    <p className="text-muted-foreground">Seamlessly connects with AlterEstate and other popular real estate CRM systems.</p>
+                    <h3 className="font-semibold text-foreground">Integración CRM</h3>
+                    <p className="text-muted-foreground">Se conecta perfectamente con AlterEstate y otros sistemas CRM inmobiliarios populares.</p>
                   </div>
                 </div>
               </div>
@@ -155,16 +155,16 @@ export default function Landing() {
                     <p className="font-medium text-foreground">RealEstate AI Assistant</p>
                     <p className="text-xs text-green-600 flex items-center">
                       <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                      Online
+                      En línea
                     </p>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="bg-primary text-primary-foreground p-3 rounded-lg max-w-xs">
-                    <p className="text-sm">Hi! I'm looking for a 3-bedroom house in Miami under $800k</p>
+                    <p className="text-sm">¡Hola! Busco una casa de 3 habitaciones en Miami por menos de $800k</p>
                   </div>
                   <div className="bg-muted p-3 rounded-lg">
-                    <p className="text-sm text-foreground">Hello! I'd love to help you find the perfect home in Miami. I have several great options in your budget range. Would you prefer a specific neighborhood?</p>
+                    <p className="text-sm text-foreground">¡Hola! Me encantaría ayudarte a encontrar la casa perfecta en Miami. Tengo varias excelentes opciones en tu rango de presupuesto. ¿Prefieres algún barrio específico?</p>
                   </div>
                 </div>
               </div>
@@ -177,11 +177,11 @@ export default function Landing() {
       <section className="py-20 bg-primary">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4 text-primary-foreground">
-            Ready to Transform Your Real Estate Business?
+            ¿Listo para Transformar tu Negocio Inmobiliario?
           </h2>
           <p className="text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
-            Join hundreds of real estate professionals who are already using AI to 
-            automate their WhatsApp conversations and grow their business.
+            Únete a cientos de profesionales inmobiliarios que ya están usando IA para 
+            automatizar sus conversaciones de WhatsApp y hacer crecer su negocio.
           </p>
           <Button 
             size="lg" 
@@ -189,7 +189,7 @@ export default function Landing() {
             onClick={() => window.location.href = '/api/login'}
             data-testid="button-get-started"
           >
-            Get Started Now
+            Comenzar Ahora
           </Button>
         </div>
       </section>
@@ -204,7 +204,7 @@ export default function Landing() {
             <span className="font-semibold text-foreground">RealEstate AI Assistant</span>
           </div>
           <p className="text-muted-foreground">
-            © 2025 RealEstate AI Assistant. All rights reserved.
+            © 2025 RealEstate AI Assistant. Todos los derechos reservados.
           </p>
         </div>
       </footer>

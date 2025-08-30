@@ -23,11 +23,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { user } = useAuth();
 
   const navigation = [
-    { name: "Dashboard", href: "/", icon: BarChart3, current: location === "/" },
-    { name: "Conversations", href: "/conversations", icon: MessageCircle, current: location === "/conversations", badge: "3" },
-    { name: "Properties", href: "/properties", icon: Building, current: location === "/properties" },
-    { name: "Leads", href: "/leads", icon: Users, current: location === "/leads" },
-    { name: "Appointments", href: "/appointments", icon: Calendar, current: location === "/appointments" },
+    { name: "Panel", href: "/", icon: BarChart3, current: location === "/" },
+    { name: "Conversaciones", href: "/conversations", icon: MessageCircle, current: location === "/conversations", badge: "3" },
+    { name: "Propiedades", href: "/properties", icon: Building, current: location === "/properties" },
+    { name: "Prospectos", href: "/leads", icon: Users, current: location === "/leads" },
+    { name: "Citas", href: "/appointments", icon: Calendar, current: location === "/appointments" },
   ];
 
   return (
@@ -41,7 +41,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {!collapsed && (
             <div className="transition-opacity duration-300">
               <h1 className="text-lg font-semibold text-sidebar-foreground">RealEstate AI</h1>
-              <p className="text-xs text-muted-foreground">Assistant</p>
+              <p className="text-xs text-muted-foreground">Asistente</p>
             </div>
           )}
         </div>
@@ -114,7 +114,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             data-testid="link-settings"
           >
             <Settings className="w-5 h-5 text-sidebar-foreground" />
-            {!collapsed && <span className="text-sidebar-foreground">Settings</span>}
+            {!collapsed && <span className="text-sidebar-foreground">Configuración</span>}
           </a>
         </Link>
 
@@ -136,7 +136,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="text-sm font-medium text-sidebar-foreground truncate">
                 {(user as any)?.firstName || (user as any)?.email || 'User'}
               </div>
-              <div className="text-xs text-muted-foreground">Pro Plan</div>
+              <div className="text-xs text-muted-foreground">Plan Pro</div>
             </div>
           )}
         </div>
@@ -150,7 +150,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
             data-testid="button-logout"
           >
-            Logout
+            Cerrar Sesión
           </Button>
         )}
       </div>

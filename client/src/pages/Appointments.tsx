@@ -86,9 +86,9 @@ export default function Appointments() {
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-semibold mb-2 text-foreground">Appointments</h2>
+          <h2 className="text-2xl font-semibold mb-2 text-foreground">Citas</h2>
           <p className="text-muted-foreground">
-            Manage property viewings and meetings scheduled through AI conversations
+            Administra visitas a propiedades y reuniones agendadas a través de conversaciones de IA
           </p>
         </div>
 

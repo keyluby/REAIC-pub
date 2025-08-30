@@ -57,9 +57,9 @@ export default function Conversations() {
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-semibold mb-2 text-foreground">Conversations</h2>
+          <h2 className="text-2xl font-semibold mb-2 text-foreground">Conversaciones</h2>
           <p className="text-muted-foreground">
-            Manage all your WhatsApp conversations and monitor AI interactions
+            Administra todas tus conversaciones de WhatsApp y supervisa las interacciones de IA
           </p>
         </div>
 

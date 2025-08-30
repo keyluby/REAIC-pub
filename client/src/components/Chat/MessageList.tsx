@@ -24,7 +24,7 @@ export default function MessageList({ conversationId }: MessageListProps) {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="w-8 h-8 bg-primary rounded-lg animate-pulse mx-auto mb-2"></div>
-          <p className="text-sm text-muted-foreground">Loading messages...</p>
+          <p className="text-sm text-muted-foreground">Cargando mensajes...</p>
         </div>
       </div>
     );
@@ -37,9 +37,9 @@ export default function MessageList({ conversationId }: MessageListProps) {
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <Bot className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-medium text-foreground mb-2">No messages yet</h3>
+          <h3 className="text-lg font-medium text-foreground mb-2">Aún no hay mensajes</h3>
           <p className="text-sm text-muted-foreground">
-            This conversation hasn't started yet
+            Esta conversación aún no ha comenzado
           </p>
         </div>
       </div>
