@@ -25,14 +25,21 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
       const response = await apiRequest('GET', `/api/whatsapp/qr-code/${instanceName}`);
       const data = await response.json();
       
+      console.log('QR Code response:', data); // Debug log
+      
+      // Evolution API puede devolver diferentes formatos
       if (data.base64) {
         setQrCode(data.base64);
+      } else if (data.code) {
+        setQrCode(data.code);
+      } else if (data.pairingCode) {
+        setError('Esta instancia usa código de emparejamiento. Reconecta desde tu dispositivo.');
       } else {
-        setError('QR code not available');
+        setError('Código QR no disponible');
       }
     } catch (error) {
       console.error('Error fetching QR code:', error);
-      setError('Failed to load QR code');
+      setError('Error al cargar el código QR');
     } finally {
       setIsLoading(false);
     }
@@ -57,13 +64,13 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
             <div className="w-8 h-8 bg-green-500/10 rounded-full flex items-center justify-center">
               <i className="fab fa-whatsapp text-green-500 text-lg"></i>
             </div>
-            <span>Connect WhatsApp</span>
+            <span>Conectar WhatsApp</span>
           </DialogTitle>
         </DialogHeader>
         
         <div className="text-center py-6">
           <p className="text-muted-foreground mb-6">
-            Scan the QR code with your phone to connect your WhatsApp account
+Escanea el código QR con tu teléfono para conectar tu cuenta de WhatsApp
           </p>
           
           {/* QR Code Display */}
@@ -71,7 +78,7 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
             {isLoading ? (
               <div className="text-center">
                 <RefreshCw className="w-8 h-8 text-muted-foreground animate-spin mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading QR code...</p>
+                <p className="text-sm text-muted-foreground">Cargando código QR...</p>
               </div>
             ) : error ? (
               <div className="text-center">
@@ -88,7 +95,7 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
             ) : (
               <div className="text-center">
                 <QrCode className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">QR code will appear here</p>
+                <p className="text-sm text-muted-foreground">El código QR aparecerá aquí</p>
               </div>
             )}
           </div>
@@ -100,7 +107,7 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
               className="flex-1"
               data-testid="button-cancel-qr"
             >
-              Cancel
+              Cancelar
             </Button>
             <Button 
               onClick={handleRefresh}
@@ -113,7 +120,7 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
               ) : (
                 <RefreshCw className="w-4 h-4 mr-2" />
               )}
-              Refresh QR
+              Actualizar QR
             </Button>
           </div>
         </div>

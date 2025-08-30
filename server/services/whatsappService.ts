@@ -46,7 +46,26 @@ export class WhatsAppService {
         `${this.evolutionApiUrl}/instance/connect/${instanceName}`,
         { headers: this.getHeaders() }
       );
-      return response.data;
+      
+      // Evolution API puede devolver diferentes formatos
+      const data = response.data;
+      
+      // Si tiene base64, lo usamos directamente
+      if (data.base64) {
+        return { base64: data.base64 };
+      }
+      
+      // Si tiene pairingCode, puede ser que necesitemos otro endpoint
+      if (data.pairingCode) {
+        return { base64: data.base64 || null, pairingCode: data.pairingCode };
+      }
+      
+      // Si tiene code (formato común)
+      if (data.code) {
+        return { base64: data.code };
+      }
+      
+      return data;
     } catch (error) {
       console.error('Error getting QR code:', error);
       throw new Error('Failed to get QR code');

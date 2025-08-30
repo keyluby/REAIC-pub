@@ -39,7 +39,7 @@ export default function WhatsAppConnection() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Smartphone className="w-5 h-5 text-primary" />
-            <span>WhatsApp Connection</span>
+            <span>Conexión de WhatsApp</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -48,18 +48,18 @@ export default function WhatsAppConnection() {
               <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fab fa-whatsapp text-green-500 text-2xl"></i>
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No WhatsApp Connected</h3>
+              <h3 className="text-lg font-medium text-foreground mb-2">WhatsApp No Conectado</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Connect your WhatsApp account to start receiving and sending messages
+                Conecta tu cuenta de WhatsApp para comenzar a recibir y enviar mensajes
               </p>
               <Button onClick={handleCreateInstance} data-testid="button-connect-whatsapp">
                 <QrCode className="w-4 h-4 mr-2" />
-                Connect WhatsApp
+                Conectar WhatsApp
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              {instances.map((instance: any) => (
+              {instances.slice(0, 1).map((instance: any) => (
                 <div key={instance.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
@@ -80,11 +80,12 @@ export default function WhatsAppConnection() {
                               : 'bg-red-500/10 text-red-600'
                           }
                         >
-                          {instance.status}
+                          {instance.status === 'CONNECTED' ? 'Conectado' : 
+                           instance.status === 'CONNECTING' ? 'Conectando' : 'Desconectado'}
                         </Badge>
                         {instance.lastSeen && (
                           <span className="text-xs text-muted-foreground">
-                            Last seen: {new Date(instance.lastSeen).toLocaleString()}
+                            Última vez visto: {new Date(instance.lastSeen).toLocaleString('es-ES')}
                           </span>
                         )}
                       </div>
@@ -109,7 +110,7 @@ export default function WhatsAppConnection() {
                         data-testid={`button-reconnect-${instance.id}`}
                       >
                         <QrCode className="w-4 h-4 mr-2" />
-                        Reconnect
+                        Reconectar
                       </Button>
                     )}
                     
@@ -125,15 +126,25 @@ export default function WhatsAppConnection() {
                 </div>
               ))}
               
-              <Button
-                variant="outline"
-                onClick={handleCreateInstance}
-                className="w-full"
-                data-testid="button-add-instance"
-              >
-                <QrCode className="w-4 h-4 mr-2" />
-                Add Another Instance
-              </Button>
+              {instances.length < 1 && (
+                <Button
+                  variant="outline"
+                  onClick={handleCreateInstance}
+                  className="w-full"
+                  data-testid="button-add-instance"
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Conectar WhatsApp
+                </Button>
+              )}
+              
+              {instances.length >= 1 && (
+                <div className="text-center p-4 bg-muted/30 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Solo se permite una instancia de WhatsApp por cuenta
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

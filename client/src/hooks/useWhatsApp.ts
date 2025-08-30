@@ -18,8 +18,8 @@ export function useWhatsApp() {
     },
     onSuccess: () => {
       toast({
-        title: "WhatsApp instance created",
-        description: "Scan the QR code to connect your WhatsApp account",
+        title: "Instancia de WhatsApp creada",
+        description: "Escanea el código QR para conectar tu cuenta de WhatsApp",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/instances"] });
     },
@@ -37,7 +37,7 @@ export function useWhatsApp() {
       }
       toast({
         title: "Error",
-        description: "Failed to create WhatsApp instance",
+        description: "Error al crear la instancia de WhatsApp",
         variant: "destructive",
       });
     },
@@ -49,8 +49,8 @@ export function useWhatsApp() {
     },
     onSuccess: () => {
       toast({
-        title: "WhatsApp disconnected",
-        description: "Your WhatsApp account has been disconnected",
+        title: "WhatsApp desconectado",
+        description: "Tu cuenta de WhatsApp ha sido desconectada",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/instances"] });
     },
