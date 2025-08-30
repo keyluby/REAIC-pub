@@ -66,6 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/whatsapp/instance-status/:instanceName', isAuthenticated, whatsappController.getInstanceStatus);
   app.delete('/api/whatsapp/logout/:instanceName', isAuthenticated, whatsappController.logoutInstance);
   app.get('/api/whatsapp/instances', isAuthenticated, whatsappController.getUserInstances);
+  app.get('/api/whatsapp/test-connection', isAuthenticated, whatsappController.testConnection);
 
   // WhatsApp webhook
   app.post('/webhook/whatsapp/:instanceName', whatsappController.handleWebhook);

@@ -109,6 +109,16 @@ class WhatsAppController {
     }
   }
 
+  async testConnection(req: any, res: Response) {
+    try {
+      const connectionTest = await whatsappService.testConnection();
+      res.json(connectionTest);
+    } catch (error) {
+      console.error('Error testing connection:', error);
+      res.status(500).json({ message: 'Failed to test connection' });
+    }
+  }
+
   async handleWebhook(req: Request, res: Response) {
     try {
       const { instanceName } = req.params;

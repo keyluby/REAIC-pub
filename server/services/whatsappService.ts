@@ -13,7 +13,7 @@ export class WhatsAppService {
   private getHeaders() {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'apikey': this.apiKey,
     };
   }
 
@@ -23,6 +23,7 @@ export class WhatsAppService {
         `${this.evolutionApiUrl}/instance/create`,
         {
           instanceName,
+          integration: "WHATSAPP-BAILEYS",
           qrcode: true,
           webhook: {
             url: webhookUrl,
@@ -129,6 +130,34 @@ export class WhatsAppService {
     } catch (error) {
       console.error('Error setting typing status:', error);
       // Don't throw error for typing status as it's not critical
+    }
+  }
+
+  // Método para diagnosticar la conexión
+  async testConnection() {
+    try {
+      console.log('Testing Evolution API connection...');
+      console.log('URL:', this.evolutionApiUrl);
+      console.log('API Key exists:', !!this.apiKey);
+      
+      // Test básico - obtener información del servidor
+      const response = await axios.get(
+        `${this.evolutionApiUrl}/`,
+        { headers: this.getHeaders() }
+      );
+      
+      return {
+        success: true,
+        status: response.status,
+        data: response.data
+      };
+    } catch (error: any) {
+      console.error('Evolution API connection test failed:', error.response?.data || error.message);
+      return {
+        success: false,
+        status: error.response?.status || 0,
+        error: error.response?.data || error.message
+      };
     }
   }
 }
