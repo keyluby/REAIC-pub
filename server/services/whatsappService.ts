@@ -13,7 +13,7 @@ export class WhatsAppService {
   private getHeaders() {
     return {
       'Content-Type': 'application/json',
-      'apikey': this.apiKey,
+      'Authorization': `Bearer ${this.apiKey}`,
     };
   }
 
@@ -23,9 +23,12 @@ export class WhatsAppService {
         `${this.evolutionApiUrl}/instance/create`,
         {
           instanceName,
-          webhook: webhookUrl,
-          webhook_by_events: true,
-          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+          qrcode: true,
+          webhook: {
+            url: webhookUrl,
+            byEvents: true,
+            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE']
+          }
         },
         { headers: this.getHeaders() }
       );
