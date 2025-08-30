@@ -41,7 +41,7 @@ export const users = pgTable("users", {
 
 export const userSettings = pgTable("user_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
   
   // Assistant configuration
   assistantName: varchar("assistant_name").default("Asistente IA"),

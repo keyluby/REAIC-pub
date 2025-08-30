@@ -30,11 +30,14 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
       // Evolution API puede devolver diferentes formatos
       if (data.base64) {
         setQrCode(data.base64);
+        console.log('QR code set successfully');
       } else if (data.code) {
         setQrCode(data.code);
+        console.log('QR code set from .code field');
       } else if (data.pairingCode) {
         setError('Esta instancia usa código de emparejamiento. Reconecta desde tu dispositivo.');
       } else {
+        console.log('No QR data found in response:', data);
         setError('Código QR no disponible');
       }
     } catch (error) {
@@ -87,10 +90,15 @@ Escanea el código QR con tu teléfono para conectar tu cuenta de WhatsApp
               </div>
             ) : qrCode ? (
               <img 
-                src={`data:image/png;base64,${qrCode}`} 
-                alt="WhatsApp QR Code"
+                src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`} 
+                alt="Código QR de WhatsApp"
                 className="w-full h-full object-contain rounded"
                 data-testid="qr-code-image"
+                onError={(e) => {
+                  console.error('Error loading QR image:', e);
+                  setError('Error al cargar la imagen del código QR');
+                }}
+                onLoad={() => console.log('QR image loaded successfully')}
               />
             ) : (
               <div className="text-center">
