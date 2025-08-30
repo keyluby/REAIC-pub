@@ -64,9 +64,6 @@ export const userSettings = pgTable("user_settings", {
   messageDelay: integer("message_delay").default(2), // seconds
   humanizeResponses: boolean("humanize_responses").default(true),
   
-  // Evolution API configuration
-  evolutionApiUrl: varchar("evolution_api_url").default("https://personal-evolution-api.rcwlba.easypanel.host"),
-  evolutionApiKey: varchar("evolution_api_key"),
   
   // CRM configuration
   alterEstateToken: varchar("alter_estate_token"),

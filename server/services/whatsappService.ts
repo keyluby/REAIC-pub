@@ -4,15 +4,10 @@ export class WhatsAppService {
   private evolutionApiUrl: string;
   private apiKey: string;
 
-  constructor(evolutionApiUrl?: string, apiKey?: string) {
-    this.evolutionApiUrl = evolutionApiUrl || process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-    this.apiKey = apiKey || process.env.EVOLUTION_API_KEY || '';
-  }
-
-  // Method to update configuration dynamically
-  updateConfig(evolutionApiUrl: string, apiKey: string) {
-    this.evolutionApiUrl = evolutionApiUrl;
-    this.apiKey = apiKey;
+  constructor() {
+    // Usar tu servidor VPS automáticamente
+    this.evolutionApiUrl = 'https://personal-evolution-api.rcwlba.easypanel.host';
+    this.apiKey = process.env.EVOLUTION_API_KEY || '';
   }
 
   private getHeaders() {

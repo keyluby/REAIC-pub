@@ -39,9 +39,6 @@ export default function SettingsPage() {
     notificationEmail: '',
     notificationWhatsApp: '',
     
-    // Evolution API configuration
-    evolutionApiUrl: 'https://personal-evolution-api.rcwlba.easypanel.host',
-    evolutionApiKey: '',
     
     // Legacy fields
     bufferTime: 10,
@@ -94,9 +91,6 @@ export default function SettingsPage() {
         notificationEmail: settings.notificationEmail || '',
         notificationWhatsApp: settings.notificationWhatsApp || '',
         
-        // Evolution API configuration
-        evolutionApiUrl: settings.evolutionApiUrl || '',
-        evolutionApiKey: settings.evolutionApiKey || '',
         
         // Legacy fields
         bufferTime: settings.bufferTime || 10,
@@ -362,44 +356,6 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="whatsapp" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>🔧 Configuración de Evolution API</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="evolutionApiUrl">URL del Servidor Evolution API</Label>
-                    <Input
-                      id="evolutionApiUrl"
-                      value={formData.evolutionApiUrl}
-                      onChange={(e) => handleInputChange('evolutionApiUrl', e.target.value)}
-                      placeholder="https://tu-vps.com:8080"
-                      data-testid="input-evolution-url"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      URL completa de tu servidor Evolution API instalado en el VPS
-                    </p>
-                  </div>
-                  <div>
-                    <Label htmlFor="evolutionApiKey">API Key de Evolution API</Label>
-                    <Input
-                      id="evolutionApiKey"
-                      type="password"
-                      value={formData.evolutionApiKey}
-                      onChange={(e) => handleInputChange('evolutionApiKey', e.target.value)}
-                      placeholder="Tu API key de Evolution API"
-                      data-testid="input-evolution-key"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Clave de API para autenticación con tu servidor Evolution API
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" data-testid="button-test-evolution-connection">
-                    Probar Conexión
-                  </Button>
-                </CardContent>
-              </Card>
-              
               <WhatsAppConnection />
             </TabsContent>
 
