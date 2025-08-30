@@ -73,8 +73,9 @@ class WhatsAppController {
       const { instanceName } = req.params;
       const status = await whatsappService.getInstanceStatus(instanceName);
       
-      // Update status in database
-      await storage.updateWhatsappInstanceStatus(instanceName, status.instance?.state || 'DISCONNECTED');
+      // Update status in database using mapped status
+      const dbStatus = status.mappedStatus || 'DISCONNECTED';
+      await storage.updateWhatsappInstanceStatus(instanceName, dbStatus);
 
       res.json(status);
     } catch (error) {
@@ -150,6 +151,8 @@ class WhatsAppController {
       if (webhookData.event === 'messages.upsert') {
         await this.handleIncomingMessage(instance, webhookData.data);
       } else if (webhookData.event === 'connection.update') {
+        await this.handleConnectionUpdate(instanceName, webhookData.data);
+      } else if (webhookData.event === 'CONNECTION_UPDATE') {
         await this.handleConnectionUpdate(instanceName, webhookData.data);
       }
 

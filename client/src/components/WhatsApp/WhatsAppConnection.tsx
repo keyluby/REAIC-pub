@@ -8,7 +8,7 @@ import QRCodeModal from "./QRCodeModal";
 
 export default function WhatsAppConnection() {
   const [showQRModal, setShowQRModal] = useState(false);
-  const { instances, isLoading, createInstance, logout, forceDelete, refreshStatus, isLoggingOut, isForceDeleting } = useWhatsApp();
+  const { instances, isLoading, createInstance, logout, forceDelete, refreshStatus, isLoggingOut, isForceDeleting, isRefreshing } = useWhatsApp();
 
   const handleCreateInstance = async () => {
     try {
@@ -97,9 +97,11 @@ export default function WhatsAppConnection() {
                       variant="ghost"
                       size="sm"
                       onClick={() => refreshStatus(instance.instanceName)}
+                      disabled={isRefreshing}
                       data-testid={`button-refresh-${instance.id}`}
+                      title="Actualizar estado de conexión"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                     </Button>
                     
                     {instance.status === 'DISCONNECTED' && (

@@ -10,7 +10,7 @@ export function useWhatsApp() {
 
   const { data: instances = [], isLoading } = useQuery<WhatsappInstance[]>({
     queryKey: ["/api/whatsapp/instances"],
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 2000, // Verificar cada 2 segundos para conexiones rápidas
   });
 
   const createInstanceMutation = useMutation({
@@ -184,6 +184,7 @@ export function useWhatsApp() {
     isCreatingInstance: createInstanceMutation.isPending,
     isLoggingOut: logoutMutation.isPending,
     isForceDeleting: forceDeleteMutation.isPending,
+    isRefreshing: refreshStatusMutation.isPending,
     isSendingMessage: sendMessageMutation.isPending,
   };
 }

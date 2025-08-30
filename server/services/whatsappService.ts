@@ -115,7 +115,22 @@ export class WhatsAppService {
         `${this.evolutionApiUrl}/instance/connectionState/${instanceName}`,
         { headers: this.getHeaders() }
       );
-      return response.data;
+      
+      const data = response.data;
+      console.log(`Status for ${instanceName}:`, data);
+      
+      // Mapear los estados de Evolution API a nuestros estados
+      let mappedStatus = 'DISCONNECTED';
+      if (data.instance?.state === 'open') {
+        mappedStatus = 'CONNECTED';
+      } else if (data.instance?.state === 'connecting') {
+        mappedStatus = 'CONNECTING';
+      }
+      
+      return {
+        ...data,
+        mappedStatus
+      };
     } catch (error) {
       console.error('Error getting instance status:', error);
       throw new Error('Failed to get instance status');
