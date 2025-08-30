@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(220, 20%, 98%);
+  --foreground: hsl(220, 25%, 10%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(220, 25%, 10%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(220, 25%, 10%);
+  --primary: hsl(217, 91%, 60%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(220, 14%, 96%);
+  --secondary-foreground: hsl(220, 20%, 25%);
+  --muted: hsl(220, 14%, 96%);
+  --muted-foreground: hsl(220, 13%, 46%);
+  --accent: hsl(45, 93%, 47%);
+  --accent-foreground: hsl(220, 25%, 10%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --border: hsl(220, 13%, 91%);
+  --input: hsl(220, 13%, 91%);
+  --ring: hsl(217, 91%, 60%);
+  --chart-1: hsl(217, 91%, 60%);
+  --chart-2: hsl(45, 93%, 47%);
+  --chart-3: hsl(142, 76%, 36%);
+  --chart-4: hsl(280, 87%, 47%);
+  --chart-5: hsl(12, 76%, 61%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(220, 25%, 10%);
+  --sidebar-primary: hsl(217, 91%, 60%);
+  --sidebar-primary-foreground: hsl(0, 0%, 98%);
+  --sidebar-accent: hsl(220, 14%, 96%);
+  --sidebar-accent-foreground: hsl(217, 91%, 60%);
+  --sidebar-border: hsl(220, 13%, 91%);
+  --sidebar-ring: hsl(217, 91%, 60%);
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 8px;
+}
+
+.dark {
+  --background: hsl(220, 25%, 4%);
+  --foreground: hsl(220, 20%, 90%);
+  --card: hsl(220, 25%, 8%);
+  --card-foreground: hsl(220, 20%, 90%);
+  --popover: hsl(220, 25%, 8%);
+  --popover-foreground: hsl(220, 20%, 90%);
+  --primary: hsl(217, 91%, 60%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(220, 25%, 12%);
+  --secondary-foreground: hsl(220, 20%, 80%);
+  --muted: hsl(220, 25%, 12%);
+  --muted-foreground: hsl(220, 13%, 46%);
+  --accent: hsl(45, 93%, 47%);
+  --accent-foreground: hsl(220, 25%, 10%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --border: hsl(220, 25%, 16%);
+  --input: hsl(220, 25%, 16%);
+  --ring: hsl(217, 91%, 60%);
+  --sidebar: hsl(220, 25%, 8%);
+  --sidebar-foreground: hsl(220, 20%, 90%);
+  --sidebar-primary: hsl(217, 91%, 60%);
+  --sidebar-primary-foreground: hsl(0, 0%, 98%);
+  --sidebar-accent: hsl(220, 25%, 12%);
+  --sidebar-accent-foreground: hsl(217, 91%, 60%);
+  --sidebar-border: hsl(220, 25%, 16%);
+  --sidebar-ring: hsl(217, 91%, 60%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.sidebar-collapsed {
+  width: 4rem;
+}
+
+.sidebar-expanded {
+  width: 16rem;
+}
+
+.chat-message-user {
+  background: linear-gradient(135deg, var(--primary), hsl(217, 91%, 70%));
+}
+
+.chat-message-ai {
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .sidebar-expanded {
+    width: 100%;
+    position: fixed;
+    z-index: 50;
+  }
+}
+
+.property-card:hover {
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+.online-indicator {
+  animation: pulse 2s infinite;
+}

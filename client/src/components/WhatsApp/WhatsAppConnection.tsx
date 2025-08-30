@@ -1,0 +1,149 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Smartphone, QrCode, Power, RefreshCw } from "lucide-react";
+import { useWhatsApp } from "@/hooks/useWhatsApp";
+import QRCodeModal from "./QRCodeModal";
+
+export default function WhatsAppConnection() {
+  const [showQRModal, setShowQRModal] = useState(false);
+  const { instances, isLoading, createInstance, logout, refreshStatus } = useWhatsApp();
+
+  const handleCreateInstance = async () => {
+    try {
+      const instanceName = `instance_${Date.now()}`;
+      await createInstance(instanceName);
+      setShowQRModal(true);
+    } catch (error) {
+      console.error('Error creating instance:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-muted rounded mb-4"></div>
+            <div className="h-8 bg-muted rounded"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Smartphone className="w-5 h-5 text-primary" />
+            <span>WhatsApp Connection</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {instances.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fab fa-whatsapp text-green-500 text-2xl"></i>
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">No WhatsApp Connected</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Connect your WhatsApp account to start receiving and sending messages
+              </p>
+              <Button onClick={handleCreateInstance} data-testid="button-connect-whatsapp">
+                <QrCode className="w-4 h-4 mr-2" />
+                Connect WhatsApp
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {instances.map((instance: any) => (
+                <div key={instance.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
+                      <i className="fab fa-whatsapp text-green-500 text-lg"></i>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground" data-testid={`instance-name-${instance.id}`}>
+                        {instance.phoneNumber || instance.instanceName}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant={instance.status === 'CONNECTED' ? 'default' : 'secondary'}
+                          className={
+                            instance.status === 'CONNECTED' 
+                              ? 'bg-green-500/10 text-green-600' 
+                              : instance.status === 'CONNECTING'
+                              ? 'bg-yellow-500/10 text-yellow-600'
+                              : 'bg-red-500/10 text-red-600'
+                          }
+                        >
+                          {instance.status}
+                        </Badge>
+                        {instance.lastSeen && (
+                          <span className="text-xs text-muted-foreground">
+                            Last seen: {new Date(instance.lastSeen).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => refreshStatus(instance.instanceName)}
+                      data-testid={`button-refresh-${instance.id}`}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </Button>
+                    
+                    {instance.status === 'DISCONNECTED' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowQRModal(true)}
+                        data-testid={`button-reconnect-${instance.id}`}
+                      >
+                        <QrCode className="w-4 h-4 mr-2" />
+                        Reconnect
+                      </Button>
+                    )}
+                    
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => logout(instance.instanceName)}
+                      data-testid={`button-disconnect-${instance.id}`}
+                    >
+                      <Power className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              <Button
+                variant="outline"
+                onClick={handleCreateInstance}
+                className="w-full"
+                data-testid="button-add-instance"
+              >
+                <QrCode className="w-4 h-4 mr-2" />
+                Add Another Instance
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <QRCodeModal 
+        open={showQRModal} 
+        onClose={() => setShowQRModal(false)}
+        instanceName={instances[0]?.instanceName}
+      />
+    </>
+  );
+}
