@@ -1,0 +1,869 @@
+# Prompts para Desarrollo del SAAS WhatsApp AI Inmobiliario en Replit
+
+## 1. PROMPT INICIAL - Configuración del Proyecto Base
+
+```
+Crea una aplicación web SAAS completa llamada "RealEstate AI Assistant" con las siguientes especificaciones técnicas:
+
+STACK TECNOLÓGICO:
+- Backend: Node.js con Express.js
+- Frontend: React.js con Tailwind CSS
+- Base de datos: PostgreSQL con Prisma ORM
+- Autenticación: JWT tokens con bcrypt
+- WebSockets: Socket.io para tiempo real
+- Queue system: Bull queue con Redis
+
+ESTRUCTURA DEL PROYECTO:
+```
+/
+├── server/
+│   ├── routes/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── services/
+│   ├── models/
+│   └── utils/
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   └── utils/
+└── shared/
+```
+
+CONFIGURACIÓN INICIAL:
+1. Sistema de autenticación completo (registro, login, recuperar contraseña)
+2. Dashboard principal con sidebar navegación
+3. Sistema de subscripciones (Free, Pro, Enterprise)
+4. Configuración de variables de entorno para APIs externas
+5. Middleware de rate limiting y validación de datos
+6. Sistema de logs estructurados
+
+CARACTERÍSTICAS DE SEGURIDAD:
+- Validación de datos con Joi
+- Sanitización de inputs
+- CORS configurado
+- Rate limiting por usuario
+- Encriptación de datos sensibles
+
+Implementa la estructura base con estos componentes principales:
+- Registro/Login de usuarios
+- Dashboard principal
+- Perfil de usuario
+- Sistema de billing básico
+- Configuración de API keys
+```
+
+## 2. PROMPT - Integración con Evolution API
+
+```
+Implementa la integración completa con Evolution API para WhatsApp siguiendo estas especificaciones:
+
+FUNCIONALIDADES REQUERIDAS:
+1. Conexión QR para vincular WhatsApp
+2. Recepción de mensajes en tiempo real
+3. Envío de mensajes (texto, imágenes, audio)
+4. Manejo de estados de conexión
+5. Reconexión automática
+
+ENDPOINTS A IMPLEMENTAR:
+- POST /api/whatsapp/create-instance - Crear instancia de WhatsApp
+- GET /api/whatsapp/qr-code/:instanceName - Obtener código QR
+- POST /api/whatsapp/send-message - Enviar mensaje
+- GET /api/whatsapp/instance-status/:instanceName - Estado de la instancia
+- DELETE /api/whatsapp/logout/:instanceName - Desconectar WhatsApp
+
+SERVICIO DE WHATSAPP (server/services/whatsappService.js):
+```javascript
+class WhatsAppService {
+  constructor() {
+    this.evolutionApiUrl = process.env.EVOLUTION_API_URL;
+    this.apiKey = process.env.EVOLUTION_API_KEY;
+  }
+
+  async createInstance(instanceName, webhook_url) {
+    // Implementar creación de instancia
+  }
+
+  async getQRCode(instanceName) {
+    // Implementar obtención de QR
+  }
+
+  async sendMessage(instanceName, number, message) {
+    // Implementar envío de mensaje
+  }
+
+  async getInstanceStatus(instanceName) {
+    // Implementar verificación de estado
+  }
+}
+```
+
+WEBHOOK HANDLER:
+- Endpoint POST /webhook/whatsapp para recibir mensajes
+- Procesamiento de diferentes tipos de mensaje (texto, imagen, audio)
+- Queue para procesar mensajes de forma asíncrona
+- Emisión de eventos en tiempo real vía WebSocket
+
+FRONTEND COMPONENTS:
+- WhatsAppConnection.jsx - Componente para mostrar QR y estado
+- MessageHistory.jsx - Historial de conversaciones
+- ConnectionStatus.jsx - Indicador de estado de conexión
+
+CONSIDERACIONES:
+- Manejo de errores de conexión
+- Retry automático para mensajes fallidos
+- Logs detallados de todas las operaciones
+- Almacenamiento seguro de tokens de instancia
+```
+
+## 3. PROMPT - Integración con AlterEstate CRM
+
+```
+Implementa la integración completa con la API de AlterEstate CRM basándome en la documentación proporcionada:
+
+SERVICIO DE ALTERESTATE (server/services/alterEstateService.js):
+```javascript
+class AlterEstateService {
+  constructor() {
+    this.baseUrl = 'https://secure.alterestate.com/api/v1';
+  }
+
+  // Propiedades
+  async getAllProperties(filters = {}) {
+    // Implementar filtrado de propiedades con todos los parámetros disponibles
+  }
+
+  async getPropertyDetail(propertySlug) {
+    // Implementar vista detallada de propiedad
+  }
+
+  // Leads
+  async createLead(leadData) {
+    // Implementar creación de leads con manejo de duplicados
+  }
+
+  // Ubicaciones
+  async getCities(countryId = 149) {
+    // Implementar obtención de ciudades
+  }
+
+  async getSectors(cityId) {
+    // Implementar obtención de sectores
+  }
+
+  // Agentes
+  async getAgents() {
+    // Implementar obtención de agentes
+  }
+
+  // Desarrollos
+  async getUnits(projectSlug) {
+    // Implementar obtención de unidades
+  }
+}
+```
+
+ENDPOINTS DEL BACKEND:
+- GET /api/crm/properties - Listar propiedades con filtros
+- GET /api/crm/properties/:slug - Detalle de propiedad
+- POST /api/crm/leads - Crear lead
+- GET /api/crm/locations/cities - Obtener ciudades
+- GET /api/crm/locations/sectors/:cityId - Obtener sectores
+- GET /api/crm/agents - Obtener agentes
+
+CONFIGURACIÓN DE USUARIO:
+- Formulario para ingresar API token de AlterEstate
+- Validación de token y permisos
+- Configuración de parámetros por defecto (moneda, país, etc.)
+- Test de conexión con la API
+
+CACHE INTELIGENTE:
+- Cache de ubicaciones (ciudades, sectores) por 24 horas
+- Cache de propiedades por 1 hora
+- Invalidación manual de cache
+- Uso de Redis para cache distribuido
+
+ERROR HANDLING:
+- Manejo específico de códigos de error de AlterEstate
+- Retry automático para errores temporales
+- Logging detallado de errores de API
+- Notificaciones al usuario sobre problemas de conexión
+```
+
+## 4. PROMPT - Sistema de IA Conversacional
+
+```
+Implementa un sistema de IA conversacional avanzado para agentes inmobiliarios con estas especificaciones:
+
+SERVICIO DE IA (server/services/aiService.js):
+```javascript
+class AIService {
+  constructor() {
+    this.openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.conversationContexts = new Map();
+  }
+
+  async processConversation(userId, message, context) {
+    // Implementar lógica de conversación
+  }
+
+  async generatePropertyRecommendations(preferences) {
+    // Recomendar propiedades basado en preferencias
+  }
+
+  async transcribeAudio(audioBuffer) {
+    // Transcribir mensajes de voz
+  }
+
+  async analyzeImage(imageBuffer) {
+    // Analizar imágenes enviadas por usuarios
+  }
+}
+```
+
+PROMPT SYSTEM PARA IA:
+```
+Eres un asistente de ventas inmobiliarias experto llamado [NOMBRE_CONFIGURADO]. Tu objetivo es ayudar a los clientes a encontrar la propiedad perfecta de manera conversacional y humana.
+
+PERSONALIDAD:
+- Profesional pero amigable
+- Empático y consultivo
+- Orientado a soluciones
+- Paciente y detallado
+
+PROCESO DE CALIFICACIÓN:
+1. Saludo personalizado
+2. Determinar tipo de búsqueda (compra/alquiler)
+3. Establecer presupuesto y moneda
+4. Identificar ubicación preferida
+5. Determinar características requeridas
+6. Mostrar opciones relevantes
+7. Agendar visita si hay interés
+
+REGLAS:
+- Siempre pregunta antes de mostrar propiedades
+- Máximo 3 propiedades por respuesta
+- Incluye imágenes cuando sea relevante
+- Usa información actualizada del CRM
+- Escala a humano cuando se solicite
+```
+
+FUNCIONALIDADES AVANZADAS:
+- Sistema de memoria conversacional por usuario
+- Análisis de sentimientos en tiempo real
+- Detección de intención (búsqueda, consulta, queja, etc.)
+- Personalización basada en historial
+- Integración con calendario para citas
+
+MANEJO DE MULTIMEDIA:
+- Transcripción automática de audios vía Whisper API
+- Análisis de imágenes vía Vision API
+- Generación de descripciones de propiedades
+- OCR para documentos enviados
+
+CONFIGURACIÓN POR USUARIO:
+- Personalización del asistente (nombre, tono, idioma)
+- Configuración de flujos de conversación
+- Templates de respuestas personalizables
+- Horarios de operación
+```
+
+## 5. PROMPT - Sistema de Buffer y Humanización
+
+```
+Implementa un sistema avanzado de buffer y humanización de mensajes:
+
+SERVICIO DE BUFFER (server/services/messageBufferService.js):
+```javascript
+class MessageBufferService {
+  constructor() {
+    this.userBuffers = new Map();
+    this.timers = new Map();
+  }
+
+  addMessageToBuffer(userId, message) {
+    // Agregar mensaje al buffer del usuario
+    // Reiniciar timer de espera
+  }
+
+  processBufferedMessages(userId) {
+    // Unificar mensajes del buffer
+    // Enviar a IA para procesamiento
+    // Limpiar buffer
+  }
+
+  humanizeResponse(response, maxChunkSize = 160) {
+    // Dividir respuesta en chunks naturales
+    // Calcular delays entre mensajes
+    // Simular indicador de escritura
+  }
+}
+```
+
+CONFIGURACIONES POR USUARIO:
+- Tiempo de buffer (5-60 segundos)
+- Tamaño máximo de chunks (100-300 caracteres)
+- Delay entre mensajes (1-5 segundos)
+- Activar/desactivar indicador de escritura
+
+LÓGICA DE HUMANIZACIÓN:
+1. Recibir múltiples mensajes del usuario
+2. Bufferizar por tiempo configurado
+3. Unificar en contexto único
+4. Procesar con IA
+5. Dividir respuesta en chunks naturales
+6. Enviar con delays simulando escritura humana
+
+INDICADORES VISUALES:
+- "Escribiendo..." mientras procesa
+- Delays proporcionales a longitud del mensaje
+- Chunks que respetan puntuación natural
+- Evitar cortes abruptos de palabras
+
+OPTIMIZACIONES:
+- Queue separada para mensajes con buffer
+- Cancelación de buffers si hay urgencia
+- Priorización de mensajes administrativos
+- Métricas de tiempo de respuesta
+```
+
+## 6. PROMPT - Sistema de Citas y Calendario
+
+```
+Implementa un sistema completo de gestión de citas con integración a Google Calendar y Cal.com:
+
+SERVICIO DE CALENDARIO (server/services/calendarService.js):
+```javascript
+class CalendarService {
+  constructor() {
+    this.googleCalendar = null; // Inicializar Google Calendar API
+    this.calComApi = null; // Inicializar Cal.com API
+  }
+
+  async getAvailability(userId, date) {
+    // Obtener disponibilidad del agente
+  }
+
+  async scheduleAppointment(userId, appointmentData) {
+    // Crear cita en calendario
+    // Crear lead en AlterEstate
+    // Programar recordatorios
+  }
+
+  async cancelAppointment(userId, appointmentId) {
+    // Cancelar cita
+    // Notificar a ambas partes
+  }
+
+  async getUpcomingAppointments(userId) {
+    // Obtener próximas citas
+  }
+}
+```
+
+FUNCIONALIDADES DE CITAS:
+- Verificación de disponibilidad en tiempo real
+- Agendamiento automático via WhatsApp
+- Sincronización bidireccional con calendarios
+- Recordatorios automáticos (24h, 2h, 30min antes)
+- Confirmación y cancelación via WhatsApp
+
+INTEGRACIÓN CON ALTERESTATE:
+- Crear lead automáticamente al agendar cita
+- Incluir resumen de conversación en lead
+- Asociar cita con propiedad específica
+- Notificar al agente via email/WhatsApp
+
+SISTEMA DE RECORDATORIOS:
+- Queue de recordatorios con Bull
+- Templates personalizables por agente
+- Diferentes tipos de recordatorio (confirmación, llegada, follow-up)
+- Manejo de respuestas a recordatorios
+
+CONFIGURACIÓN POR AGENTE:
+- Horarios de disponibilidad
+- Duración por defecto de citas
+- Buffer entre citas
+- Ubicaciones de oficina/propiedades
+- Templates de confirmación
+
+NOTIFICACIONES:
+- Email al agente con detalles de cita
+- WhatsApp al agente (opcional)
+- Resumen de conversación adjunto
+- Información del cliente y preferencias
+```
+
+## 7. PROMPT - Sistema de Notificaciones y Escalación
+
+```
+Implementa un sistema completo de notificaciones y escalación humana:
+
+SERVICIO DE NOTIFICACIONES (server/services/notificationService.js):
+```javascript
+class NotificationService {
+  constructor() {
+    this.emailService = new EmailService();
+    this.whatsappService = new WhatsAppService();
+    this.reminderQueue = new Queue('reminders');
+  }
+
+  async sendAppointmentNotification(agentId, appointmentData, conversationSummary) {
+    // Enviar notificación de nueva cita
+  }
+
+  async scheduleReminder(appointmentId, reminderType, delay) {
+    // Programar recordatorio
+  }
+
+  async escalateToHuman(conversationId, reason) {
+    // Escalar conversación a humano
+  }
+}
+```
+
+TIPOS DE NOTIFICACIÓN:
+1. Nueva cita agendada (email + WhatsApp opcional)
+2. Recordatorios de cita (WhatsApp al cliente)
+3. Escalación a humano (notificación inmediata al agente)
+4. Resumen diario de actividad
+5. Alertas de sistema (errores, desconexiones)
+
+ESCALACIÓN HUMANA:
+- Detección de palabras clave ("hablar con agente", "persona real")
+- Botón de escalación en chat
+- Transferencia suave con contexto completo
+- Notificación inmediata al agente
+- Handoff protocol documentado
+
+TEMPLATES DE EMAIL:
+```html
+<!-- Template de nueva cita -->
+<h2>Nueva Cita Agendada</h2>
+<p><strong>Cliente:</strong> {{clientName}}</p>
+<p><strong>Teléfono:</strong> {{clientPhone}}</p>
+<p><strong>Fecha:</strong> {{appointmentDate}}</p>
+<p><strong>Propiedad:</strong> {{propertyName}}</p>
+<h3>Resumen de Conversación:</h3>
+<div>{{conversationSummary}}</div>
+```
+
+CONFIGURACIÓN DE RECORDATORIOS:
+- Recordatorio 24h antes (confirmación)
+- Recordatorio 2h antes (preparación)
+- Recordatorio 30min antes (llegada)
+- Follow-up post-cita (feedback)
+
+MÉTRICAS Y REPORTES:
+- Tasa de escalación por agente
+- Tiempo promedio de respuesta
+- Satisfacción del cliente
+- Efectividad de citas agendadas
+```
+
+## 8. PROMPT - Panel de Administración y Analytics
+
+```
+Implementa un panel de administración completo con analytics y métricas:
+
+DASHBOARD PRINCIPAL:
+- Métricas en tiempo real (mensajes, citas, leads)
+- Gráficos de conversión por período
+- Status de conexiones WhatsApp
+- Alertas y notificaciones del sistema
+
+SECCIONES DEL PANEL:
+1. Dashboard principal
+2. Conversaciones activas
+3. Historial de mensajes
+4. Gestión de citas
+5. Leads generados
+6. Configuración del asistente
+7. Integraciones (CRM, Calendar)
+8. Billing y suscripción
+9. Analytics y reportes
+
+COMPONENTES REACT PRINCIPALES:
+```jsx
+// DashboardOverview.jsx
+const DashboardOverview = () => {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <MetricCard title="Mensajes Hoy" value={stats.messagestoday} />
+      <MetricCard title="Citas Agendadas" value={stats.appointments} />
+      <MetricCard title="Leads Generados" value={stats.leads} />
+      <MetricCard title="Tasa Conversión" value={stats.conversionRate} />
+    </div>
+  );
+};
+
+// ConversationManager.jsx
+const ConversationManager = () => {
+  // Gestión de conversaciones activas
+  // Lista de chats en tiempo real
+  // Posibilidad de intervenir manualmente
+};
+```
+
+SISTEMA DE ANALYTICS:
+- Tracking de eventos personalizados
+- Embudo de conversión completo
+- Análisis de sentiment por conversación
+- Métricas de rendimiento del asistente
+- ROI por lead generado
+
+CONFIGURACIÓN DEL ASISTENTE:
+- Editor de personalidad y tono
+- Configuración de flujos conversacionales
+- Templates de respuestas
+- Horarios de operación
+- Configuración de escalación
+
+GESTIÓN DE INTEGRACIONES:
+- Conexión/desconexión de WhatsApp
+- Configuración de AlterEstate CRM
+- Setup de calendario (Google/Cal.com)
+- Test de conexiones
+- Logs de sincronización
+
+BILLING Y SUSCRIPCIONES:
+- Planes de pricing (Free, Pro, Enterprise)
+- Límites por plan (mensajes, usuarios, integraciones)
+- Historial de facturación
+- Upgrade/downgrade automático
+- Métricas de uso actual
+```
+
+## 9. PROMPT - Configuración de Base de Datos y Modelos
+
+```
+Implementa el esquema completo de base de datos con Prisma:
+
+SCHEMA.PRISMA:
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  firstName         String?
+  lastName          String?
+  company           String?
+  phone             String?
+  plan              Plan     @default(FREE)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relaciones
+  whatsappInstances WhatsAppInstance[]
+  conversations     Conversation[]
+  appointments      Appointment[]
+  leads             Lead[]
+  settings          UserSettings?
+  
+  @@map("users")
+}
+
+model UserSettings {
+  id                    String  @id @default(cuid())
+  userId                String  @unique
+  user                  User    @relation(fields: [userId], references: [id])
+  
+  // Configuración del asistente
+  assistantName         String  @default("Asistente IA")
+  assistantPersonality  String?
+  language              String  @default("es")
+  timezone              String  @default("America/New_York")
+  
+  // Configuración de WhatsApp
+  bufferTime            Int     @default(10) // segundos
+  maxMessageChunks      Int     @default(3)
+  messageDelay          Int     @default(2)  // segundos
+  humanizeResponses     Boolean @default(true)
+  
+  // Configuración de CRM
+  alterEstateToken      String?
+  alterEstateCompanyId  String?
+  
+  // Configuración de calendario
+  googleCalendarId      String?
+  calComUsername        String?
+  
+  // Configuración de notificaciones
+  emailNotifications    Boolean @default(true)
+  whatsappNotifications Boolean @default(false)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("user_settings")
+}
+
+model WhatsAppInstance {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  instanceName String   @unique
+  phoneNumber  String?
+  status       InstanceStatus @default(DISCONNECTED)
+  qrCode       String?
+  lastSeen     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relaciones
+  conversations Conversation[]
+  messages      Message[]
+  
+  @@map("whatsapp_instances")
+}
+
+model Conversation {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  whatsappInstanceId String
+  whatsappInstance  WhatsAppInstance @relation(fields: [whatsappInstanceId], references: [id])
+  
+  clientPhone       String
+  clientName        String?
+  status            ConversationStatus @default(ACTIVE)
+  isEscalated       Boolean  @default(false)
+  context           Json?    // Contexto de la conversación
+  
+  startedAt         DateTime @default(now())
+  lastMessageAt     DateTime @default(now())
+  endedAt           DateTime?
+  
+  // Relaciones
+  messages          Message[]
+  appointments      Appointment[]
+  leads             Lead[]
+  
+  @@map("conversations")
+}
+
+model Message {
+  id                  String   @id @default(cuid())
+  conversationId      String
+  conversation        Conversation @relation(fields: [conversationId], references: [id])
+  whatsappInstanceId  String
+  whatsappInstance    WhatsAppInstance @relation(fields: [whatsappInstanceId], references: [id])
+  
+  messageId           String   @unique // ID del mensaje en WhatsApp
+  fromMe              Boolean
+  messageType         MessageType
+  content             String
+  mediaUrl            String?
+  
+  timestamp           DateTime
+  isProcessed         Boolean  @default(false)
+  isBuffered          Boolean  @default(false)
+  
+  createdAt           DateTime @default(now())
+  
+  @@map("messages")
+}
+
+model Appointment {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  conversationId   String?
+  conversation     Conversation? @relation(fields: [conversationId], references: [id])
+  
+  clientName       String
+  clientPhone      String
+  clientEmail      String?
+  
+  scheduledAt      DateTime
+  duration         Int      @default(60) // minutos
+  location         String?
+  propertyId       String?
+  status           AppointmentStatus @default(SCHEDULED)
+  
+  // Integración con calendario externo
+  googleEventId    String?
+  calComEventId    String?
+  
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@map("appointments")
+}
+
+model Lead {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  conversationId   String?
+  conversation     Conversation? @relation(fields: [conversationId], references: [id])
+  
+  fullName         String
+  phone            String
+  email            String?
+  
+  // Información del lead
+  interests        Json?    // Preferencias de búsqueda
+  budget           Float?
+  budgetCurrency   String?
+  preferredLocation String?
+  listingType      String?  // "sale" or "rent"
+  
+  // Integración con AlterEstate
+  alterEstateLeadId String?
+  
+  status           LeadStatus @default(NEW)
+  source           String     @default("whatsapp")
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  @@map("leads")
+}
+
+// Enums
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum InstanceStatus {
+  CONNECTED
+  DISCONNECTED
+  CONNECTING
+  ERROR
+}
+
+enum ConversationStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+  ESCALATED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+```
+
+MIGRACIONES INICIALES:
+- Configurar seeds para planes de pricing
+- Crear índices para optimización de consultas
+- Configurar constraints y validaciones
+- Setup de triggers para auditoría
+```
+
+## 10. PROMPT - Testing y Deployment
+
+```
+Implementa testing completo y configuración de deployment:
+
+TESTING STRATEGY:
+1. Unit tests para servicios críticos
+2. Integration tests para APIs externas
+3. E2E tests para flujos principales
+4. Load testing para WhatsApp messaging
+
+JEST CONFIGURATION:
+```javascript
+// jest.config.js
+module.exports = {
+  testEnvironment: 'node',
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testMatch: ['**/__tests__/**/*.test.js'],
+  collectCoverageFrom: [
+    'server/**/*.js',
+    '!server/index.js',
+    '!**/node_modules/**'
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  }
+};
+```
+
+TESTS CRÍTICOS:
+- WhatsApp message processing
+- AlterEstate API integration
+- Message buffering logic
+- Calendar integration
+- Lead creation workflow
+
+DEPLOYMENT CONFIGURATION:
+- Docker containers para producción
+- Environment variables management
+- Database migrations strategy
+- Redis cluster configuration
+- File upload handling (S3/CloudFront)
+
+MONITORING Y LOGGING:
+- Winston logger configuration
+- Error tracking con Sentry
+- Performance monitoring
+- WhatsApp connection health checks
+- Database query optimization
+
+SECURITY CHECKLIST:
+- API rate limiting
+- Input validation y sanitization
+- JWT token security
+- File upload restrictions
+- CORS configuration
+- Environment secrets management
+```
+
+---
+
+## Consideraciones Importantes para la Implementación:
+
+1. **Complejidad de la Integración**: La integración con Evolution API requiere manejo cuidadoso de webhooks y reconexiones automáticas.
+
+2. **Escalabilidad**: El sistema de buffer de mensajes necesitará una queue robusta para manejar múltiples usuarios simultáneos.
+
+3. **Costos de API**: OpenAI y servicios de transcripción pueden generar costos significativos; implementa límites por plan.
+
+4. **Compliance**: Considera regulaciones de WhatsApp Business API y protección de datos.
+
+5. **Testing**: La naturaleza asíncrona del sistema requiere testing exhaustivo de los flujos de mensajes.
+
+Estos prompts están diseñados para ser ejecutados secuencialmente en Replit, construyendo una aplicación SAAS completa y funcional.
