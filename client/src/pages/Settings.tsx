@@ -40,7 +40,7 @@ export default function SettingsPage() {
     notificationWhatsApp: '',
     
     // Evolution API configuration
-    evolutionApiUrl: '',
+    evolutionApiUrl: 'https://personal-evolution-api.rcwlba.easypanel.host',
     evolutionApiKey: '',
     
     // Legacy fields

@@ -65,7 +65,7 @@ export const userSettings = pgTable("user_settings", {
   humanizeResponses: boolean("humanize_responses").default(true),
   
   // Evolution API configuration
-  evolutionApiUrl: varchar("evolution_api_url").default("http://localhost:8080"),
+  evolutionApiUrl: varchar("evolution_api_url").default("https://personal-evolution-api.rcwlba.easypanel.host"),
   evolutionApiKey: varchar("evolution_api_key"),
   
   // CRM configuration
