@@ -28,7 +28,7 @@ export default function StatsCards() {
   const statsData = [
     {
       title: "Active Conversations",
-      value: stats?.activeConversations || 0,
+      value: (stats as any)?.activeConversations || 0,
       icon: MessageCircle,
       color: "text-primary",
       bgColor: "bg-primary/10",
@@ -37,7 +37,7 @@ export default function StatsCards() {
     },
     {
       title: "New Leads",
-      value: stats?.newLeads || 0,
+      value: (stats as any)?.newLeads || 0,
       icon: UserPlus,
       color: "text-accent",
       bgColor: "bg-accent/10",
@@ -46,11 +46,11 @@ export default function StatsCards() {
     },
     {
       title: "Appointments",
-      value: stats?.scheduledAppointments || 0,
+      value: (stats as any)?.scheduledAppointments || 0,
       icon: Calendar,
       color: "text-green-600",
       bgColor: "bg-green-500/10",
-      change: `${stats?.todayAppointments || 0} scheduled today`,
+      change: `${(stats as any)?.todayAppointments || 0} scheduled today`,
       positive: null,
     },
   ];

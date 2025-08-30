@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, MoreVertical, Paperclip, User } from "lucide-react";
+import { X, MoreVertical, Paperclip, User, MessageCircle } from "lucide-react";
 import ConversationList from "./ConversationList";
 import MessageList from "./MessageList";
 import { useWebSocket } from "@/hooks/useWebSocket";

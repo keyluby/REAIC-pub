@@ -181,7 +181,7 @@ export class DatabaseStorage implements IStorage {
   async updateConversationStatus(id: string, status: string): Promise<void> {
     await db
       .update(conversations)
-      .set({ status, updatedAt: new Date() })
+      .set({ status })
       .where(eq(conversations.id, id));
   }
 

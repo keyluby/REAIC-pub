@@ -121,9 +121,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* User Profile */}
         <div className={`flex items-center space-x-3 p-3 ${collapsed ? 'justify-center' : ''}`}>
           <div className="w-8 h-8 rounded-full bg-sidebar-primary flex items-center justify-center flex-shrink-0">
-            {user?.profileImageUrl ? (
+            {(user as any)?.profileImageUrl ? (
               <img 
-                src={user.profileImageUrl} 
+                src={(user as any).profileImageUrl} 
                 alt="Profile" 
                 className="w-8 h-8 rounded-full object-cover"
               />
@@ -134,7 +134,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium text-sidebar-foreground truncate">
-                {user?.firstName || user?.email || 'User'}
+                {(user as any)?.firstName || (user as any)?.email || 'User'}
               </div>
               <div className="text-xs text-muted-foreground">Pro Plan</div>
             </div>
