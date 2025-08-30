@@ -129,8 +129,14 @@ export class WhatsAppService {
         { headers: this.getHeaders() }
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error logging out instance:', error);
+      
+      // Si la instancia no existe (404), permitir continuar la eliminación
+      if (error.response?.status === 404) {
+        return { success: true, message: 'Instance not found on server, proceeding with local cleanup' };
+      }
+      
       throw new Error('Failed to logout instance');
     }
   }

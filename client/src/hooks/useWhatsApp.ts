@@ -2,12 +2,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import type { WhatsappInstance } from "@shared/schema";
 
 export function useWhatsApp() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: instances = [], isLoading } = useQuery({
+  const { data: instances = [], isLoading } = useQuery<WhatsappInstance[]>({
     queryKey: ["/api/whatsapp/instances"],
     refetchInterval: 10000, // Refetch every 10 seconds
   });
@@ -97,6 +98,37 @@ export function useWhatsApp() {
     },
   });
 
+  const forceDeleteMutation = useMutation({
+    mutationFn: async (instanceName: string) => {
+      return await apiRequest('DELETE', `/api/whatsapp/force-delete/${instanceName}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Instancia eliminada",
+        description: "La instancia ha sido eliminada de la aplicación",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/instances"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la instancia",
+        variant: "destructive",
+      });
+    },
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async ({ instanceName, number, message, isMediaMessage, mediaUrl, caption }: {
       instanceName: string;
@@ -146,10 +178,12 @@ export function useWhatsApp() {
     isLoading,
     createInstance: createInstanceMutation.mutate,
     logout: logoutMutation.mutate,
+    forceDelete: forceDeleteMutation.mutate,
     refreshStatus: refreshStatusMutation.mutate,
     sendMessage: sendMessageMutation.mutate,
     isCreatingInstance: createInstanceMutation.isPending,
     isLoggingOut: logoutMutation.isPending,
+    isForceDeleting: forceDeleteMutation.isPending,
     isSendingMessage: sendMessageMutation.isPending,
   };
 }

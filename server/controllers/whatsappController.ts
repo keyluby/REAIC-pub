@@ -86,15 +86,29 @@ class WhatsAppController {
   async logoutInstance(req: any, res: Response) {
     try {
       const { instanceName } = req.params;
-      await whatsappService.logoutInstance(instanceName);
+      const result = await whatsappService.logoutInstance(instanceName);
       
-      // Update status in database
+      // Siempre actualizar estado en base de datos
       await storage.updateWhatsappInstanceStatus(instanceName, 'DISCONNECTED');
 
-      res.json({ success: true });
+      res.json({ success: true, message: result.message || 'Instance logged out successfully' });
     } catch (error) {
       console.error('Error logging out instance:', error);
       res.status(500).json({ message: 'Failed to logout instance' });
+    }
+  }
+
+  async forceDeleteInstance(req: any, res: Response) {
+    try {
+      const { instanceName } = req.params;
+      
+      // Eliminar de la base de datos local independientemente del estado del servidor
+      await storage.deleteWhatsappInstance(instanceName);
+
+      res.json({ success: true, message: 'Instance deleted from local database' });
+    } catch (error) {
+      console.error('Error force deleting instance:', error);
+      res.status(500).json({ message: 'Failed to delete instance' });
     }
   }
 

@@ -38,6 +38,7 @@ export interface IStorage {
   getWhatsappInstance(instanceName: string): Promise<WhatsappInstance | undefined>;
   getUserWhatsappInstances(userId: string): Promise<WhatsappInstance[]>;
   updateWhatsappInstanceStatus(instanceName: string, status: string, qrCode?: string): Promise<void>;
+  deleteWhatsappInstance(instanceName: string): Promise<void>;
   
   // Conversations
   createConversation(conversation: InsertConversation): Promise<Conversation>;
@@ -97,7 +98,7 @@ export class DatabaseStorage implements IStorage {
     return settings;
   }
 
-  async upsertUserSettings(settingsData: InsertUserSettings): Promise<UserSettings> {
+  async upsertUserSettings(settingsData: InsertUserSettings & { userId: string }): Promise<UserSettings> {
     const [settings] = await db
       .insert(userSettings)
       .values(settingsData)
@@ -139,6 +140,12 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(whatsappInstances)
       .set(updateData)
+      .where(eq(whatsappInstances.instanceName, instanceName));
+  }
+
+  async deleteWhatsappInstance(instanceName: string): Promise<void> {
+    await db
+      .delete(whatsappInstances)
       .where(eq(whatsappInstances.instanceName, instanceName));
   }
 

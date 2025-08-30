@@ -65,6 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/whatsapp/send-message', isAuthenticated, whatsappController.sendMessage);
   app.get('/api/whatsapp/instance-status/:instanceName', isAuthenticated, whatsappController.getInstanceStatus);
   app.delete('/api/whatsapp/logout/:instanceName', isAuthenticated, whatsappController.logoutInstance);
+  app.delete('/api/whatsapp/force-delete/:instanceName', isAuthenticated, whatsappController.forceDeleteInstance);
   app.get('/api/whatsapp/instances', isAuthenticated, whatsappController.getUserInstances);
   app.get('/api/whatsapp/test-connection', isAuthenticated, whatsappController.testConnection);
 

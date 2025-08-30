@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, QrCode, Power, RefreshCw } from "lucide-react";
+import { Smartphone, QrCode, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useWhatsApp } from "@/hooks/useWhatsApp";
 import QRCodeModal from "./QRCodeModal";
 
 export default function WhatsAppConnection() {
   const [showQRModal, setShowQRModal] = useState(false);
-  const { instances, isLoading, createInstance, logout, refreshStatus } = useWhatsApp();
+  const { instances, isLoading, createInstance, logout, forceDelete, refreshStatus, isLoggingOut, isForceDeleting } = useWhatsApp();
 
   const handleCreateInstance = async () => {
     try {
@@ -118,9 +118,22 @@ export default function WhatsAppConnection() {
                       variant="destructive"
                       size="sm"
                       onClick={() => logout(instance.instanceName)}
+                      disabled={isLoggingOut}
                       data-testid={`button-disconnect-${instance.id}`}
                     >
                       <Power className="w-4 h-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => forceDelete(instance.instanceName)}
+                      disabled={isForceDeleting}
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                      data-testid={`button-force-delete-${instance.id}`}
+                      title="Eliminar instancia que ya no existe en el servidor"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
