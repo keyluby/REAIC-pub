@@ -4,9 +4,15 @@ export class WhatsAppService {
   private evolutionApiUrl: string;
   private apiKey: string;
 
-  constructor() {
-    this.evolutionApiUrl = process.env.EVOLUTION_API_URL || 'http://localhost:8080';
-    this.apiKey = process.env.EVOLUTION_API_KEY || '';
+  constructor(evolutionApiUrl?: string, apiKey?: string) {
+    this.evolutionApiUrl = evolutionApiUrl || process.env.EVOLUTION_API_URL || 'http://localhost:8080';
+    this.apiKey = apiKey || process.env.EVOLUTION_API_KEY || '';
+  }
+
+  // Method to update configuration dynamically
+  updateConfig(evolutionApiUrl: string, apiKey: string) {
+    this.evolutionApiUrl = evolutionApiUrl;
+    this.apiKey = apiKey;
   }
 
   private getHeaders() {

@@ -49,11 +49,24 @@ export const userSettings = pgTable("user_settings", {
   language: varchar("language").default("es"),
   timezone: varchar("timezone").default("America/New_York"),
   
-  // WhatsApp configuration
+  // WhatsApp configuration - Buffer de mensajes
+  messageBufferEnabled: boolean("message_buffer_enabled").default(true),
+  messageBufferTime: integer("message_buffer_time").default(5), // seconds (3-30)
+  
+  // Respuestas humanizadas
+  humanizedResponsesEnabled: boolean("humanized_responses_enabled").default(true),
+  messagingInterval: integer("messaging_interval").default(2), // seconds (1-10)
+  maxMessagesPerResponse: integer("max_messages_per_response").default(4), // messages (1-6)
+  
+  // Legacy fields (mantener por compatibilidad)
   bufferTime: integer("buffer_time").default(10), // seconds
   maxMessageChunks: integer("max_message_chunks").default(3),
   messageDelay: integer("message_delay").default(2), // seconds
   humanizeResponses: boolean("humanize_responses").default(true),
+  
+  // Evolution API configuration
+  evolutionApiUrl: varchar("evolution_api_url").default("http://localhost:8080"),
+  evolutionApiKey: varchar("evolution_api_key"),
   
   // CRM configuration
   alterEstateToken: varchar("alter_estate_token"),
@@ -63,7 +76,13 @@ export const userSettings = pgTable("user_settings", {
   googleCalendarId: varchar("google_calendar_id"),
   calComUsername: varchar("cal_com_username"),
   
-  // Notification configuration
+  // Escalación humana
+  humanEscalationEnabled: boolean("human_escalation_enabled").default(true),
+  notificationMethod: varchar("notification_method").default("Email y WhatsApp"),
+  notificationEmail: varchar("notification_email"),
+  notificationWhatsApp: varchar("notification_whatsapp"),
+  
+  // Notification configuration (legacy)
   emailNotifications: boolean("email_notifications").default(true),
   whatsappNotifications: boolean("whatsapp_notifications").default(false),
   
