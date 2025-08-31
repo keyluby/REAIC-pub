@@ -36,7 +36,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // User settings routes
+  // User settings routes (temporary bypass for testing)
+  app.get('/api/settings-test', async (req: any, res) => {
+    try {
+      // Return default settings for testing
+      res.json({
+        aiSystemPrompt: "Eres un asistente de bienes raíces...",
+        responseDelay: 2000,
+        bufferTime: 15000,
+        bufferInterval: 3000,
+        maxBufferMessages: 4,
+        alterEstateEnabled: false,
+        alterEstateToken: "",
+        alterEstateApiKey: "",
+        alterEstateCompanyId: "",
+        humanEscalationEnabled: false,
+        notificationMethod: "Email",
+        notificationEmail: "",
+        notificationWhatsApp: "",
+        googleCalendarId: "",
+        calComUsername: ""
+      });
+    } catch (error) {
+      console.error("Error in test settings:", error);
+      res.status(500).json({ message: "Failed to fetch test settings" });
+    }
+  });
+
   app.get('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -73,6 +99,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/whatsapp/initialize-instances', isAuthenticated, whatsappController.initializeInstances);
   app.post('/api/whatsapp/initialize-instances-public', whatsappController.initializeInstances);
   app.post('/api/whatsapp/simulate-message', whatsappController.simulateIncomingMessage);
+
+  // Test route for settings page without auth
+  app.get('/test-settings', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Test Configuración</title>
+          <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+          <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; }
+            .tab-button { padding: 12px 24px; border: 1px solid #e2e8f0; cursor: pointer; }
+            .tab-button.active { background: #3b82f6; color: white; }
+            .tab-content { display: none; padding: 24px; }
+            .tab-content.active { display: block; }
+            .form-group { margin-bottom: 16px; }
+            .form-label { display: block; margin-bottom: 4px; font-weight: 500; }
+            .form-input { width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
+            .switch { position: relative; width: 44px; height: 24px; background: #e2e8f0; border-radius: 12px; cursor: pointer; }
+            .switch.on { background: #3b82f6; }
+            .switch-thumb { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.2s; }
+            .switch.on .switch-thumb { transform: translateX(20px); }
+          </style>
+        </head>
+        <body class="bg-gray-50">
+          <div class="max-w-4xl mx-auto p-6">
+            <h1 class="text-3xl font-bold mb-6">Configuración del Sistema</h1>
+            
+            <div class="bg-white rounded-lg shadow">
+              <div class="flex border-b">
+                <button class="tab-button active" onclick="showTab('whatsapp')">WhatsApp</button>
+                <button class="tab-button" onclick="showTab('integrations')">Integraciones</button>
+                <button class="tab-button" onclick="showTab('escalation')">Escalación</button>
+              </div>
+              
+              <div id="whatsapp" class="tab-content active">
+                <h2 class="text-xl font-semibold mb-4">Configuración de WhatsApp</h2>
+                <p class="text-gray-600">Configura tu instancia de WhatsApp aquí.</p>
+              </div>
+              
+              <div id="integrations" class="tab-content">
+                <h2 class="text-xl font-semibold mb-6">Integraciones</h2>
+                
+                <div class="bg-white border rounded-lg p-6 mb-6">
+                  <div class="flex items-center mb-4">
+                    <h3 class="text-lg font-medium">AlterEstate CRM</h3>
+                  </div>
+                  
+                  <div class="flex items-center justify-between mb-4">
+                    <div>
+                      <label class="form-label">Habilitar AlterEstate CRM</label>
+                      <p class="text-sm text-gray-600">Conecta con tu CRM para búsquedas reales de propiedades</p>
+                    </div>
+                    <div class="switch" onclick="toggleSwitch(this)">
+                      <div class="switch-thumb"></div>
+                    </div>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">Token de API (Lectura)</label>
+                    <input type="password" class="form-input" placeholder="Ingresa tu token de lectura de AlterEstate">
+                    <p class="text-sm text-gray-600 mt-1">Token para consultar propiedades disponibles</p>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">API Key (Escritura)</label>
+                    <input type="password" class="form-input" placeholder="Ingresa tu API Key de escritura">
+                    <p class="text-sm text-gray-600 mt-1">API Key para crear leads automáticamente</p>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">ID de Empresa</label>
+                    <input type="text" class="form-input" placeholder="Tu ID de empresa en AlterEstate">
+                  </div>
+                  
+                  <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Probar Conexión con AlterEstate
+                  </button>
+                </div>
+                
+                <div class="bg-white border rounded-lg p-6">
+                  <h3 class="text-lg font-medium mb-4">Integración de Calendario</h3>
+                  
+                  <div class="form-group">
+                    <label class="form-label">ID de Google Calendar</label>
+                    <input type="text" class="form-input" placeholder="tu-calendario@gmail.com">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="form-label">Nombre de usuario Cal.com</label>
+                    <input type="text" class="form-input" placeholder="tu-usuario">
+                  </div>
+                </div>
+              </div>
+              
+              <div id="escalation" class="tab-content">
+                <h2 class="text-xl font-semibold mb-4">Escalación Humana</h2>
+                <p class="text-gray-600">Configuración para atención humana.</p>
+              </div>
+            </div>
+          </div>
+          
+          <script>
+            function showTab(tabName) {
+              // Hide all tabs
+              const tabs = document.querySelectorAll('.tab-content');
+              tabs.forEach(tab => tab.classList.remove('active'));
+              
+              // Remove active from all buttons
+              const buttons = document.querySelectorAll('.tab-button');
+              buttons.forEach(btn => btn.classList.remove('active'));
+              
+              // Show selected tab
+              document.getElementById(tabName).classList.add('active');
+              event.target.classList.add('active');
+            }
+            
+            function toggleSwitch(switchEl) {
+              switchEl.classList.toggle('on');
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  });
   app.get('/api/whatsapp/test-ai', whatsappController.testAiResponse);
 
   // WhatsApp webhook

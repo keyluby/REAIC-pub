@@ -31,8 +31,8 @@ export default function SettingsPage() {
     
     // AI Training
     trainingEnabled: false,
-    trainingUrls: [],
-    trainingDocs: [],
+    trainingUrls: [] as string[],
+    trainingDocs: [] as string[],
     
     // Database integration
     databaseType: '',
@@ -101,8 +101,8 @@ export default function SettingsPage() {
         
         // AI Training
         trainingEnabled: (settings as any).trainingEnabled ?? false,
-        trainingUrls: (settings as any).trainingUrls || [],
-        trainingDocs: (settings as any).trainingDocs || [],
+        trainingUrls: Array.isArray((settings as any).trainingUrls) ? (settings as any).trainingUrls : [],
+        trainingDocs: Array.isArray((settings as any).trainingDocs) ? (settings as any).trainingDocs : [],
         
         // Database integration
         databaseType: (settings as any).databaseType || '',
@@ -423,230 +423,6 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-6">
-              {/* AI Training Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Bot className="w-5 h-5 mr-2" />
-                    Entrenamiento de IA
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="trainingEnabled">Habilitar Entrenamiento Personalizado</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Entrenar al asistente con contenido específico de tu empresa
-                      </p>
-                    </div>
-                    <Switch
-                      id="trainingEnabled"
-                      checked={formData.trainingEnabled}
-                      onCheckedChange={(checked) => handleInputChange('trainingEnabled', checked)}
-                      data-testid="switch-training-enabled"
-                    />
-                  </div>
-                  
-                  {formData.trainingEnabled && (
-                    <>
-                      <div>
-                        <Label htmlFor="trainingUrls">Enlaces Web para Entrenamiento</Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <Link className="w-4 h-4 text-muted-foreground" />
-                            <Input
-                              placeholder="https://miempresa.com/informacion-propiedades"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  const input = e.target as HTMLInputElement;
-                                  if (input.value.trim()) {
-                                    handleInputChange('trainingUrls', [...formData.trainingUrls, input.value.trim()]);
-                                    input.value = '';
-                                  }
-                                }
-                              }}
-                              data-testid="input-training-url"
-                            />
-                            <Button type="button" variant="outline" size="sm">
-                              Agregar
-                            </Button>
-                          </div>
-                          <div className="max-h-32 overflow-y-auto space-y-1">
-                            {formData.trainingUrls.map((url, index) => (
-                              <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                                <span className="text-sm truncate">{url}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newUrls = formData.trainingUrls.filter((_, i) => i !== index);
-                                    handleInputChange('trainingUrls', newUrls);
-                                  }}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Presiona Enter para agregar cada URL
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <Label>Documentos PDF</Label>
-                        <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Arrastra archivos PDF aquí o haz clic para seleccionar
-                          </p>
-                          <Button type="button" variant="outline" size="sm">
-                            Seleccionar PDFs
-                          </Button>
-                        </div>
-                        {formData.trainingDocs.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {formData.trainingDocs.map((doc, index) => (
-                              <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                                <span className="text-sm">{doc}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    const newDocs = formData.trainingDocs.filter((_, i) => i !== index);
-                                    handleInputChange('trainingDocs', newDocs);
-                                  }}
-                                >
-                                  ×
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Database Integration Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Database className="w-5 h-5 mr-2" />
-                    Base de Datos de Propiedades
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="databaseType">Tipo de Base de Datos</Label>
-                    <Select 
-                      value={formData.databaseType} 
-                      onValueChange={(value) => {
-                        handleInputChange('databaseType', value);
-                        // Clear other database fields when changing type
-                        handleInputChange('sqlConnectionString', '');
-                        handleInputChange('airtableApiKey', '');
-                        handleInputChange('airtableBaseId', '');
-                        handleInputChange('googleSheetsId', '');
-                      }}
-                    >
-                      <SelectTrigger className="w-full" data-testid="select-database-type">
-                        <SelectValue placeholder="Selecciona el tipo de base de datos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Ninguna</SelectItem>
-                        <SelectItem value="sql">Base de Datos SQL</SelectItem>
-                        <SelectItem value="airtable">Airtable</SelectItem>
-                        <SelectItem value="google_sheets">Google Sheets</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Solo puedes conectar una base de datos a la vez
-                    </p>
-                  </div>
-
-                  {formData.databaseType === 'sql' && (
-                    <div>
-                      <Label htmlFor="sqlConnectionString">Cadena de Conexión SQL</Label>
-                      <Input
-                        id="sqlConnectionString"
-                        type="password"
-                        value={formData.sqlConnectionString}
-                        onChange={(e) => handleInputChange('sqlConnectionString', e.target.value)}
-                        placeholder="postgresql://usuario:contraseña@host:puerto/database"
-                        data-testid="input-sql-connection"
-                      />
-                    </div>
-                  )}
-
-                  {formData.databaseType === 'airtable' && (
-                    <>
-                      <div>
-                        <Label htmlFor="airtableApiKey">API Key de Airtable</Label>
-                        <Input
-                          id="airtableApiKey"
-                          type="password"
-                          value={formData.airtableApiKey}
-                          onChange={(e) => handleInputChange('airtableApiKey', e.target.value)}
-                          placeholder="key..."
-                          data-testid="input-airtable-key"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="airtableBaseId">ID de Base de Airtable</Label>
-                        <Input
-                          id="airtableBaseId"
-                          value={formData.airtableBaseId}
-                          onChange={(e) => handleInputChange('airtableBaseId', e.target.value)}
-                          placeholder="app..."
-                          data-testid="input-airtable-base"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {formData.databaseType === 'google_sheets' && (
-                    <div>
-                      <Label htmlFor="googleSheetsId">ID de Google Sheets</Label>
-                      <Input
-                        id="googleSheetsId"
-                        value={formData.googleSheetsId}
-                        onChange={(e) => handleInputChange('googleSheetsId', e.target.value)}
-                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
-                        data-testid="input-google-sheets-id"
-                      />
-                    </div>
-                  )}
-
-                  {formData.databaseType && (
-                    <div>
-                      <Label htmlFor="databaseInstructions">Instrucciones de Consulta</Label>
-                      <Textarea
-                        id="databaseInstructions"
-                        value={formData.databaseInstructions}
-                        onChange={(e) => handleInputChange('databaseInstructions', e.target.value)}
-                        placeholder="Explica cómo consultar tu base de datos: nombres de tablas/hojas, campos importantes, filtros a aplicar, etc."
-                        rows={4}
-                        data-testid="textarea-database-instructions"
-                      />
-                      <p className="text-sm text-muted-foreground mt-1">
-                        💡 Ejemplo: "La tabla 'propiedades' tiene campos: precio, ubicacion, tipo, habitaciones. Filtrar por estado='disponible'"
-                      </p>
-                    </div>
-                  )}
-
-                  {formData.databaseType && (
-                    <Button variant="outline" size="sm" data-testid="button-test-database-connection">
-                      Probar Conexión a Base de Datos
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-
               {/* AlterEstate CRM Section */}
               <Card>
                 <CardHeader>
@@ -725,7 +501,10 @@ export default function SettingsPage() {
               {/* Calendar Integration Section */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Integración de Calendario</CardTitle>
+                  <CardTitle className="flex items-center">
+                    <Building className="w-5 h-5 mr-2" />
+                    Integración de Calendario
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
