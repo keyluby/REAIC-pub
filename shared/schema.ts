@@ -46,8 +46,22 @@ export const userSettings = pgTable("user_settings", {
   // Assistant configuration
   assistantName: varchar("assistant_name").default("Asistente IA"),
   assistantPersonality: text("assistant_personality"),
+  systemPrompt: text("system_prompt"),
   language: varchar("language").default("es"),
   timezone: varchar("timezone").default("America/New_York"),
+  
+  // AI Training configuration
+  trainingEnabled: boolean("training_enabled").default(false),
+  trainingUrls: text("training_urls").array().default(sql`'{}'::text[]`),
+  trainingDocs: text("training_docs").array().default(sql`'{}'::text[]`),
+  
+  // Database integration (only one at a time)
+  databaseType: varchar("database_type"), // 'sql', 'airtable', 'google_sheets'
+  sqlConnectionString: text("sql_connection_string"),
+  airtableApiKey: varchar("airtable_api_key"),
+  airtableBaseId: varchar("airtable_base_id"),
+  googleSheetsId: varchar("google_sheets_id"),
+  databaseInstructions: text("database_instructions"),
   
   // WhatsApp configuration - Buffer de mensajes
   messageBufferEnabled: boolean("message_buffer_enabled").default(true),

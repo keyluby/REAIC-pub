@@ -241,6 +241,7 @@ class WhatsAppController {
       const context = {
         assistantName: settings?.assistantName || 'Asistente IA',
         assistantPersonality: settings?.assistantPersonality,
+        customSystemPrompt: settings?.systemPrompt,
         language: settings?.language || 'es',
       };
 

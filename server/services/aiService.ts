@@ -58,6 +58,15 @@ export class AIService {
   private buildSystemPrompt(context: any): string {
     const assistantName = context.assistantName || 'Asistente IA';
     
+    // Use custom system prompt if provided, otherwise use default
+    if (context.customSystemPrompt && context.customSystemPrompt.trim()) {
+      return context.customSystemPrompt;
+    }
+    
+    return this.getDefaultSystemPrompt(assistantName);
+  }
+
+  private getDefaultSystemPrompt(assistantName: string): string {
     return `Eres ${assistantName}, un asistente de ventas inmobiliarias experto. Tu objetivo es ayudar a los clientes a encontrar la propiedad perfecta de manera conversacional y humana.
 
 PERSONALIDAD:
