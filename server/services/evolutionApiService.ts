@@ -338,6 +338,70 @@ class EvolutionApiService {
     }
   }
 
+  async sendMedia(instanceName: string, number: string, mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document', caption?: string): Promise<{ success: boolean; messageId?: string }> {
+    const instance = this.instances.get(instanceName);
+    
+    if (!instance || !instance.socket) {
+      throw new Error(`Instance ${instanceName} not found or not connected`);
+    }
+
+    if (instance.status !== 'CONNECTED') {
+      throw new Error(`Instance ${instanceName} is not connected. Status: ${instance.status}`);
+    }
+
+    try {
+      const formattedNumber = this.formatPhoneNumber(number);
+      console.log(`📸 Sending ${mediaType} from ${instanceName} to ${formattedNumber}: ${mediaUrl}`);
+      
+      // Preparar mensaje de media según el tipo
+      let mediaMessage: any = {};
+      
+      switch (mediaType) {
+        case 'image':
+          mediaMessage = { 
+            image: { url: mediaUrl },
+            caption: caption || ''
+          };
+          break;
+        case 'video':
+          mediaMessage = { 
+            video: { url: mediaUrl },
+            caption: caption || ''
+          };
+          break;
+        case 'audio':
+          mediaMessage = { 
+            audio: { url: mediaUrl },
+            ptt: false // No es nota de voz por defecto
+          };
+          break;
+        case 'document':
+          mediaMessage = { 
+            document: { url: mediaUrl },
+            fileName: caption || 'documento',
+            caption: caption || ''
+          };
+          break;
+        default:
+          throw new Error(`Unsupported media type: ${mediaType}`);
+      }
+      
+      // Enviar mensaje multimedia
+      const sentMessage = await instance.socket.sendMessage(formattedNumber, mediaMessage);
+      
+      console.log(`✅ ${mediaType} sent via ${instanceName} to ${formattedNumber}`);
+      
+      return {
+        success: true,
+        messageId: sentMessage?.key?.id || undefined
+      };
+      
+    } catch (error) {
+      console.error(`Error sending ${mediaType} via ${instanceName}:`, error);
+      throw error;
+    }
+  }
+
   private formatPhoneNumber(number: string): string {
     // Limpiar número y agregar formato WhatsApp
     let cleaned = number.replace(/\D/g, '');

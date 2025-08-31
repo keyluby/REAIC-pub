@@ -81,7 +81,9 @@ export const userSettings = pgTable("user_settings", {
   
   // CRM configuration
   alterEstateToken: varchar("alter_estate_token"),
+  alterEstateApiKey: varchar("alter_estate_api_key"), // Para crear leads
   alterEstateCompanyId: varchar("alter_estate_company_id"),
+  alterEstateEnabled: boolean("alter_estate_enabled").default(false),
   
   // Calendar configuration
   googleCalendarId: varchar("google_calendar_id"),

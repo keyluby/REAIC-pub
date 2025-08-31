@@ -495,6 +495,11 @@ class WhatsAppController {
         assistantPersonality: settings?.assistantPersonality,
         customSystemPrompt: settings?.systemPrompt,
         language: settings?.language || 'es',
+        // AlterEstate integration
+        alterEstateEnabled: settings?.alterEstateEnabled || false,
+        alterEstateToken: settings?.alterEstateToken,
+        alterEstateApiKey: settings?.alterEstateApiKey,
+        userLocation: conversation.clientPhone?.includes('1829') ? 'Santo Domingo' : undefined,
       };
 
       console.log('🎯 AI Context:', context);
@@ -506,12 +511,24 @@ class WhatsAppController {
         context
       );
 
+      // Check if response indicates property media should be sent
+      if (aiResponse.includes('Te estoy preparando las fotos') && context.alterEstateToken) {
+        console.log('📸 [WHATSAPP] AI requested property media, processing...');
+        await this.handlePropertyMediaRequest(message, instance, conversation, context);
+      }
+
       if (!aiResponse || aiResponse.trim() === '') {
         console.log('⚠️ Empty AI response received');
         throw new Error('Empty AI response');
       }
 
       console.log(`✅ AI response received: "${aiResponse}"`);
+
+      // Check if user shows interest for lead creation
+      if (this.detectUserInterest(message) && context.alterEstateEnabled) {
+        console.log('💡 [WHATSAPP] User interest detected, creating lead');
+        await this.createLeadFromInterest(message, instance, conversation, context);
+      }
 
       // Humanize response using callback
       await messageBufferService.humanizeResponse(
@@ -624,6 +641,166 @@ class WhatsAppController {
     } catch (error) {
       console.error('❌ Error downloading media content:', error);
       throw new Error('Failed to download media content');
+    }
+  }
+
+  /**
+   * Manejar solicitud de medios de propiedades
+   */
+  private async handlePropertyMediaRequest(
+    message: string, 
+    instance: any, 
+    conversation: any, 
+    context: any
+  ): Promise<void> {
+    try {
+      console.log('📸 [WHATSAPP] Processing property media request');
+      
+      // Extract property ID from message
+      const propertyIdMatch = message.match(/([A-Z0-9]{10})/);
+      
+      if (!propertyIdMatch) {
+        console.log('⚠️ [WHATSAPP] No property ID found in message');
+        return;
+      }
+      
+      const propertyId = propertyIdMatch[1];
+      console.log(`🏠 [WHATSAPP] Sending media for property: ${propertyId}`);
+      
+      // Get property details including images
+      const { alterEstateService } = await import('../services/alterEstateService');
+      
+      // First, search for the property to get its slug
+      const searchResult = await alterEstateService.searchProperties(context.alterEstateToken, {});
+      const property = searchResult.results.find(p => p.uid === propertyId);
+      
+      if (!property) {
+        console.log('❌ [WHATSAPP] Property not found');
+        await whatsappService.sendMessage(
+          instance.instanceName, 
+          conversation.clientPhone, 
+          'No pude encontrar esa propiedad en nuestro sistema. ¿Podrías verificar el ID?'
+        );
+        return;
+      }
+      
+      // Get detailed property information including gallery
+      const propertyDetail = await alterEstateService.getPropertyDetail(context.alterEstateToken, property.slug);
+      
+      if (propertyDetail.gallery_image && propertyDetail.gallery_image.length > 0) {
+        console.log(`📸 [WHATSAPP] Found ${propertyDetail.gallery_image.length} images for property`);
+        
+        // Send up to 5 images to avoid overwhelming the user
+        const imagesToSend = propertyDetail.gallery_image.slice(0, 5);
+        
+        for (let i = 0; i < imagesToSend.length; i++) {
+          const imageUrl = imagesToSend[i];
+          console.log(`📤 [WHATSAPP] Sending image ${i + 1}/${imagesToSend.length}: ${imageUrl}`);
+          
+          try {
+            await whatsappService.sendMedia(
+              instance.instanceName,
+              conversation.clientPhone,
+              imageUrl,
+              'image',
+              i === 0 ? `📸 Fotos de ${propertyDetail.name}` : ''
+            );
+            
+            // Small delay between images
+            if (i < imagesToSend.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } catch (mediaError) {
+            console.error(`❌ [WHATSAPP] Error sending image ${i + 1}:`, mediaError);
+          }
+        }
+        
+        // Send follow-up message
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await whatsappService.sendMessage(
+          instance.instanceName,
+          conversation.clientPhone,
+          `📸 Te envié ${imagesToSend.length} fotos de ${propertyDetail.name}. ¿Te gustaría más información o programar una visita?`
+        );
+        
+      } else {
+        console.log('📷 [WHATSAPP] No images available for this property');
+        await whatsappService.sendMessage(
+          instance.instanceName,
+          conversation.clientPhone,
+          'Esta propiedad no tiene fotos disponibles por el momento. ¿Te gustaría que coordine una visita virtual o te proporcione más información sobre sus características?'
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ [WHATSAPP] Error handling property media request:', error);
+      await whatsappService.sendMessage(
+        instance.instanceName,
+        conversation.clientPhone,
+        'Disculpa, tuve un problema obteniendo las fotos. ¿Podrías intentar de nuevo en unos minutos?'
+      );
+    }
+  }
+
+  /**
+   * Detectar si el usuario muestra interés en una propiedad
+   */
+  private detectUserInterest(message: string): boolean {
+    const messageLower = message.toLowerCase();
+    const interestKeywords = [
+      'me interesa', 'interesado', 'agendar', 'visita', 'ver',
+      'información', 'detalles', 'precio', 'comprar', 'rentar',
+      'contacto', 'teléfono', 'llamar', 'programar', 'cita',
+      'interested', 'schedule', 'visit', 'buy', 'rent', 'contact'
+    ];
+    
+    return interestKeywords.some(keyword => messageLower.includes(keyword));
+  }
+
+  /**
+   * Crear lead en AlterEstate cuando hay interés
+   */
+  private async createLeadFromInterest(
+    message: string, 
+    instance: any, 
+    conversation: any, 
+    context: any
+  ): Promise<void> {
+    try {
+      console.log('📝 [WHATSAPP] Creating lead from user interest');
+      
+      // Extraer ID de propiedad si está mencionado
+      const propertyIdMatch = message.match(/([A-Z0-9]{10})/);
+      const propertyUid = propertyIdMatch ? propertyIdMatch[1] : undefined;
+      
+      // Obtener nombre del cliente de la conversación previa si existe
+      const clientName = conversation.clientName || 'Cliente WhatsApp';
+      
+      // Crear lead usando el servicio de IA
+      const leadCreated = await aiService.createLeadFromConversation(
+        context,
+        conversation.clientPhone,
+        clientName,
+        propertyUid,
+        `Interés expresado: "${message}"`
+      );
+      
+      if (leadCreated) {
+        console.log('✅ [WHATSAPP] Lead created successfully');
+        
+        // Opcional: notificar al usuario que su información fue registrada
+        setTimeout(async () => {
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            '📝 He registrado tu interés. Un asesor se pondrá en contacto contigo pronto para darte más información.'
+          );
+        }, 3000);
+      }
+      
+    } catch (error) {
+      console.error('❌ [WHATSAPP] Error creating lead:', error);
+      // No interrumpir la conversación por errores de lead
     }
   }
 }

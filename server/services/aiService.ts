@@ -22,6 +22,25 @@ export class AIService {
       console.log(`🤖 Processing AI conversation for user ${userId}, conversation ${conversationId}`);
       console.log(`📝 User message: "${message}"`);
       
+      // Check if AlterEstate integration is enabled
+      if (context.alterEstateEnabled && context.alterEstateToken) {
+        console.log('🏘️ [AI] AlterEstate integration enabled, checking for property search intent');
+        
+        // Detect if user is searching for properties
+        const intent = await this.detectIntent(message);
+        
+        if (intent.intent === 'search_property' && intent.confidence > 0.6) {
+          console.log('🔍 [AI] Property search intent detected, querying AlterEstate');
+          return await this.processPropertySearch(message, context, conversationId);
+        }
+        
+        // Check if user is requesting property media (photos/videos)
+        if (this.isRequestingPropertyMedia(message)) {
+          console.log('📸 [AI] Property media request detected');
+          return await this.processPropertyMediaRequest(message, context, conversationId);
+        }
+      }
+      
       // Get conversation context
       const conversationContext = this.conversationContexts.get(conversationId) || [];
       
@@ -250,6 +269,185 @@ Responde en formato JSON:
     } catch (error) {
       console.error('Error detecting intent:', error);
       return { intent: "ask_question", confidence: 0.5 };
+    }
+  }
+
+  /**
+   * Procesar búsqueda de propiedades usando AlterEstate
+   */
+  private async processPropertySearch(message: string, context: any, conversationId: string): Promise<string> {
+    try {
+      const { alterEstateService } = await import('./alterEstateService');
+      
+      // Buscar propiedades reales usando AlterEstate
+      console.log('🔍 [AI] Searching real properties in AlterEstate');
+      const properties = await alterEstateService.intelligentPropertySearch(
+        context.alterEstateToken,
+        message,
+        context.userLocation
+      );
+      
+      if (properties.length === 0) {
+        // No se encontraron propiedades, dar respuesta personalizada
+        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const systemPrompt = this.buildSystemPrompt(context) + 
+          '\n\nNOTA: No se encontraron propiedades que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+        
+        const messages = [
+          { role: "system", content: systemPrompt },
+          ...conversationContext,
+          { role: "user", content: message }
+        ];
+
+        const response = await this.openaiClient.chat.completions.create({
+          model: "gpt-4o",
+          messages: messages as any,
+          max_tokens: 300,
+          temperature: 0.7,
+        });
+
+        return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
+      }
+      
+      // Formatear propiedades para respuesta natural
+      const formattedProperties = alterEstateService.formatPropertiesForAI(properties);
+      
+      // Generar respuesta contextual usando IA
+      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      const systemPrompt = this.buildSystemPrompt(context) + 
+        '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+      
+      const propertyPrompt = `El usuario preguntó: "${message}"
+
+He encontrado estas propiedades reales disponibles en nuestro CRM:
+
+${formattedProperties}
+
+Presenta estas propiedades de manera natural y conversacional. Destaca las características más relevantes y pregunta si le gustaría más información, fotos o agendar una visita.`;
+
+      const messages = [
+        { role: "system", content: systemPrompt },
+        ...conversationContext,
+        { role: "user", content: propertyPrompt }
+      ];
+
+      const response = await this.openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: messages as any,
+        max_tokens: 600,
+        temperature: 0.7,
+      });
+
+      const aiResponse = response.choices[0].message.content || formattedProperties;
+      
+      // Update conversation context
+      conversationContext.push(
+        { role: "user", content: message },
+        { role: "assistant", content: aiResponse }
+      );
+
+      // Keep only last 10 messages for context
+      if (conversationContext.length > 20) {
+        conversationContext.splice(0, conversationContext.length - 20);
+      }
+
+      this.conversationContexts.set(conversationId, conversationContext);
+      
+      console.log(`✅ [AI] Property search response generated with ${properties.length} real properties`);
+      return aiResponse;
+      
+    } catch (error) {
+      console.error('❌ [AI] Error in property search:', error);
+      return 'Disculpa, tuve un problema consultando nuestro inventario de propiedades. ¿Podrías repetir tu búsqueda?';
+    }
+  }
+
+  /**
+   * Detectar si el usuario está solicitando fotos/videos de propiedades
+   */
+  private isRequestingPropertyMedia(message: string): boolean {
+    const messageLower = message.toLowerCase();
+    const mediaKeywords = [
+      'foto', 'fotos', 'imagen', 'imágenes', 'video', 'videos',
+      'ver', 'muestra', 'enseña', 'galería', 'picture', 'photo'
+    ];
+    
+    const propertyKeywords = [
+      'propiedad', 'apartament', 'casa', 'inmueble', 'villa',
+      'penthouse', 'property', 'unit', 'building'
+    ];
+    
+    const hasMediaKeyword = mediaKeywords.some(keyword => messageLower.includes(keyword));
+    const hasPropertyKeyword = propertyKeywords.some(keyword => messageLower.includes(keyword));
+    
+    return hasMediaKeyword && hasPropertyKeyword;
+  }
+
+  /**
+   * Procesar solicitud de medios de propiedades
+   */
+  private async processPropertyMediaRequest(message: string, context: any, conversationId: string): Promise<string> {
+    try {
+      console.log('📸 [AI] Processing property media request');
+      
+      // Extract property ID from message if mentioned
+      const propertyIdMatch = message.match(/([A-Z0-9]{10})/); // AlterEstate UIDs are 10 chars
+      
+      if (propertyIdMatch) {
+        const propertyId = propertyIdMatch[1];
+        console.log(`🏠 [AI] Property ID extracted: ${propertyId}`);
+        
+        // This would be handled by the WhatsApp controller to send actual media
+        // For now, return a message indicating we're preparing the images
+        return `Perfecto! Te estoy preparando las fotos de la propiedad ${propertyId}. En unos segundos te las enviaré 📸`;
+      } else {
+        // Ask for clarification about which property
+        return 'Me gustaría enviarte las fotos, pero ¿de cuál propiedad específicamente? Por favor menciona el ID de la propiedad que te interesa.';
+      }
+      
+    } catch (error) {
+      console.error('❌ [AI] Error processing media request:', error);
+      return 'Disculpa, tuve un problema preparando las fotos. ¿Podrías especificar qué propiedad te interesa?';
+    }
+  }
+
+  /**
+   * Crear lead automáticamente en AlterEstate cuando hay interés
+   */
+  async createLeadFromConversation(
+    context: any,
+    clientPhone: string,
+    clientName: string,
+    propertyUid?: string,
+    notes?: string
+  ): Promise<boolean> {
+    try {
+      if (!context.alterEstateEnabled || !context.alterEstateApiKey) {
+        console.log('⚠️ [AI] AlterEstate not configured for lead creation');
+        return false;
+      }
+      
+      const { alterEstateService } = await import('./alterEstateService');
+      
+      const leadData = {
+        full_name: clientName || 'Cliente WhatsApp',
+        phone: clientPhone,
+        email: `${clientPhone}@whatsapp.com`, // Temporal email
+        property_uid: propertyUid,
+        notes: notes || 'Lead generado automáticamente desde WhatsApp',
+        via: 'WhatsApp Bot',
+      };
+      
+      console.log('📝 [AI] Creating lead in AlterEstate:', leadData);
+      
+      const result = await alterEstateService.createLead(context.alterEstateApiKey, leadData);
+      
+      console.log('✅ [AI] Lead created successfully:', result);
+      return true;
+      
+    } catch (error) {
+      console.error('❌ [AI] Error creating lead:', error);
+      return false;
     }
   }
 

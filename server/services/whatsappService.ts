@@ -106,6 +106,33 @@ export class WhatsAppService {
     }
   }
 
+  async sendMedia(instanceName: string, number: string, mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document', caption?: string) {
+    try {
+      console.log(`📸 Sending ${mediaType} via internal service - Instance: ${instanceName}, To: ${number}`);
+      
+      const result = await evolutionApiService.sendMedia(instanceName, number, mediaUrl, mediaType, caption);
+      
+      return {
+        success: result.success,
+        messageId: result.messageId,
+        message: 'Media sent successfully'
+      };
+    } catch (error: any) {
+      console.error('Error sending media:', error.message);
+      
+      // Manejar errores específicos
+      if (error.message.includes('not connected')) {
+        throw new Error('WhatsApp instance is not connected. Please scan QR code first.');
+      }
+      
+      if (error.message.includes('not found')) {
+        throw new Error('WhatsApp instance not found. Please create it first.');
+      }
+      
+      throw new Error('Failed to send media to WhatsApp');
+    }
+  }
+
   private formatPhoneNumber(number: string): string {
     // Remove common WhatsApp suffixes
     let cleaned = number.replace('@s.whatsapp.net', '').replace('@c.us', '');

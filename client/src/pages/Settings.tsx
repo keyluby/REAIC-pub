@@ -54,13 +54,17 @@ export default function SettingsPage() {
     notificationWhatsApp: '',
     
     
+    // AlterEstate CRM
+    alterEstateEnabled: false,
+    alterEstateToken: '',
+    alterEstateApiKey: '',
+    alterEstateCompanyId: '',
+    
     // Legacy fields
     bufferTime: 10,
     maxMessageChunks: 3,
     messageDelay: 2,
     humanizeResponses: true,
-    alterEstateToken: '',
-    alterEstateCompanyId: '',
     googleCalendarId: '',
     calComUsername: '',
     emailNotifications: true,
@@ -120,13 +124,17 @@ export default function SettingsPage() {
         notificationWhatsApp: (settings as any).notificationWhatsApp || '',
         
         
+        // AlterEstate CRM
+        alterEstateEnabled: (settings as any).alterEstateEnabled ?? false,
+        alterEstateToken: (settings as any).alterEstateToken || '',
+        alterEstateApiKey: (settings as any).alterEstateApiKey || '',
+        alterEstateCompanyId: (settings as any).alterEstateCompanyId || '',
+        
         // Legacy fields
         bufferTime: (settings as any).bufferTime || 10,
         maxMessageChunks: (settings as any).maxMessageChunks || 3,
         messageDelay: (settings as any).messageDelay || 2,
         humanizeResponses: (settings as any).humanizeResponses ?? true,
-        alterEstateToken: (settings as any).alterEstateToken || '',
-        alterEstateCompanyId: (settings as any).alterEstateCompanyId || '',
         googleCalendarId: (settings as any).googleCalendarId || '',
         calComUsername: (settings as any).calComUsername || '',
         emailNotifications: (settings as any).emailNotifications ?? true,
@@ -642,33 +650,75 @@ export default function SettingsPage() {
               {/* AlterEstate CRM Section */}
               <Card>
                 <CardHeader>
-                  <CardTitle>AlterEstate CRM</CardTitle>
+                  <CardTitle className="flex items-center">
+                    <Building className="w-5 h-5 mr-2" />
+                    AlterEstate CRM
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="alterEstateToken">Token de API</Label>
-                    <Input
-                      id="alterEstateToken"
-                      type="password"
-                      value={formData.alterEstateToken}
-                      onChange={(e) => handleInputChange('alterEstateToken', e.target.value)}
-                      placeholder="Ingresa tu token de API de AlterEstate"
-                      data-testid="input-alterestate-token"
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="alterEstateEnabled">Habilitar AlterEstate CRM</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Conecta con tu CRM para búsquedas reales de propiedades y creación automática de leads
+                      </p>
+                    </div>
+                    <Switch
+                      id="alterEstateEnabled"
+                      checked={formData.alterEstateEnabled}
+                      onCheckedChange={(checked) => handleInputChange('alterEstateEnabled', checked)}
+                      data-testid="switch-alterestate-enabled"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="alterEstateCompanyId">ID de Empresa</Label>
-                    <Input
-                      id="alterEstateCompanyId"
-                      value={formData.alterEstateCompanyId}
-                      onChange={(e) => handleInputChange('alterEstateCompanyId', e.target.value)}
-                      placeholder="Tu ID de empresa"
-                      data-testid="input-alterestate-company"
-                    />
-                  </div>
-                  <Button variant="outline" size="sm" data-testid="button-test-crm-connection">
-                    Probar Conexión
-                  </Button>
+                  
+                  {formData.alterEstateEnabled && (
+                    <>
+                      <div>
+                        <Label htmlFor="alterEstateToken">Token de API (Lectura)</Label>
+                        <Input
+                          id="alterEstateToken"
+                          type="password"
+                          value={formData.alterEstateToken}
+                          onChange={(e) => handleInputChange('alterEstateToken', e.target.value)}
+                          placeholder="Ingresa tu token de lectura de AlterEstate"
+                          data-testid="input-alterestate-token"
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Token para consultar propiedades disponibles
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="alterEstateApiKey">API Key (Escritura)</Label>
+                        <Input
+                          id="alterEstateApiKey"
+                          type="password"
+                          value={formData.alterEstateApiKey}
+                          onChange={(e) => handleInputChange('alterEstateApiKey', e.target.value)}
+                          placeholder="Ingresa tu API Key de escritura"
+                          data-testid="input-alterestate-apikey"
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          API Key para crear leads automáticamente
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="alterEstateCompanyId">ID de Empresa</Label>
+                        <Input
+                          id="alterEstateCompanyId"
+                          value={formData.alterEstateCompanyId}
+                          onChange={(e) => handleInputChange('alterEstateCompanyId', e.target.value)}
+                          placeholder="Tu ID de empresa en AlterEstate"
+                          data-testid="input-alterestate-company"
+                        />
+                      </div>
+                      
+                      <Button variant="outline" size="sm" data-testid="button-test-crm-connection">
+                        Probar Conexión con AlterEstate
+                      </Button>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
