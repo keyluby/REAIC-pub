@@ -5,13 +5,23 @@ export class AIService {
   private conversationContexts = new Map<string, any[]>();
 
   constructor() {
+    const apiKey = process.env.OPENAI_API_KEY || '';
+    if (!apiKey) {
+      console.error('❌ OPENAI_API_KEY environment variable is not set');
+    } else {
+      console.log('✅ OpenAI API key is configured');
+    }
+    
     this.openaiClient = new OpenAI({ 
-      apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_TOKEN || ''
+      apiKey: apiKey
     });
   }
 
   async processConversation(userId: string, conversationId: string, message: string, context: any = {}) {
     try {
+      console.log(`🤖 Processing AI conversation for user ${userId}, conversation ${conversationId}`);
+      console.log(`📝 User message: "${message}"`);
+      
       // Get conversation context
       const conversationContext = this.conversationContexts.get(conversationId) || [];
       
@@ -25,6 +35,8 @@ export class AIService {
         { role: "user", content: message }
       ];
 
+      console.log(`📤 Sending request to OpenAI with ${messages.length} messages`);
+
       // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await this.openaiClient.chat.completions.create({
         model: "gpt-5",
@@ -34,6 +46,7 @@ export class AIService {
       });
 
       const aiResponse = response.choices[0].message.content || '';
+      console.log(`✅ AI response received: "${aiResponse}"`);
 
       // Update conversation context
       conversationContext.push(
@@ -49,9 +62,14 @@ export class AIService {
       this.conversationContexts.set(conversationId, conversationContext);
 
       return aiResponse;
-    } catch (error) {
-      console.error('Error processing conversation:', error);
-      throw new Error('Failed to process conversation with AI');
+    } catch (error: any) {
+      console.error('❌ Error processing conversation with AI:');
+      console.error('Error details:', error.response?.data || error.message);
+      console.error('Status:', error.response?.status);
+      console.error('Full error:', error);
+      
+      // Return a fallback message instead of throwing
+      return 'Disculpa, estoy teniendo problemas técnicos en este momento. ¿Podrías repetir tu mensaje en unos minutos?';
     }
   }
 

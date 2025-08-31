@@ -68,6 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/whatsapp/force-delete/:instanceName', isAuthenticated, whatsappController.forceDeleteInstance);
   app.get('/api/whatsapp/instances', isAuthenticated, whatsappController.getUserInstances);
   app.get('/api/whatsapp/test-connection', isAuthenticated, whatsappController.testConnection);
+  app.get('/api/whatsapp/diagnose', isAuthenticated, whatsappController.diagnoseSystem);
 
   // WhatsApp webhook
   app.post('/webhook/whatsapp/:instanceName', whatsappController.handleWebhook);
@@ -124,10 +125,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // WebSocket setup for real-time messaging
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
+
   wss.on('connection', (ws, req) => {
     console.log('WebSocket client connected');
-    
+
     ws.on('message', (message) => {
       try {
         const data = JSON.parse(message.toString());
