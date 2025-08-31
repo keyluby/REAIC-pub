@@ -87,50 +87,50 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    if (settings) {
+    if (settings && typeof settings === 'object') {
       setFormData({
-        assistantName: settings.assistantName || 'Asistente IA',
-        assistantPersonality: settings.assistantPersonality || '',
-        systemPrompt: settings.systemPrompt || '',
-        language: settings.language || 'es',
-        timezone: settings.timezone || 'America/New_York',
+        assistantName: (settings as any).assistantName || 'Asistente IA',
+        assistantPersonality: (settings as any).assistantPersonality || '',
+        systemPrompt: (settings as any).systemPrompt || '',
+        language: (settings as any).language || 'es',
+        timezone: (settings as any).timezone || 'America/New_York',
         
         // AI Training
-        trainingEnabled: settings.trainingEnabled ?? false,
-        trainingUrls: settings.trainingUrls || [],
-        trainingDocs: settings.trainingDocs || [],
+        trainingEnabled: (settings as any).trainingEnabled ?? false,
+        trainingUrls: (settings as any).trainingUrls || [],
+        trainingDocs: (settings as any).trainingDocs || [],
         
         // Database integration
-        databaseType: settings.databaseType || '',
-        sqlConnectionString: settings.sqlConnectionString || '',
-        airtableApiKey: settings.airtableApiKey || '',
-        airtableBaseId: settings.airtableBaseId || '',
-        googleSheetsId: settings.googleSheetsId || '',
-        databaseInstructions: settings.databaseInstructions || '',
+        databaseType: (settings as any).databaseType || '',
+        sqlConnectionString: (settings as any).sqlConnectionString || '',
+        airtableApiKey: (settings as any).airtableApiKey || '',
+        airtableBaseId: (settings as any).airtableBaseId || '',
+        googleSheetsId: (settings as any).googleSheetsId || '',
+        databaseInstructions: (settings as any).databaseInstructions || '',
         
         // Configuraciones avanzadas
-        messageBufferEnabled: settings.messageBufferEnabled ?? true,
-        messageBufferTime: settings.messageBufferTime || 5,
-        humanizedResponsesEnabled: settings.humanizedResponsesEnabled ?? true,
-        messagingInterval: settings.messagingInterval || 2,
-        maxMessagesPerResponse: settings.maxMessagesPerResponse || 4,
-        humanEscalationEnabled: settings.humanEscalationEnabled ?? true,
-        notificationMethod: settings.notificationMethod || 'Email y WhatsApp',
-        notificationEmail: settings.notificationEmail || '',
-        notificationWhatsApp: settings.notificationWhatsApp || '',
+        messageBufferEnabled: (settings as any).messageBufferEnabled ?? true,
+        messageBufferTime: (settings as any).messageBufferTime || 5,
+        humanizedResponsesEnabled: (settings as any).humanizedResponsesEnabled ?? true,
+        messagingInterval: (settings as any).messagingInterval || 2,
+        maxMessagesPerResponse: (settings as any).maxMessagesPerResponse || 4,
+        humanEscalationEnabled: (settings as any).humanEscalationEnabled ?? true,
+        notificationMethod: (settings as any).notificationMethod || 'Email y WhatsApp',
+        notificationEmail: (settings as any).notificationEmail || '',
+        notificationWhatsApp: (settings as any).notificationWhatsApp || '',
         
         
         // Legacy fields
-        bufferTime: settings.bufferTime || 10,
-        maxMessageChunks: settings.maxMessageChunks || 3,
-        messageDelay: settings.messageDelay || 2,
-        humanizeResponses: settings.humanizeResponses ?? true,
-        alterEstateToken: settings.alterEstateToken || '',
-        alterEstateCompanyId: settings.alterEstateCompanyId || '',
-        googleCalendarId: settings.googleCalendarId || '',
-        calComUsername: settings.calComUsername || '',
-        emailNotifications: settings.emailNotifications ?? true,
-        whatsappNotifications: settings.whatsappNotifications ?? false,
+        bufferTime: (settings as any).bufferTime || 10,
+        maxMessageChunks: (settings as any).maxMessageChunks || 3,
+        messageDelay: (settings as any).messageDelay || 2,
+        humanizeResponses: (settings as any).humanizeResponses ?? true,
+        alterEstateToken: (settings as any).alterEstateToken || '',
+        alterEstateCompanyId: (settings as any).alterEstateCompanyId || '',
+        googleCalendarId: (settings as any).googleCalendarId || '',
+        calComUsername: (settings as any).calComUsername || '',
+        emailNotifications: (settings as any).emailNotifications ?? true,
+        whatsappNotifications: (settings as any).whatsappNotifications ?? false,
       });
     }
   }, [settings]);

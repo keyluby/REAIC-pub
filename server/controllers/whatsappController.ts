@@ -14,9 +14,13 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
-      // Create webhook URL
+      // Create webhook URL 
       const domains = process.env.REPLIT_DOMAINS?.split(',') || ['localhost:5000'];
-      const webhookUrl = `https://${domains[0]}/webhook/whatsapp/${instanceName}`;
+      const domain = domains[0];
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      const webhookUrl = `${protocol}://${domain}/webhook/whatsapp/${instanceName}`;
+      
+      console.log('🔗 Configurando webhook para:', instanceName, 'URL:', webhookUrl);
 
       // Create instance in Evolution API
       const result = await whatsappService.createInstance(instanceName, webhookUrl);
@@ -148,11 +152,9 @@ class WhatsAppController {
       }
 
       // Handle different webhook events
-      if (webhookData.event === 'messages.upsert') {
+      if (webhookData.event === 'MESSAGES_UPSERT' || webhookData.event === 'messages.upsert') {
         await this.handleIncomingMessage(instance, webhookData.data);
-      } else if (webhookData.event === 'connection.update') {
-        await this.handleConnectionUpdate(instanceName, webhookData.data);
-      } else if (webhookData.event === 'CONNECTION_UPDATE') {
+      } else if (webhookData.event === 'CONNECTION_UPDATE' || webhookData.event === 'connection.update') {
         await this.handleConnectionUpdate(instanceName, webhookData.data);
       }
 
