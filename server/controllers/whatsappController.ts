@@ -4,6 +4,7 @@ import { aiService } from '../services/aiService';
 import { messageBufferService } from '../services/messageBufferService';
 import { storage } from '../storage';
 import { constructWebhookUrl, logDomainInfo } from '../utils/domainDetection';
+import { internalWebhookService } from '../services/internalWebhookService';
 
 class WhatsAppController {
   constructor() {
@@ -23,15 +24,8 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
-      // Auto-detect webhook URL (scalable for any environment)
-      const webhookUrl = constructWebhookUrl(instanceName, req);
-      
-      // Log domain detection info for debugging
-      logDomainInfo(req);
-      console.log('🔗 Webhook URL configured:', webhookUrl);
-
-      // Create instance in Evolution API
-      const result = await whatsappService.createInstance(instanceName, webhookUrl);
+      // Create instance in internal Evolution API
+      const result = await whatsappService.createInstance(instanceName, '');
 
       // Store in database
       await storage.createWhatsappInstance({
@@ -40,7 +34,11 @@ class WhatsAppController {
         status: 'CONNECTING',
       });
 
-      res.json({ success: true, instanceName, webhookUrl });
+      // Configure internal event handling
+      await internalWebhookService.setupInstanceEvents(instanceName, userId);
+
+      console.log(`✅ Internal WhatsApp instance created: ${instanceName}`);
+      res.json({ success: true, instanceName, service: 'Internal Evolution API' });
     } catch (error) {
       console.error('Error creating WhatsApp instance:', error);
       res.status(500).json({ message: 'Failed to create WhatsApp instance' });
@@ -51,7 +49,7 @@ class WhatsAppController {
     try {
       const diagnostics = {
         openaiApiKey: !!process.env.OPENAI_API_KEY,
-        evolutionApiKey: !!process.env.EVOLUTION_API_KEY,
+        internalEvolutionApi: true,
         replitDomains: process.env.REPLIT_DOMAINS,
         timestamp: new Date().toISOString()
       };
