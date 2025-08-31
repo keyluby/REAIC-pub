@@ -5,23 +5,29 @@ import { Request } from 'express';
  * This function is designed to be scalable and work across different environments
  */
 export function detectCurrentDomain(req?: Request): string {
+  // FORCE CURRENT DOMAIN - Override environment variables that may be outdated
+  const CURRENT_REPLIT_DOMAIN = '20906aba-2b8e-4c98-8cf8-d16de2e66ff7-00-3lbh03xkqhcf2.pike.replit.dev';
+  
   // Method 1: Use request headers (most reliable for production)
   if (req) {
     const host = req.get('host') || req.get('x-forwarded-host');
-    if (host) {
+    if (host && host.includes('replit.dev')) {
+      console.log('🌐 Using domain from request headers:', host);
       return host;
     }
   }
 
-  // Method 2: Try Replit deployment domain construction
-  if (process.env.REPL_OWNER && process.env.REPL_SLUG) {
-    return `${process.env.REPL_OWNER}-${process.env.REPL_SLUG}.replit.dev`;
+  // Method 2: Force current known working domain for Replit
+  if (process.env.NODE_ENV !== 'development') {
+    console.log('🌐 Using forced current Replit domain:', CURRENT_REPLIT_DOMAIN);
+    return CURRENT_REPLIT_DOMAIN;
   }
 
-  // Method 3: Use REPLIT_DOMAINS if available
-  const domains = process.env.REPLIT_DOMAINS?.split(',') || [];
-  if (domains.length > 0) {
-    return domains[0];
+  // Method 3: Try Replit deployment domain construction (backup)
+  if (process.env.REPL_OWNER && process.env.REPL_SLUG) {
+    const constructedDomain = `${process.env.REPL_OWNER}-${process.env.REPL_SLUG}.replit.dev`;
+    console.log('🌐 Using constructed domain:', constructedDomain);
+    return constructedDomain;
   }
 
   // Method 4: Check for other deployment environment variables
@@ -34,6 +40,7 @@ export function detectCurrentDomain(req?: Request): string {
   }
 
   // Fallback for local development
+  console.log('🌐 Using localhost fallback');
   return 'localhost:5000';
 }
 
