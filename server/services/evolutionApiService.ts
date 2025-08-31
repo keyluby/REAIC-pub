@@ -147,8 +147,18 @@ class EvolutionApiService {
         console.log(`📱 ${instanceName} - Connection closed. Reconnecting:`, shouldReconnect);
         
         if (shouldReconnect) {
+          // Clean up the existing instance before reconnecting
+          this.instances.delete(instanceName);
           instance.status = 'CONNECTING';
-          await this.createInstance(instanceName, webhookUrl);
+          
+          // Use a timeout to avoid immediate reconnection and allow cleanup
+          setTimeout(async () => {
+            try {
+              await this.createInstance(instanceName, webhookUrl);
+            } catch (error) {
+              console.error(`Failed to reconnect instance ${instanceName}:`, error);
+            }
+          }, 2000);
         } else {
           instance.status = 'DISCONNECTED';
           this.instances.delete(instanceName);
