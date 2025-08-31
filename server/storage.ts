@@ -39,6 +39,7 @@ export interface IStorage {
   getUserWhatsappInstances(userId: string): Promise<WhatsappInstance[]>;
   updateWhatsappInstanceStatus(instanceName: string, status: string, qrCode?: string): Promise<void>;
   deleteWhatsappInstance(instanceName: string): Promise<void>;
+  deleteInstanceConversationsAndMessages(instanceName: string): Promise<void>;
   
   // Conversations
   createConversation(conversation: InsertConversation): Promise<Conversation>;
@@ -147,6 +148,22 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(whatsappInstances)
       .where(eq(whatsappInstances.instanceName, instanceName));
+  }
+
+  async deleteInstanceConversationsAndMessages(instanceName: string): Promise<void> {
+    // Obtener la instancia para conseguir su ID
+    const instance = await this.getWhatsappInstance(instanceName);
+    if (!instance) return;
+
+    // Eliminar todos los mensajes de las conversaciones de esta instancia
+    await db
+      .delete(messages)
+      .where(eq(messages.whatsappInstanceId, instance.id));
+
+    // Eliminar todas las conversaciones de esta instancia
+    await db
+      .delete(conversations)
+      .where(eq(conversations.whatsappInstanceId, instance.id));
   }
 
   // Conversations

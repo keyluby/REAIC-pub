@@ -115,10 +115,13 @@ class WhatsAppController {
     try {
       const { instanceName } = req.params;
       
-      // Eliminar de la base de datos local independientemente del estado del servidor
+      // Primero eliminar todas las conversaciones y mensajes asociados
+      await storage.deleteInstanceConversationsAndMessages(instanceName);
+      
+      // Luego eliminar la instancia
       await storage.deleteWhatsappInstance(instanceName);
 
-      res.json({ success: true, message: 'Instance deleted from local database' });
+      res.json({ success: true, message: 'Instance and associated data deleted from local database' });
     } catch (error) {
       console.error('Error force deleting instance:', error);
       res.status(500).json({ message: 'Failed to delete instance' });
