@@ -5,6 +5,14 @@ import { messageBufferService } from '../services/messageBufferService';
 import { storage } from '../storage';
 
 class WhatsAppController {
+  constructor() {
+    // Bind methods to preserve 'this' context
+    this.handleWebhook = this.handleWebhook.bind(this);
+    this.handleIncomingMessage = this.handleIncomingMessage.bind(this);
+    this.processAIResponse = this.processAIResponse.bind(this);
+    this.handleConnectionUpdate = this.handleConnectionUpdate.bind(this);
+  }
+
   async createInstance(req: any, res: Response) {
     try {
       const userId = req.user.claims.sub;
