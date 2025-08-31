@@ -241,10 +241,13 @@ class WhatsAppController {
         return;
       }
 
+      const rawRemoteJid = message.key.remoteJid;
       const clientPhone = message.key.remoteJid.replace('@s.whatsapp.net', '');
       const messageContent = message.message?.conversation || message.message?.extendedTextMessage?.text || message.message?.text || '';
       
-      console.log(`📞 Message from ${clientPhone}: "${messageContent}"`);
+      console.log(`📞 RAW remoteJid: "${rawRemoteJid}"`);
+      console.log(`📞 Processed phone: "${clientPhone}"`);
+      console.log(`📞 Message: "${messageContent}"`);
       
       // Get or create conversation
       let conversation = await storage.getConversationByPhone(instance.id, clientPhone);

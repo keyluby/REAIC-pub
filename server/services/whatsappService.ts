@@ -74,10 +74,15 @@ export class WhatsAppService {
 
   async sendMessage(instanceName: string, number: string, message: string) {
     try {
+      // Clean and format phone number for Evolution API
+      const cleanedNumber = this.formatPhoneNumber(number);
+      
+      console.log(`📱 Sending to - Original: "${number}", Cleaned: "${cleanedNumber}"`);
+      
       const response = await axios.post(
         `${this.evolutionApiUrl}/message/sendText/${instanceName}`,
         {
-          number,
+          number: cleanedNumber,
           text: message,
         },
         { headers: this.getHeaders() }
@@ -97,6 +102,30 @@ export class WhatsAppService {
       
       throw new Error('Failed to send message to WhatsApp');
     }
+  }
+
+  private formatPhoneNumber(number: string): string {
+    // Remove common WhatsApp suffixes
+    let cleaned = number.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    
+    // Remove any non-numeric characters except +
+    cleaned = cleaned.replace(/[^\d+]/g, '');
+    
+    // Ensure we have a + prefix for international numbers
+    if (!cleaned.startsWith('+') && cleaned.length > 10) {
+      cleaned = '+' + cleaned;
+    }
+    
+    // For numbers without + and reasonable length, add country code
+    if (!cleaned.startsWith('+') && cleaned.length >= 10) {
+      // Default to adding +1 for US numbers, but this should be configurable
+      // In a real system, you'd detect the country code based on the WhatsApp instance
+      console.log('⚠️ Adding default country code +1 to number:', cleaned);
+      cleaned = '+1' + cleaned;
+    }
+    
+    console.log(`🔧 Phone formatting: "${number}" → "${cleaned}"`);
+    return cleaned;
   }
 
   async sendMediaMessage(instanceName: string, number: string, mediaUrl: string, caption?: string) {
