@@ -199,11 +199,24 @@ class InternalWebhookService {
       if (!messageData.fromMe && messageData.message && messageData.message.trim()) {
         console.log(`🤖 [INTERNAL] Starting AI processing for conversation ${conversation.id}`);
         console.log(`📝 [INTERNAL] Message content: "${messageData.message}"`);
+        console.log(`📊 [INTERNAL] Message type: ${messageData.messageType}`);
         
-        // Usar el buffer de mensajes
+        // Procesar contenido multimedia si existe
+        let processedMessage = messageData.message;
+        
+        if (messageData.mediaBuffer && messageData.messageType) {
+          processedMessage = await this.processMultimediaMessage(
+            messageData.message, 
+            messageData.mediaBuffer,
+            messageData.messageType,
+            messageData.mimeType
+          );
+        }
+        
+        // Usar el buffer de mensajes con el contenido procesado
         await messageBufferService.addMessageToBuffer(
           conversation.id,
-          messageData.message,
+          processedMessage,
           messageData.messageKey,
           userId,
           async (combinedMessage: string) => {
@@ -283,6 +296,64 @@ class InternalWebhookService {
     } catch (error: any) {
       console.error('❌ [INTERNAL AI] Error processing AI response:', error);
       console.error('❌ [INTERNAL AI] Error stack:', error.stack);
+    }
+  }
+
+  /**
+   * Procesa mensajes multimedia (audio e imágenes) usando OpenAI
+   */
+  private async processMultimediaMessage(
+    originalMessage: string,
+    mediaBuffer: Buffer,
+    messageType: string,
+    mimeType?: string
+  ): Promise<string> {
+    try {
+      console.log(`🎯 [MULTIMEDIA] Processing ${messageType} with ${mediaBuffer.length} bytes`);
+
+      switch (messageType) {
+        case 'audioMessage':
+          try {
+            console.log(`🎤 [MULTIMEDIA] Transcribing audio message`);
+            const transcription = await aiService.transcribeAudio(mediaBuffer, mimeType);
+            console.log(`✅ [MULTIMEDIA] Audio transcribed: "${transcription}"`);
+            
+            // Si hay caption/texto adicional, combinarlo
+            const finalMessage = originalMessage && !originalMessage.includes('[Nota de voz')
+              ? `${originalMessage}\n\nTranscripción de audio: ${transcription}`
+              : `Transcripción de audio: ${transcription}`;
+            
+            return finalMessage;
+          } catch (error) {
+            console.error(`❌ [MULTIMEDIA] Error transcribing audio:`, error);
+            return originalMessage || 'No pude procesar la nota de voz. ¿Podrías escribir tu mensaje?';
+          }
+
+        case 'imageMessage':
+          try {
+            console.log(`🖼️ [MULTIMEDIA] Analyzing image message`);
+            const imageBase64 = mediaBuffer.toString('base64');
+            const imageAnalysis = await aiService.analyzeImage(imageBase64);
+            console.log(`✅ [MULTIMEDIA] Image analyzed: "${imageAnalysis}"`);
+            
+            // Si hay caption/texto adicional, combinarlo
+            const finalMessage = originalMessage && !originalMessage.includes('[Imagen')
+              ? `${originalMessage}\n\nAnálisis de imagen: ${imageAnalysis}`
+              : `Análisis de imagen: ${imageAnalysis}`;
+            
+            return finalMessage;
+          } catch (error) {
+            console.error(`❌ [MULTIMEDIA] Error analyzing image:`, error);
+            return originalMessage || 'Recibí una imagen pero no pude analizarla. ¿Podrías describirme qué contiene?';
+          }
+
+        default:
+          console.log(`⚠️ [MULTIMEDIA] Unsupported media type: ${messageType}`);
+          return originalMessage;
+      }
+    } catch (error) {
+      console.error(`❌ [MULTIMEDIA] Error processing multimedia message:`, error);
+      return originalMessage || 'No pude procesar este tipo de mensaje multimedia.';
     }
   }
 

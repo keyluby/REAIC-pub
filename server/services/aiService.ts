@@ -37,9 +37,9 @@ export class AIService {
 
       console.log(`📤 Sending request to OpenAI with ${messages.length} messages`);
 
-      // Using gpt-4o-mini which is cost-effective and reliable
+      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
         messages: messages as any,
         max_tokens: 500,
         temperature: 0.7,
@@ -139,7 +139,7 @@ Responde en formato JSON con esta estructura:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
@@ -151,19 +151,23 @@ Responde en formato JSON con esta estructura:
     }
   }
 
-  async transcribeAudio(audioBuffer: Buffer): Promise<string> {
+  async transcribeAudio(audioBuffer: Buffer, mimeType: string = 'audio/wav'): Promise<string> {
     try {
+      console.log(`🎤 [AI] Transcribing audio of ${audioBuffer.length} bytes`);
+      
       // Create a temporary file for the audio
-      const tempFile = new File([audioBuffer], 'audio.wav', { type: 'audio/wav' });
+      const tempFile = new File([audioBuffer], 'audio.wav', { type: mimeType });
       
       const transcription = await this.openaiClient.audio.transcriptions.create({
         file: tempFile,
         model: "whisper-1",
+        language: "es", // Spanish for real estate context
       });
 
+      console.log(`✅ [AI] Audio transcribed: "${transcription.text}"`);
       return transcription.text;
     } catch (error) {
-      console.error('Error transcribing audio:', error);
+      console.error('❌ [AI] Error transcribing audio:', error);
       throw new Error('Failed to transcribe audio');
     }
   }
@@ -171,14 +175,14 @@ Responde en formato JSON con esta estructura:
   async analyzeImage(imageBase64: string): Promise<string> {
     try {
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Analiza esta imagen en el contexto de bienes raíces. Describe lo que ves y si podría ser relevante para una búsqueda de propiedades."
+                text: "Analiza esta imagen en el contexto de bienes raíces. Describe lo que ves y si podría ser relevante para una búsqueda de propiedades. Responde como un asistente inmobiliario profesional en español, siendo útil y específico."
               },
               {
                 type: "image_url",
@@ -232,7 +236,7 @@ Responde en formato JSON:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });

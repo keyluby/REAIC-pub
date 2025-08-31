@@ -34,6 +34,10 @@ interface IncomingMessage {
   timestamp: number;
   fromMe: boolean;
   senderName?: string;
+  mediaBuffer?: Buffer;
+  mediaUrl?: string;
+  mimeType?: string;
+  originalMessage?: any; // Store original message for media processing
 }
 
 class EvolutionApiService {
@@ -204,8 +208,10 @@ class EvolutionApiService {
     const timestamp = message.messageTimestamp * 1000 || Date.now();
     const fromMe = message.key.fromMe || false;
 
-    // Extraer texto del mensaje
+    // Extraer texto del mensaje y procesar multimedia
     let messageText = '';
+    let mediaBuffer: Buffer | undefined;
+    let mimeType: string | undefined;
     const messageType = getContentType(message.message);
     
     if (messageType) {
@@ -217,19 +223,40 @@ class EvolutionApiService {
           messageText = message.message.extendedTextMessage?.text || '';
           break;
         case 'imageMessage':
-          messageText = message.message.imageMessage?.caption || '[Image]';
+          messageText = message.message.imageMessage?.caption || '';
+          try {
+            console.log(`🖼️ [MEDIA] Downloading image for message ${messageKey}`);
+            mediaBuffer = await downloadMediaMessage(message, 'buffer', {});
+            mimeType = message.message.imageMessage?.mimetype || 'image/jpeg';
+            console.log(`✅ [MEDIA] Image downloaded: ${mediaBuffer?.length || 0} bytes`);
+            if (!messageText) {
+              messageText = '[Imagen recibida - analizando contenido...]';
+            }
+          } catch (error) {
+            console.error(`❌ [MEDIA] Error downloading image:`, error);
+            messageText = messageText || '[Imagen no disponible]';
+          }
           break;
         case 'videoMessage':
-          messageText = message.message.videoMessage?.caption || '[Video]';
+          messageText = message.message.videoMessage?.caption || '[Video recibido]';
           break;
         case 'documentMessage':
-          messageText = '[Document]';
+          messageText = '[Documento recibido]';
           break;
         case 'audioMessage':
-          messageText = '[Audio]';
+          try {
+            console.log(`🎤 [MEDIA] Downloading audio for message ${messageKey}`);
+            mediaBuffer = await downloadMediaMessage(message, 'buffer', {});
+            mimeType = message.message.audioMessage?.mimetype || 'audio/ogg';
+            console.log(`✅ [MEDIA] Audio downloaded: ${mediaBuffer?.length || 0} bytes`);
+            messageText = '[Nota de voz recibida - transcribiendo...]';
+          } catch (error) {
+            console.error(`❌ [MEDIA] Error downloading audio:`, error);
+            messageText = '[Nota de voz no disponible]';
+          }
           break;
         default:
-          messageText = '[Unknown message type]';
+          messageText = '[Tipo de mensaje desconocido]';
       }
     }
 
@@ -241,7 +268,10 @@ class EvolutionApiService {
       messageType: messageType || 'unknown',
       timestamp,
       fromMe,
-      senderName: message.pushName || 'Unknown'
+      senderName: message.pushName || 'Unknown',
+      mediaBuffer,
+      mimeType,
+      originalMessage: message
     };
   }
 
