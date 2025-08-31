@@ -7,6 +7,7 @@ import { whatsappController } from "./controllers/whatsappController";
 import { crmController } from "./controllers/crmController";
 import { appointmentController } from "./controllers/appointmentController";
 import { validateRequest } from "./middleware/validation";
+import axios from "axios";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -82,6 +83,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating settings:", error);
       res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+
+  // Test AlterEstate connection
+  app.post('/api/test-alterestate-connection', isAuthenticated, async (req: any, res) => {
+    try {
+      const { alterEstateToken, alterEstateApiKey, alterEstateCompanyId } = req.body;
+      
+      if (!alterEstateToken) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Token de lectura es requerido" 
+        });
+      }
+
+      // Import AlterEstate service
+      const { alterEstateService } = await import('./services/alterEstateService');
+      
+      // Test read token with agents endpoint
+      const isTokenValid = await alterEstateService.validateToken(alterEstateToken);
+      
+      if (!isTokenValid) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Token de lectura inválido" 
+        });
+      }
+
+      // Get agent info to verify connection
+      const agents = await alterEstateService.getAgents(alterEstateToken);
+      
+      // Test API key if provided (for write operations)
+      let apiKeyStatus = null;
+      if (alterEstateApiKey) {
+        try {
+          // Try a minimal test with the API key
+          await axios.get('https://secure.alterestate.com/api/v1/agents/', {
+            headers: {
+              'Authorization': `Token ${alterEstateApiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          apiKeyStatus = "✅ API Key de escritura válida";
+        } catch (error) {
+          apiKeyStatus = "❌ API Key de escritura inválida";
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Conexión exitosa con AlterEstate",
+        details: {
+          readToken: "✅ Token de lectura válido",
+          apiKey: apiKeyStatus,
+          agentsFound: `✅ ${agents.length} agentes encontrados`,
+          companyId: alterEstateCompanyId ? `✅ ID de empresa: ${alterEstateCompanyId}` : "⚠️ ID de empresa no configurado"
+        }
+      });
+      
+    } catch (error) {
+      console.error("Error testing AlterEstate connection:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error al conectar con AlterEstate: " + (error instanceof Error ? error.message : 'Error desconocido')
+      });
     }
   });
 

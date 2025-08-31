@@ -71,6 +71,17 @@ export default function SettingsPage() {
     whatsappNotifications: false,
   });
 
+  // State for AlterEstate connection test
+  const [connectionTest, setConnectionTest] = useState<{
+    isLoading: boolean;
+    result: any;
+    hasError: boolean;
+  }>({
+    isLoading: false,
+    result: null,
+    hasError: false
+  });
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       toast({
@@ -181,6 +192,54 @@ export default function SettingsPage() {
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Test AlterEstate connection
+  const testAlterEstateConnection = async () => {
+    if (!formData.alterEstateToken.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa el Token de API antes de probar la conexión",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setConnectionTest({ isLoading: true, result: null, hasError: false });
+
+    try {
+      const response = await apiRequest('POST', '/api/test-alterestate-connection', {
+        alterEstateToken: formData.alterEstateToken,
+        alterEstateApiKey: formData.alterEstateApiKey,
+        alterEstateCompanyId: formData.alterEstateCompanyId
+      });
+
+      setConnectionTest({ 
+        isLoading: false, 
+        result: response, 
+        hasError: false 
+      });
+
+      toast({
+        title: "Conexión Exitosa",
+        description: "Las credenciales de AlterEstate son válidas",
+      });
+
+    } catch (error: any) {
+      console.error('Error testing connection:', error);
+      
+      setConnectionTest({ 
+        isLoading: false, 
+        result: error.response?.data || { message: 'Error de conexión' }, 
+        hasError: true 
+      });
+
+      toast({
+        title: "Error de Conexión",
+        description: error.response?.data?.message || "No se pudo conectar con AlterEstate",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading || settingsLoading) {
@@ -434,7 +493,21 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="alterEstateEnabled">Habilitar AlterEstate CRM</Label>
+                      <div className="flex items-center space-x-2">
+                        <Label htmlFor="alterEstateEnabled">Habilitar AlterEstate CRM</Label>
+                        {connectionTest.result && !connectionTest.hasError && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            Conectado
+                          </Badge>
+                        )}
+                        {connectionTest.result && connectionTest.hasError && (
+                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
+                            <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                            Error
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         Conecta con tu CRM para búsquedas reales de propiedades y creación automática de leads
                       </p>
@@ -490,9 +563,66 @@ export default function SettingsPage() {
                         />
                       </div>
                       
-                      <Button variant="outline" size="sm" data-testid="button-test-crm-connection">
-                        Probar Conexión con AlterEstate
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={testAlterEstateConnection}
+                        disabled={connectionTest.isLoading || !formData.alterEstateToken.trim()}
+                        data-testid="button-test-crm-connection"
+                      >
+                        {connectionTest.isLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                            Probando...
+                          </>
+                        ) : (
+                          "Probar Conexión con AlterEstate"
+                        )}
                       </Button>
+
+                      {/* Connection Test Results */}
+                      {connectionTest.result && (
+                        <div className={`mt-4 p-4 border rounded-lg ${
+                          connectionTest.hasError 
+                            ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' 
+                            : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+                        }`}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start space-x-3 flex-1">
+                              <div className={`w-5 h-5 mt-1 ${
+                                connectionTest.hasError ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                {connectionTest.hasError ? '❌' : '✅'}
+                              </div>
+                              <div className="flex-1">
+                                <p className={`font-medium ${
+                                  connectionTest.hasError ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
+                                }`}>
+                                  {connectionTest.result.message}
+                                </p>
+                                
+                                {connectionTest.result.details && !connectionTest.hasError && (
+                                  <div className="mt-2 space-y-1 text-sm text-green-700 dark:text-green-300">
+                                    {Object.entries(connectionTest.result.details).map(([key, value]) => (
+                                      <div key={key} className="flex items-center">
+                                        <span>{value as string}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => setConnectionTest({ isLoading: false, result: null, hasError: false })}
+                              className="text-xs p-1 h-6 w-6"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </CardContent>
