@@ -339,11 +339,47 @@ class WhatsAppController {
 
       const rawRemoteJid = message.key.remoteJid;
       const clientPhone = message.key.remoteJid.replace('@s.whatsapp.net', '');
-      const messageContent = message.message?.conversation || message.message?.extendedTextMessage?.text || message.message?.text || '';
+      
+      // Extract message content depending on type
+      let messageContent = '';
+      let messageType = 'TEXT';
+      let mediaUrl = null;
+      let mimeType = null;
+      
+      // Check what type of message we have
+      if (message.message?.conversation) {
+        messageContent = message.message.conversation;
+        messageType = 'TEXT';
+      } else if (message.message?.extendedTextMessage?.text) {
+        messageContent = message.message.extendedTextMessage.text;
+        messageType = 'TEXT';
+      } else if (message.message?.audioMessage) {
+        messageContent = '[Nota de voz recibida]';
+        messageType = 'AUDIO';
+        mediaUrl = message.message.audioMessage.url;
+        mimeType = message.message.audioMessage.mimetype || 'audio/ogg';
+        console.log(`🎤 Audio message detected: ${mediaUrl}`);
+      } else if (message.message?.imageMessage) {
+        messageContent = message.message.imageMessage.caption || '[Imagen recibida]';
+        messageType = 'IMAGE';
+        mediaUrl = message.message.imageMessage.url;
+        mimeType = message.message.imageMessage.mimetype || 'image/jpeg';
+        console.log(`🖼️ Image message detected: ${mediaUrl}`);
+      } else if (message.message?.videoMessage) {
+        messageContent = message.message.videoMessage.caption || '[Video recibido]';
+        messageType = 'VIDEO';
+        mediaUrl = message.message.videoMessage.url;
+        mimeType = message.message.videoMessage.mimetype || 'video/mp4';
+        console.log(`🎥 Video message detected: ${mediaUrl}`);
+      } else {
+        console.log('⚠️ Unknown message type detected:', Object.keys(message.message || {}));
+      }
       
       console.log(`📞 RAW remoteJid: "${rawRemoteJid}"`);
       console.log(`📞 Processed phone: "${clientPhone}"`);
       console.log(`📞 Message: "${messageContent}"`);
+      console.log(`📊 Message type: "${messageType}"`);
+      if (mediaUrl) console.log(`🎯 Media URL: "${mediaUrl}"`);
       
       // Get or create conversation
       let conversation = await storage.getConversationByPhone(instance.id, clientPhone);
@@ -370,6 +406,34 @@ class WhatsAppController {
 
       console.log('💾 Message stored in database');
 
+      // Process multimedia content if present
+      let finalMessageContent = messageContent;
+      if (mediaUrl && (messageType === 'AUDIO' || messageType === 'IMAGE')) {
+        console.log(`🎯 Processing multimedia content for ${messageType}`);
+        try {
+          // Download media content
+          const mediaBuffer = await this.downloadMediaContent(mediaUrl);
+          console.log(`📥 Media downloaded: ${mediaBuffer.length} bytes`);
+          
+          // Process multimedia using AI
+          if (messageType === 'AUDIO') {
+            const transcription = await aiService.transcribeAudio(mediaBuffer, mimeType);
+            finalMessageContent = `Transcripción de audio: ${transcription}`;
+            console.log(`🎤 Audio transcribed: "${transcription}"`);
+          } else if (messageType === 'IMAGE') {
+            const imageBase64 = mediaBuffer.toString('base64');
+            const imageAnalysis = await aiService.analyzeImage(imageBase64);
+            finalMessageContent = `Análisis de imagen: ${imageAnalysis}`;
+            console.log(`🖼️ Image analyzed: "${imageAnalysis}"`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing multimedia:`, error);
+          finalMessageContent = messageType === 'AUDIO' 
+            ? 'No pude procesar la nota de voz. ¿Podrías escribir tu mensaje?'
+            : 'Recibí una imagen pero no pude analizarla. ¿Podrías describirme qué contiene?';
+        }
+      }
+
       // Get user settings for buffer configuration
       const settings = await storage.getUserSettings(instance.userId);
       const bufferTime = settings?.bufferTime || 10;
@@ -379,8 +443,9 @@ class WhatsAppController {
       // Add to buffer
       messageBufferService.addMessageToBuffer(
         conversation.id,
-        messageContent,
-        bufferTime
+        finalMessageContent,
+        message.key.id || `msg_${Date.now()}`,
+        instance.userId
       );
 
       // Process if buffer is ready
@@ -448,37 +513,28 @@ class WhatsAppController {
 
       console.log(`✅ AI response received: "${aiResponse}"`);
 
-      // Humanize response
-      const { chunks, delays } = messageBufferService.humanizeResponse(
+      // Humanize response using callback
+      await messageBufferService.humanizeResponse(
         aiResponse,
-        settings?.maxMessageChunks || 160
-      );
+        instance.userId,
+        async (chunk: string) => {
+          console.log(`📨 Sending message chunk: "${chunk.substring(0, 50)}..."`);
+          
+          const sendResult = await whatsappService.sendMessage(instance.instanceName, conversation.clientPhone, chunk);
+          console.log('📨 Send result:', sendResult);
 
-      console.log(`📤 Sending ${chunks.length} message chunks`);
-
-      // Send response chunks with delays
-      for (let i = 0; i < chunks.length; i++) {
-        if (i > 0) {
-          console.log(`⏱️ Waiting ${delays[i - 1]}ms before next chunk`);
-          await new Promise(resolve => setTimeout(resolve, delays[i - 1]));
+          // Store AI message
+          await storage.createMessage({
+            conversationId: conversation.id,
+            whatsappInstanceId: instance.id,
+            messageId: `ai_${Date.now()}_${Math.random()}`,
+            fromMe: true,
+            messageType: 'TEXT',
+            content: chunk,
+            timestamp: new Date(),
+          });
         }
-
-        console.log(`📨 Sending chunk ${i + 1}/${chunks.length}: "${chunks[i]}"`);
-        
-        const sendResult = await whatsappService.sendMessage(instance.instanceName, conversation.clientPhone, chunks[i]);
-        console.log('📨 Send result:', sendResult);
-
-        // Store AI message
-        await storage.createMessage({
-          conversationId: conversation.id,
-          whatsappInstanceId: instance.id,
-          messageId: `ai_${Date.now()}_${i}`,
-          fromMe: true,
-          messageType: 'TEXT',
-          content: chunks[i],
-          timestamp: new Date(),
-        });
-      }
+      );
 
       // Stop typing indicator
       await whatsappService.setTyping(instance.instanceName, conversation.clientPhone, false);
@@ -542,6 +598,32 @@ class WhatsAppController {
       }
     } catch (error) {
       console.error('Error handling connection update:', error);
+    }
+  }
+
+  /**
+   * Descarga contenido multimedia desde URL
+   */
+  private async downloadMediaContent(mediaUrl: string): Promise<Buffer> {
+    try {
+      // Si es una URL data: (base64), extraer el buffer directamente
+      if (mediaUrl.startsWith('data:')) {
+        const base64Data = mediaUrl.split(',')[1];
+        return Buffer.from(base64Data, 'base64');
+      }
+      
+      // Si es una URL HTTP/HTTPS, descargar el contenido
+      const response = await fetch(mediaUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download media: ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+      
+    } catch (error) {
+      console.error('❌ Error downloading media content:', error);
+      throw new Error('Failed to download media content');
     }
   }
 }

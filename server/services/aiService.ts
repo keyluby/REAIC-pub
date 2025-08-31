@@ -37,9 +37,9 @@ export class AIService {
 
       console.log(`📤 Sending request to OpenAI with ${messages.length} messages`);
 
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      // Usando GPT-4o temporalmente para estabilidad
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+        model: "gpt-4o", // Usando GPT-4o temporalmente para estabilidad
         messages: messages as any,
         max_tokens: 500,
         temperature: 0.7,
@@ -139,9 +139,11 @@ Responde en formato JSON con esta estructura:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o", // Usando GPT-4o temporalmente para estabilidad
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
+        max_tokens: 800,
+        temperature: 0.7,
       });
 
       return JSON.parse(response.choices[0].message.content || '{"recommendations": []}');
@@ -175,7 +177,7 @@ Responde en formato JSON con esta estructura:
   async analyzeImage(imageBase64: string): Promise<string> {
     try {
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o", // Usando GPT-4o temporalmente para estabilidad
         messages: [
           {
             role: "user",
@@ -194,6 +196,7 @@ Responde en formato JSON con esta estructura:
           },
         ],
         max_tokens: 300,
+        temperature: 0.7,
       });
 
       return response.choices[0].message.content || 'No pude analizar la imagen';
@@ -236,9 +239,11 @@ Responde en formato JSON:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o", // Usando GPT-4o temporalmente para estabilidad  
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
+        max_tokens: 500,
+        temperature: 0.7,
       });
 
       return JSON.parse(response.choices[0].message.content || '{"intent": "ask_question", "confidence": 0.5}');
