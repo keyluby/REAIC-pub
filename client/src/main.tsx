@@ -14,4 +14,4 @@ window.addEventListener('error', (event) => {
   console.error('Global error:', event.error);
 });
 
-createRoot(document.getElementById("root")!).render(<App />);
+ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
