@@ -22,6 +22,38 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
+      // Create webhook URL 
+      const domains = process.env.REPLIT_DOMAINS?.split(',') || [];
+      let webhookUrl;
+      
+      if (domains.length > 0) {
+        const domain = domains[0];
+        webhookUrl = `https://${domain}/webhook/whatsapp/${instanceName}`;
+      } else {
+        // Fallback for development
+        webhookUrl = `http://localhost:5000/webhook/whatsapp/${instanceName}`;
+      }
+      
+      console.log('🔗 Webhook URL configured:', webhookUrl);
+      
+      console.log('🔗 Configurando webhook para:', instanceName, 'URL:', webhookUrl);
+
+      // Create instance in Evolution API
+      const result = await whatsappService.createInstance(instanceName, webhookUrl);
+
+      // Store in database
+      await storage.createWhatsappInstance({
+        userId,
+        instanceName,
+        status: 'CONNECTING',
+      });
+
+      res.json({ success: true, instanceName, webhookUrl });
+    } catch (error) {
+      console.error('Error creating WhatsApp instance:', error);
+      res.status(500).json({ message: 'Failed to create WhatsApp instance' });
+    }
+  }
 
   async diagnoseSystem(req: any, res: Response) {
     try {
@@ -60,40 +92,6 @@ class WhatsAppController {
     } catch (error) {
       console.error('Error in system diagnostics:', error);
       res.status(500).json({ message: 'Failed to run diagnostics' });
-    }
-  }
-
-
-      // Create webhook URL 
-      const domains = process.env.REPLIT_DOMAINS?.split(',') || [];
-      let webhookUrl;
-      
-      if (domains.length > 0) {
-        const domain = domains[0];
-        webhookUrl = `https://${domain}/webhook/whatsapp/${instanceName}`;
-      } else {
-        // Fallback for development
-        webhookUrl = `http://localhost:5000/webhook/whatsapp/${instanceName}`;
-      }
-      
-      console.log('🔗 Webhook URL configured:', webhookUrl);
-      
-      console.log('🔗 Configurando webhook para:', instanceName, 'URL:', webhookUrl);
-
-      // Create instance in Evolution API
-      const result = await whatsappService.createInstance(instanceName, webhookUrl);
-
-      // Store in database
-      await storage.createWhatsappInstance({
-        userId,
-        instanceName,
-        status: 'CONNECTING',
-      });
-
-      res.json({ success: true, instanceName, webhookUrl });
-    } catch (error) {
-      console.error('Error creating WhatsApp instance:', error);
-      res.status(500).json({ message: 'Failed to create WhatsApp instance' });
     }
   }
 
