@@ -36,6 +36,7 @@ export interface IStorage {
   // WhatsApp instances
   createWhatsappInstance(instance: InsertWhatsappInstance): Promise<WhatsappInstance>;
   getWhatsappInstance(instanceName: string): Promise<WhatsappInstance | undefined>;
+  getAllWhatsappInstances(): Promise<WhatsappInstance[]>;
   getUserWhatsappInstances(userId: string): Promise<WhatsappInstance[]>;
   updateWhatsappInstanceStatus(instanceName: string, status: string, qrCode?: string): Promise<void>;
   deleteWhatsappInstance(instanceName: string): Promise<void>;
@@ -126,6 +127,10 @@ export class DatabaseStorage implements IStorage {
   async getWhatsappInstance(instanceName: string): Promise<WhatsappInstance | undefined> {
     const [instance] = await db.select().from(whatsappInstances).where(eq(whatsappInstances.instanceName, instanceName));
     return instance;
+  }
+
+  async getAllWhatsappInstances(): Promise<WhatsappInstance[]> {
+    return await db.select().from(whatsappInstances);
   }
 
   async getUserWhatsappInstances(userId: string): Promise<WhatsappInstance[]> {

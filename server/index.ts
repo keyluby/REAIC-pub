@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { evolutionApiService } from "./services/evolutionApiService";
+import { internalWebhookService } from "./services/internalWebhookService";
 
 const app = express();
 app.use(express.json());
@@ -39,6 +40,18 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  // Initialize existing WhatsApp instances after routes are registered
+  setTimeout(async () => {
+    try {
+      console.log('🔄 [STARTUP] Initializing existing WhatsApp instances...');
+      await internalWebhookService.initializeExistingInstances();
+      const stats = internalWebhookService.getInitializationStats();
+      console.log(`✅ [STARTUP] Initialization complete: ${stats.totalActiveInstances} active instances`);
+    } catch (error) {
+      console.error('❌ [STARTUP] Failed to initialize existing instances:', error);
+    }
+  }, 3000); // Wait 3 seconds for services to be fully initialized
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
