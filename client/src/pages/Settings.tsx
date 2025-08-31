@@ -489,6 +489,14 @@ export default function SettingsPage() {
                     <Building className="w-5 h-5 mr-2" />
                     AlterEstate CRM
                   </CardTitle>
+                  <div className="text-sm text-muted-foreground mt-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">📋 Cómo obtener tus credenciales:</p>
+                    <div className="space-y-1 text-blue-800 dark:text-blue-200">
+                      <p>1. Ve a <a href="https://dev.alterestate.com/" target="_blank" rel="noopener noreferrer" className="underline font-medium">dev.alterestate.com</a> para acceder al portal de desarrolladores</p>
+                      <p>2. Sigue la sección "Getting Started" para obtener tus credenciales API</p>
+                      <p>3. Si necesitas ayuda, contacta a: <a href="mailto:engineering@alterestate.com" className="underline font-medium">engineering@alterestate.com</a></p>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -533,7 +541,7 @@ export default function SettingsPage() {
                           data-testid="input-alterestate-token"
                         />
                         <p className="text-sm text-muted-foreground mt-1">
-                          Token para consultar propiedades disponibles
+                          Token para consultar propiedades. Obtener en: <a href="https://dev.alterestate.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">dev.alterestate.com</a>
                         </p>
                       </div>
                       
@@ -548,7 +556,7 @@ export default function SettingsPage() {
                           data-testid="input-alterestate-apikey"
                         />
                         <p className="text-sm text-muted-foreground mt-1">
-                          API Key para crear leads automáticamente
+                          API Key para crear leads automáticamente. Contactar: <a href="mailto:engineering@alterestate.com" className="text-blue-600 hover:underline">engineering@alterestate.com</a>
                         </p>
                       </div>
                       
@@ -561,6 +569,9 @@ export default function SettingsPage() {
                           placeholder="Tu ID de empresa en AlterEstate"
                           data-testid="input-alterestate-company"
                         />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Identificador único de tu empresa en la plataforma AlterEstate
+                        </p>
                       </div>
                       
                       <Button 

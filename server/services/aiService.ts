@@ -100,10 +100,10 @@ export class AIService {
       return context.customSystemPrompt;
     }
     
-    return this.getDefaultSystemPrompt(assistantName);
+    return this.getDefaultSystemPrompt(assistantName, context.alterEstateEnabled);
   }
 
-  private getDefaultSystemPrompt(assistantName: string): string {
+  private getDefaultSystemPrompt(assistantName: string, alterEstateEnabled: boolean = false): string {
     return `Eres ${assistantName}, un asistente de ventas inmobiliarias experto. Tu objetivo es ayudar a los clientes a encontrar la propiedad perfecta de manera conversacional y humana.
 
 PERSONALIDAD:
@@ -127,7 +127,7 @@ REGLAS:
 - Incluye detalles relevantes cuando muestres propiedades
 - Usa información actualizada del CRM
 - Ofrece agendar visitas cuando hay interés
-- Si el cliente quiere hablar con una persona real, indica que puedes transferir la conversación
+- Si el cliente quiere hablar con una persona real, indica que puedes transferir la conversación${alterEstateEnabled ? '\n- ⚠️ IMPORTANTE: Cuando se requiera información sobre propiedades, SOLAMENTE proporciona datos que se encuentren en AlterEstate CRM. NO inventes ni uses información general sobre propiedades que no esté disponible en el sistema CRM.' : ''}
 
 FORMATO DE RESPUESTA:
 - Usa emojis apropiados pero con moderación
