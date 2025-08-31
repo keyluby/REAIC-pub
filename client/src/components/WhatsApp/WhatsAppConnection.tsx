@@ -17,6 +17,7 @@ export default function WhatsAppConnection() {
       setShowQRModal(true);
     } catch (error) {
       console.error('Error creating instance:', error);
+      // Error is already handled by the mutation's onError callback
     }
   };
 

@@ -69,6 +69,15 @@ export function useWebSocket() {
       ws.current.onerror = (error) => {
         console.error('WebSocket error:', error);
         setIsConnected(false);
+        
+        // Attempt to reconnect after error
+        if (reconnectTimer.current) {
+          clearTimeout(reconnectTimer.current);
+        }
+        reconnectTimer.current = setTimeout(() => {
+          console.log('Attempting to reconnect after error...');
+          connect();
+        }, 5000);
       };
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
