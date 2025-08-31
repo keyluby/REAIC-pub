@@ -3,6 +3,7 @@ import { whatsappService } from '../services/whatsappService';
 import { aiService } from '../services/aiService';
 import { messageBufferService } from '../services/messageBufferService';
 import { storage } from '../storage';
+import { constructWebhookUrl, logDomainInfo } from '../utils/domainDetection';
 
 class WhatsAppController {
   constructor() {
@@ -22,21 +23,12 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
-      // Create webhook URL using current domain
-      let webhookUrl;
+      // Auto-detect webhook URL (scalable for any environment)
+      const webhookUrl = constructWebhookUrl(instanceName, req);
       
-      // Use the current working domain
-      const currentDomain = '20906aba-2b8e-4c98-8cf8-d16de2e66ff7-00-3lbh03xkqhcf2.pike.replit.dev';
-      webhookUrl = `https://${currentDomain}/webhook/whatsapp/${instanceName}`;
-      
-      // Fallback for development
-      if (process.env.NODE_ENV === 'development' && !currentDomain) {
-        webhookUrl = `http://localhost:5000/webhook/whatsapp/${instanceName}`;
-      }
-      
+      // Log domain detection info for debugging
+      logDomainInfo(req);
       console.log('🔗 Webhook URL configured:', webhookUrl);
-      
-      console.log('🔗 Configurando webhook para:', instanceName, 'URL:', webhookUrl);
 
       // Create instance in Evolution API
       const result = await whatsappService.createInstance(instanceName, webhookUrl);
