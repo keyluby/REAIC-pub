@@ -22,15 +22,15 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
-      // Create webhook URL 
-      const domains = process.env.REPLIT_DOMAINS?.split(',') || [];
+      // Create webhook URL using current domain
       let webhookUrl;
       
-      if (domains.length > 0) {
-        const domain = domains[0];
-        webhookUrl = `https://${domain}/webhook/whatsapp/${instanceName}`;
-      } else {
-        // Fallback for development
+      // Use the current working domain
+      const currentDomain = '20906aba-2b8e-4c98-8cf8-d16de2e66ff7-00-3lbh03xkqhcf2.pike.replit.dev';
+      webhookUrl = `https://${currentDomain}/webhook/whatsapp/${instanceName}`;
+      
+      // Fallback for development
+      if (process.env.NODE_ENV === 'development' && !currentDomain) {
         webhookUrl = `http://localhost:5000/webhook/whatsapp/${instanceName}`;
       }
       
