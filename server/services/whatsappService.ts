@@ -83,9 +83,19 @@ export class WhatsAppService {
         { headers: this.getHeaders() }
       );
       return response.data;
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw new Error('Failed to send message');
+    } catch (error: any) {
+      console.error('Error sending message:', error.response?.data || error.message);
+      
+      // Handle specific error types
+      if (error.response?.status === 400 && error.response?.data?.response?.message) {
+        const errorMsg = error.response.data.response.message;
+        if (Array.isArray(errorMsg) && errorMsg[0]?.exists === false) {
+          console.error(`❌ WhatsApp number ${number} does not exist or is not reachable`);
+          throw new Error(`WhatsApp number ${number} does not exist or is not available`);
+        }
+      }
+      
+      throw new Error('Failed to send message to WhatsApp');
     }
   }
 
@@ -158,15 +168,10 @@ export class WhatsAppService {
 
   async setTyping(instanceName: string, number: string, isTyping: boolean) {
     try {
-      const response = await axios.post(
-        `${this.evolutionApiUrl}/chat/presence/${instanceName}`,
-        {
-          number,
-          presence: isTyping ? 'composing' : 'available',
-        },
-        { headers: this.getHeaders() }
-      );
-      return response.data;
+      // Temporarily disabled due to 404 error on Evolution API
+      // The typing indicator endpoint is not critical for message flow
+      console.log(`⌨️ Typing indicator ${isTyping ? 'on' : 'off'} for ${number} (disabled)`);
+      return { success: true };
     } catch (error) {
       console.error('Error setting typing status:', error);
       // Don't throw error for typing status as it's not critical

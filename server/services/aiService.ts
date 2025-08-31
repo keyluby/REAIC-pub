@@ -37,9 +37,9 @@ export class AIService {
 
       console.log(`📤 Sending request to OpenAI with ${messages.length} messages`);
 
-      // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+      // Using gpt-4o-mini which is cost-effective and reliable
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o-mini",
         messages: messages as any,
         max_tokens: 500,
         temperature: 0.7,
@@ -139,7 +139,7 @@ Responde en formato JSON con esta estructura:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
@@ -171,7 +171,7 @@ Responde en formato JSON con esta estructura:
   async analyzeImage(imageBase64: string): Promise<string> {
     try {
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           {
             role: "user",
@@ -232,7 +232,7 @@ Responde en formato JSON:
 }`;
 
       const response = await this.openaiClient.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        model: "gpt-4o-mini", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
