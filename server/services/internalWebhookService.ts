@@ -200,8 +200,16 @@ class InternalWebhookService {
         console.log(`🤖 [INTERNAL] Starting AI processing for conversation ${conversation.id}`);
         console.log(`📝 [INTERNAL] Message content: "${messageData.message}"`);
         
-        // Procesar con IA directamente por ahora
-        await this.processWithAI(instanceName, messageData.remoteJid, messageData.message, conversation.id, dbInstance.id);
+        // Usar el buffer de mensajes
+        await messageBufferService.addMessageToBuffer(
+          conversation.id,
+          messageData.message,
+          messageData.messageKey,
+          userId,
+          async (combinedMessage: string) => {
+            await this.processWithAI(instanceName, messageData.remoteJid, combinedMessage, conversation.id, dbInstance.id);
+          }
+        );
       } else {
         console.log(`⏭️ [INTERNAL] Skipping AI processing - fromMe: ${messageData.fromMe}, message: "${messageData.message}"`);
       }
@@ -239,20 +247,33 @@ class InternalWebhookService {
       if (aiResponse && aiResponse.trim()) {
         console.log(`📱 [INTERNAL AI] Attempting to send message via ${instanceName} to ${phoneNumber}`);
         
-        // Enviar respuesta a través del servicio interno
-        const sendResult = await evolutionApiService.sendMessage(instanceName, phoneNumber, aiResponse);
-        console.log(`📤 [INTERNAL AI] Send result:`, sendResult);
-        
-        // Guardar respuesta de IA en la base de datos
-        await storage.createMessage({
-          conversationId,
-          whatsappInstanceId,
-          messageId: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          fromMe: true,
-          messageType: 'text',
-          content: aiResponse,
-          timestamp: new Date(),
-        });
+        // Obtener userId desde conversación
+        const conversation = await storage.getConversationById(conversationId);
+        if (!conversation) {
+          throw new Error(`Conversation ${conversationId} not found`);
+        }
+
+        // Usar respuestas humanizadas
+        await messageBufferService.humanizeResponse(
+          aiResponse,
+          conversation.userId,
+          async (chunk: string) => {
+            // Enviar cada chunk a través del servicio interno
+            const sendResult = await evolutionApiService.sendMessage(instanceName, phoneNumber, chunk);
+            console.log(`📤 [INTERNAL AI] Chunk send result:`, sendResult);
+            
+            // Guardar cada chunk en la base de datos
+            await storage.createMessage({
+              conversationId,
+              whatsappInstanceId,
+              messageId: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              fromMe: true,
+              messageType: 'text',
+              content: chunk,
+              timestamp: new Date(),
+            });
+          }
+        );
 
         console.log(`✅ [INTERNAL AI] AI response sent and saved via ${instanceName} to ${phoneNumber}`);
       } else {
