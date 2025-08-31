@@ -194,8 +194,16 @@ class WhatsAppController {
       const { instanceName } = req.params;
       const webhookData = req.body;
 
-      console.log('🔔 WhatsApp webhook received for instance:', instanceName);
-      console.log('🔍 Webhook data:', JSON.stringify(webhookData, null, 2));
+      // ENHANCED LOGGING FOR REAL WEBHOOK DEBUGGING
+      const timestamp = new Date().toISOString();
+      console.log(`\n🔔 ===================== WEBHOOK RECEIVED =====================`);
+      console.log(`⏰ Timestamp: ${timestamp}`);
+      console.log(`📱 Instance: ${instanceName}`);
+      console.log(`🌍 Source IP: ${req.ip || req.connection.remoteAddress}`);
+      console.log(`🔗 URL: ${req.protocol}://${req.get('host')}${req.originalUrl}`);
+      console.log(`📋 Headers:`, JSON.stringify(req.headers, null, 2));
+      console.log(`📦 Body:`, JSON.stringify(webhookData, null, 2));
+      console.log(`🔔 ============================================================\n`);
 
       // Get instance from database
       const instance = await storage.getWhatsappInstance(instanceName);
