@@ -5,6 +5,7 @@ import { messageBufferService } from '../services/messageBufferService';
 import { storage } from '../storage';
 import { constructWebhookUrl, logDomainInfo } from '../utils/domainDetection';
 import { internalWebhookService } from '../services/internalWebhookService';
+import { evolutionApiService } from '../services/evolutionApiService';
 
 class WhatsAppController {
   constructor() {
@@ -59,6 +60,22 @@ class WhatsAppController {
       // Test Evolution API connection
       const evolutionTest = await whatsappService.testConnection();
       
+      // Check all database instances
+      const allInstances = await storage.getAllWhatsappInstances();
+      console.log(`📊 Found ${allInstances.length} instances in database:`, allInstances.map(i => ({ 
+        name: i.instanceName, 
+        status: i.status, 
+        userId: i.userId 
+      })));
+      
+      // Check internal webhook service status
+      const webhookStats = internalWebhookService.getInitializationStats();
+      console.log('🔗 Internal webhook stats:', webhookStats);
+      
+      // Check which instances have active events
+      const activeInstances = internalWebhookService.getActiveInstances();
+      console.log('⚡ Active instances with events:', activeInstances);
+      
       // Test OpenAI (simplified)
       let openaiTest = { working: false, error: null };
       try {
@@ -77,11 +94,84 @@ class WhatsAppController {
       res.json({
         diagnostics,
         evolutionApi: evolutionTest,
-        openaiApi: openaiTest
+        openaiApi: openaiTest,
+        instances: {
+          total: allInstances.length,
+          details: allInstances.map(i => ({ name: i.instanceName, status: i.status, userId: i.userId })),
+          activeEvents: activeInstances,
+          webhookStats
+        }
       });
     } catch (error) {
       console.error('Error in system diagnostics:', error);
       res.status(500).json({ message: 'Failed to run diagnostics' });
+    }
+  }
+
+  async initializeInstances(req: any, res: Response) {
+    try {
+      console.log('🔄 [MANUAL] Starting manual instance initialization...');
+      await internalWebhookService.initializeExistingInstances();
+      const stats = internalWebhookService.getInitializationStats();
+      console.log(`✅ [MANUAL] Manual initialization complete: ${stats.totalActiveInstances} active instances`);
+      
+      res.json({
+        success: true,
+        message: 'Instance initialization completed',
+        stats
+      });
+    } catch (error: any) {
+      console.error('❌ [MANUAL] Error in manual initialization:', error);
+      res.status(500).json({ message: 'Failed to initialize instances', error: error.message });
+    }
+  }
+
+  async simulateIncomingMessage(req: any, res: Response) {
+    try {
+      const { instanceName, phoneNumber, message } = req.body;
+      
+      console.log(`🧪 [TEST] API call to simulate message for ${instanceName} from ${phoneNumber}: "${message}"`);
+      
+      // Use the internal webhook service's simulate function
+      const result = await internalWebhookService.simulateIncomingMessage(instanceName, phoneNumber, message);
+      
+      res.json({
+        success: true,
+        message: 'Test message processed successfully',
+        data: result.messageData
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [TEST] Error in simulate API:', error);
+      res.status(500).json({ message: 'Failed to simulate message', error: error.message });
+    }
+  }
+
+  async testAiResponse(req: any, res: Response) {
+    try {
+      console.log('🤖 [TEST AI] Testing AI service directly...');
+      
+      const testResponse = await aiService.processConversation(
+        'test-user',
+        'test-conversation', 
+        'Hola, quiero información sobre una casa en venta',
+        {
+          assistantName: 'Asistente Inmobiliario',
+          context: 'eres un asistente de bienes raíces especializado en ayudar a clientes con propiedades'
+        }
+      );
+      
+      console.log(`🤖 [TEST AI] AI response: "${testResponse}"`);
+      
+      res.json({
+        success: true,
+        message: 'AI test completed',
+        response: testResponse
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [TEST AI] Error testing AI:', error);
+      res.status(500).json({ message: 'Failed to test AI', error: error.message });
     }
   }
 

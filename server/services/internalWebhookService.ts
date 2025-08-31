@@ -70,6 +70,47 @@ class InternalWebhookService {
     }
   }
 
+  // Simular mensaje entrante para pruebas
+  async simulateIncomingMessage(instanceName: string, phoneNumber: string, message: string) {
+    try {
+      console.log(`🧪 [SIMULATE] Simulating incoming message for ${instanceName} from ${phoneNumber}: "${message}"`);
+      
+      // Crear datos simulados del mensaje
+      const simulatedMessageData = {
+        instanceName,
+        messageKey: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        remoteJid: phoneNumber.includes('@') ? phoneNumber : `${phoneNumber}@s.whatsapp.net`,
+        message: message || 'Mensaje de prueba',
+        messageType: 'text',
+        timestamp: Date.now(),
+        fromMe: false,
+        senderName: 'Test User'
+      };
+
+      // Verificar que la instancia esté configurada
+      const dbInstance = await storage.getWhatsappInstance(instanceName);
+      if (!dbInstance) {
+        throw new Error(`Instance ${instanceName} not found in database`);
+      }
+
+      // Verificar que los eventos estén activos
+      if (!this.activeInstances.get(instanceName)) {
+        throw new Error(`Instance ${instanceName} events are not configured`);
+      }
+
+      console.log(`🧪 [SIMULATE] Triggering handleIncomingMessage for ${instanceName}`);
+      
+      // Llamar directamente al manejador de mensajes
+      await this.handleIncomingMessage(instanceName, simulatedMessageData, dbInstance.userId);
+      
+      return { success: true, messageData: simulatedMessageData };
+      
+    } catch (error) {
+      console.error('❌ [SIMULATE] Error simulating message:', error);
+      throw error;
+    }
+  }
+
   // Configurar eventos internos para una instancia
   async setupInstanceEvents(instanceName: string, userId: string) {
     try {

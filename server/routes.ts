@@ -69,6 +69,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/whatsapp/instances', isAuthenticated, whatsappController.getUserInstances);
   app.get('/api/whatsapp/test-connection', isAuthenticated, whatsappController.testConnection);
   app.get('/api/whatsapp/diagnose', isAuthenticated, whatsappController.diagnoseSystem);
+  app.get('/api/whatsapp/diagnose-public', whatsappController.diagnoseSystem);
+  app.post('/api/whatsapp/initialize-instances', isAuthenticated, whatsappController.initializeInstances);
+  app.post('/api/whatsapp/initialize-instances-public', whatsappController.initializeInstances);
+  app.post('/api/whatsapp/simulate-message', whatsappController.simulateIncomingMessage);
+  app.get('/api/whatsapp/test-ai', whatsappController.testAiResponse);
 
   // WhatsApp webhook
   app.post('/webhook/whatsapp/:instanceName', whatsappController.handleWebhook);

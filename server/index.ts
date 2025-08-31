@@ -45,9 +45,11 @@ app.use((req, res, next) => {
   setTimeout(async () => {
     try {
       console.log('🔄 [STARTUP] Initializing existing WhatsApp instances...');
+      console.log('🔄 [STARTUP] Calling initializeExistingInstances...');
       await internalWebhookService.initializeExistingInstances();
       const stats = internalWebhookService.getInitializationStats();
       console.log(`✅ [STARTUP] Initialization complete: ${stats.totalActiveInstances} active instances`);
+      console.log(`📊 [STARTUP] Active instances: ${stats.activeInstanceNames.join(', ')}`);
     } catch (error) {
       console.error('❌ [STARTUP] Failed to initialize existing instances:', error);
     }
