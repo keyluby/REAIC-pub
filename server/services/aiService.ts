@@ -1,5 +1,8 @@
 import OpenAI from "openai";
 
+// Queue para media pendientes de envío
+const pendingMediaQueue = new Map<string, any>();
+
 export class AIService {
   private openaiClient: OpenAI;
   private conversationContexts = new Map<string, any[]>();
@@ -369,18 +372,29 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
     const messageLower = message.toLowerCase();
     const mediaKeywords = [
       'foto', 'fotos', 'imagen', 'imágenes', 'video', 'videos',
-      'ver', 'muestra', 'enseña', 'galería', 'picture', 'photo'
+      'ver', 'muestra', 'enseña', 'galería', 'picture', 'photo',
+      'mira', 'envía', 'manda', 'comparte', 'visual', 'aspecto',
+      'cómo se ve', 'que tal se ve', 'ver como es'
     ];
     
     const propertyKeywords = [
       'propiedad', 'apartament', 'casa', 'inmueble', 'villa',
-      'penthouse', 'property', 'unit', 'building'
+      'penthouse', 'property', 'unit', 'building', 'lugar',
+      'esa', 'esta', 'ese', 'este'
     ];
     
     const hasMediaKeyword = mediaKeywords.some(keyword => messageLower.includes(keyword));
     const hasPropertyKeyword = propertyKeywords.some(keyword => messageLower.includes(keyword));
     
-    return hasMediaKeyword && hasPropertyKeyword;
+    // También detectar solicitudes implícitas como "quiero ver más detalles"
+    const implicitRequests = [
+      'más información', 'más detalles', 'tell me more', 'mas info',
+      'información adicional', 'detalles adicionales'
+    ];
+    
+    const hasImplicitRequest = implicitRequests.some(phrase => messageLower.includes(phrase));
+    
+    return (hasMediaKeyword && hasPropertyKeyword) || hasImplicitRequest;
   }
 
   /**
@@ -390,25 +404,114 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
     try {
       console.log('📸 [AI] Processing property media request');
       
+      if (!context.alterEstateEnabled || !context.alterEstateToken) {
+        return 'Para poder enviarte fotos de propiedades, necesito que AlterEstate CRM esté configurado en las configuraciones.';
+      }
+      
       // Extract property ID from message if mentioned
-      const propertyIdMatch = message.match(/([A-Z0-9]{10})/); // AlterEstate UIDs are 10 chars
+      const propertyIdMatch = message.match(/([A-Z0-9]{8,12})/); // AlterEstate UIDs are typically 8-12 chars
+      
+      let propertySlug: string | null = null;
       
       if (propertyIdMatch) {
-        const propertyId = propertyIdMatch[1];
-        console.log(`🏠 [AI] Property ID extracted: ${propertyId}`);
-        
-        // This would be handled by the WhatsApp controller to send actual media
-        // For now, return a message indicating we're preparing the images
-        return `Perfecto! Te estoy preparando las fotos de la propiedad ${propertyId}. En unos segundos te las enviaré 📸`;
+        propertySlug = propertyIdMatch[1];
+        console.log(`🏠 [AI] Property ID extracted from message: ${propertySlug}`);
       } else {
-        // Ask for clarification about which property
-        return 'Me gustaría enviarte las fotos, pero ¿de cuál propiedad específicamente? Por favor menciona el ID de la propiedad que te interesa.';
+        // Try to get property from recent conversation context
+        propertySlug = await this.extractPropertyFromContext(conversationId);
+        console.log(`🏠 [AI] Property extracted from context: ${propertySlug}`);
       }
+      
+      if (!propertySlug) {
+        return 'Me gustaría enviarte las fotos, pero ¿de cuál propiedad específicamente? Por favor menciona el ID de la propiedad que te interesa, o hazme una búsqueda de propiedades primero.';
+      }
+      
+      // Get property media from AlterEstate
+      const { alterEstateService } = await import('./alterEstateService');
+      const media = await alterEstateService.getPropertyMedia(context.alterEstateToken, propertySlug);
+      
+      // Send media through WhatsApp (this will be handled by a special flag)
+      await this.sendPropertyMedia(conversationId, propertySlug, media);
+      
+      if (media.images.length === 0 && !media.featuredImage) {
+        return 'Esta propiedad no tiene fotos disponibles en este momento. ¿Te gustaría que coordine una visita para que puedas verla en persona?';
+      }
+      
+      let response = `📸 Te estoy enviando ${media.images.length + (media.featuredImage ? 1 : 0)} foto(s) de esta propiedad.`;
+      
+      if (media.virtualTour) {
+        response += `\n\n🎥 También tiene un tour virtual disponible: ${media.virtualTour}`;
+      }
+      
+      response += '\n\n¿Te gustaría agendar una visita para conocer la propiedad en persona?';
+      
+      return response;
       
     } catch (error) {
       console.error('❌ [AI] Error processing media request:', error);
-      return 'Disculpa, tuve un problema preparando las fotos. ¿Podrías especificar qué propiedad te interesa?';
+      return 'Disculpa, tuve un problema obteniendo las fotos de la propiedad. ¿Podrías intentar de nuevo o especificar qué propiedad te interesa?';
     }
+  }
+
+  /**
+   * Extraer ID de propiedad del contexto de conversación reciente
+   */
+  private async extractPropertyFromContext(conversationId: string): Promise<string | null> {
+    try {
+      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      
+      // Buscar mensajes del asistente que contengan IDs de propiedades
+      for (let i = conversationContext.length - 1; i >= 0; i--) {
+        const msg = conversationContext[i];
+        if (msg.role === 'assistant' && msg.content) {
+          const propertyIdMatch = msg.content.match(/\*\*ID\*\*:\s*([A-Z0-9]{8,12})/);
+          if (propertyIdMatch) {
+            return propertyIdMatch[1];
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ [AI] Error extracting property from context:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Enviar fotos/videos de propiedad a través de WhatsApp
+   */
+  private async sendPropertyMedia(conversationId: string, propertySlug: string, media: any): Promise<void> {
+    try {
+      // Marcar que se deben enviar medios para esta conversación
+      // Esto será manejado por el controlador de WhatsApp después del mensaje de texto
+      const mediaQueue = {
+        conversationId,
+        propertySlug,
+        images: media.images,
+        featuredImage: media.featuredImage,
+        virtualTour: media.virtualTour,
+        timestamp: Date.now()
+      };
+      
+      // Guardar en memoria temporal para que el controlador pueda acceder
+      pendingMediaQueue.set(conversationId, mediaQueue);
+      
+      console.log(`📸 [AI] Media queued for conversation: ${conversationId}`);
+    } catch (error) {
+      console.error('❌ [AI] Error queuing media:', error);
+    }
+  }
+
+  /**
+   * Obtener y limpiar media pendiente para una conversación
+   */
+  static getPendingMedia(conversationId: string): any {
+    const media = pendingMediaQueue.get(conversationId);
+    if (media) {
+      pendingMediaQueue.delete(conversationId);
+    }
+    return media;
   }
 
   /**

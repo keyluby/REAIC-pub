@@ -511,9 +511,18 @@ class WhatsAppController {
         context
       );
 
-      // Check if response indicates property media should be sent
+      // Check if there are pending media files to send
+      const { AIService } = await import('../services/aiService');
+      const pendingMedia = AIService.getPendingMedia(conversation.id);
+      
+      if (pendingMedia && context.alterEstateToken) {
+        console.log('📸 [WHATSAPP] Pending media detected, processing...');
+        await this.sendPropertyMediaFromQueue(pendingMedia, instance, conversation, context);
+      }
+      
+      // Also check legacy detection method for backwards compatibility
       if (aiResponse.includes('Te estoy preparando las fotos') && context.alterEstateToken) {
-        console.log('📸 [WHATSAPP] AI requested property media, processing...');
+        console.log('📸 [WHATSAPP] AI requested property media (legacy method), processing...');
         await this.handlePropertyMediaRequest(message, instance, conversation, context);
       }
 
@@ -641,6 +650,86 @@ class WhatsAppController {
     } catch (error) {
       console.error('❌ Error downloading media content:', error);
       throw new Error('Failed to download media content');
+    }
+  }
+
+  /**
+   * Enviar media de propiedades desde el queue
+   */
+  private async sendPropertyMediaFromQueue(
+    mediaQueue: any,
+    instance: any,
+    conversation: any,
+    context: any
+  ): Promise<void> {
+    try {
+      console.log(`📸 [WHATSAPP] Sending queued media for property: ${mediaQueue.propertySlug}`);
+      
+      const mediaToSend: string[] = [];
+      
+      // Agregar imagen destacada si existe
+      if (mediaQueue.featuredImage) {
+        mediaToSend.push(mediaQueue.featuredImage);
+      }
+      
+      // Agregar imágenes de galería
+      if (mediaQueue.images && mediaQueue.images.length > 0) {
+        mediaToSend.push(...mediaQueue.images.slice(0, 4)); // Máximo 4 imágenes adicionales
+      }
+      
+      if (mediaToSend.length === 0) {
+        console.log('📷 [WHATSAPP] No media available for this property');
+        return;
+      }
+      
+      console.log(`📸 [WHATSAPP] Sending ${mediaToSend.length} media files`);
+      
+      // Enviar cada imagen con un delay
+      for (let i = 0; i < mediaToSend.length; i++) {
+        const mediaUrl = mediaToSend[i];
+        console.log(`📤 [WHATSAPP] Sending media ${i + 1}/${mediaToSend.length}: ${mediaUrl}`);
+        
+        try {
+          await whatsappService.sendMedia(
+            instance.instanceName,
+            conversation.clientPhone,
+            mediaUrl,
+            'image',
+            i === 0 ? `📸 Propiedad ${mediaQueue.propertySlug}` : ''
+          );
+          
+          // Store media message in database
+          await storage.createMessage({
+            conversationId: conversation.id,
+            whatsappInstanceId: instance.id,
+            messageId: `media_${Date.now()}_${i}`,
+            fromMe: true,
+            messageType: 'IMAGE',
+            content: mediaUrl,
+            timestamp: new Date(),
+          });
+          
+          // Delay entre imágenes para evitar spam
+          if (i < mediaToSend.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2500));
+          }
+        } catch (mediaError) {
+          console.error(`❌ [WHATSAPP] Error sending media ${i + 1}:`, mediaError);
+        }
+      }
+      
+      // Enviar tour virtual si existe
+      if (mediaQueue.virtualTour) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await whatsappService.sendMessage(
+          instance.instanceName,
+          conversation.clientPhone,
+          `🎥 Tour Virtual: ${mediaQueue.virtualTour}`
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ [WHATSAPP] Error sending queued media:', error);
     }
   }
 

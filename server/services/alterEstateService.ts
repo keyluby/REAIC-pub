@@ -486,6 +486,39 @@ export class AlterEstateService {
   }
 
   /**
+   * Obtener galería de fotos y videos de una propiedad específica
+   */
+  async getPropertyMedia(aeToken: string, propertySlug: string): Promise<{
+    images: string[];
+    videos: string[];
+    featuredImage?: string;
+    virtualTour?: string;
+  }> {
+    try {
+      console.log(`📸 [ALTERESTATE] Getting media for property: ${propertySlug}`);
+      
+      const propertyDetail = await this.getPropertyDetail(aeToken, propertySlug);
+      
+      const media = {
+        images: propertyDetail.gallery_image || [],
+        videos: [], // AlterEstate no especifica videos en la documentación actual
+        featuredImage: propertyDetail.featured_image,
+        virtualTour: propertyDetail.virtual_tour
+      };
+      
+      console.log(`📸 [ALTERESTATE] Found ${media.images.length} images for property ${propertySlug}`);
+      if (media.featuredImage) console.log(`🌟 [ALTERESTATE] Featured image available`);
+      if (media.virtualTour) console.log(`🎥 [ALTERESTATE] Virtual tour available`);
+      
+      return media;
+      
+    } catch (error) {
+      console.error(`❌ [ALTERESTATE] Error getting property media:`, error);
+      throw new Error('Error al obtener medios de la propiedad');
+    }
+  }
+
+  /**
    * Validar token de AlterEstate
    */
   async validateToken(aeToken: string): Promise<boolean> {
