@@ -25,22 +25,26 @@ export class AIService {
       console.log(`🤖 Processing AI conversation for user ${userId}, conversation ${conversationId}`);
       console.log(`📝 User message: "${message}"`);
       
-      // Check if AlterEstate integration is enabled
-      if (context.alterEstateEnabled && context.alterEstateToken) {
-        console.log('🏘️ [AI] AlterEstate integration enabled, checking for property search intent');
+      // Check if web scraping is enabled (preferred) or AlterEstate (fallback)
+      const { internalPropertyService } = await import('./internalPropertyService');
+      const isScrapingEnabled = await internalPropertyService.isScrapingEnabled(userId);
+      
+      if (isScrapingEnabled || (context.alterEstateEnabled && context.alterEstateToken)) {
+        const dataSource = isScrapingEnabled ? 'internal' : 'alterestate';
+        console.log(`🏘️ [AI] Property integration enabled (${dataSource}), checking for property search intent`);
         
         // FIRST: Check if user is requesting property media (photos/videos) - this has priority
         if (this.isRequestingPropertyMedia(message)) {
           console.log('📸 [AI] Property media request detected');
-          return await this.processPropertyMediaRequest(message, context, conversationId);
+          return await this.processPropertyMediaRequest(message, context, conversationId, dataSource);
         }
         
         // SECOND: Detect if user is searching for properties
         const intent = await this.detectIntent(message);
         
         if (intent.intent === 'search_property' && intent.confidence > 0.6) {
-          console.log('🔍 [AI] Property search intent detected, querying AlterEstate');
-          return await this.processPropertySearch(message, context, conversationId);
+          console.log(`🔍 [AI] Property search intent detected, querying ${dataSource} data`);
+          return await this.processPropertySearch(message, context, conversationId, dataSource);
         }
       }
       
@@ -276,25 +280,53 @@ Responde en formato JSON:
   }
 
   /**
-   * Procesar búsqueda de propiedades usando AlterEstate
+   * Procesar búsqueda de propiedades usando datos internos o AlterEstate
    */
-  private async processPropertySearch(message: string, context: any, conversationId: string): Promise<string> {
+  private async processPropertySearch(message: string, context: any, conversationId: string, dataSource: string = 'alterestate'): Promise<string> {
     try {
-      const { alterEstateService } = await import('./alterEstateService');
+      let properties: any[] = [];
+      let carouselData: any[] = [];
       
-      // Buscar propiedades reales usando AlterEstate
-      console.log('🔍 [AI] Searching real properties in AlterEstate');
-      const properties = await alterEstateService.intelligentPropertySearch(
-        context.alterEstateToken,
-        message,
-        context.userLocation
-      );
+      if (dataSource === 'internal') {
+        // Usar datos internos de web scraping
+        const { internalPropertyService } = await import('./internalPropertyService');
+        console.log('🔍 [AI] Searching properties in internal database');
+        properties = await internalPropertyService.intelligentPropertySearch(
+          context.userId,
+          message,
+          context.userLocation
+        );
+        
+        if (properties.length >= 2) {
+          carouselData = internalPropertyService.formatPropertiesForCarousel(properties);
+        }
+      } else {
+        // Fallback a AlterEstate
+        const { alterEstateService } = await import('./alterEstateService');
+        console.log('🔍 [AI] Searching real properties in AlterEstate');
+        properties = await alterEstateService.intelligentPropertySearch(
+          context.alterEstateToken,
+          message,
+          context.userLocation
+        );
+        
+        if (properties.length >= 2) {
+          carouselData = alterEstateService.formatPropertiesForCarousel(
+            properties, 
+            context.realEstateWebsiteUrl
+          );
+        }
+      }
       
       if (properties.length === 0) {
         // No se encontraron propiedades, dar respuesta personalizada
         const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const dataSourceMessage = dataSource === 'internal' 
+          ? 'en nuestra base de datos interna. ¿Te gustaría que configure más sitios web para extraer propiedades adicionales?'
+          : 'que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+          
         const systemPrompt = this.buildSystemPrompt(context) + 
-          '\n\nNOTA: No se encontraron propiedades que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+          `\n\nNOTA: No se encontraron propiedades ${dataSourceMessage}`;
         
         const messages = [
           { role: "system", content: systemPrompt },
@@ -309,18 +341,12 @@ Responde en formato JSON:
           temperature: 0.7,
         });
 
-        return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
+        return response.choices[0].message.content || `No encontré propiedades disponibles con esos criterios${dataSource === 'internal' ? ' en nuestra base de datos' : ''}. ¿Te gustaría ajustar tu búsqueda?`;
       }
       
       // Si hay múltiples propiedades (2 o más), usar carrusel interactivo
       if (properties.length >= 2) {
         console.log(`🎠 [AI] Found ${properties.length} properties, preparing carousel`);
-        
-        // Preparar datos para carrusel
-        const carouselData = alterEstateService.formatPropertiesForCarousel(
-          properties, 
-          context.realEstateWebsiteUrl
-        );
         
         // Marcar que se debe enviar carrusel
         pendingMediaQueue.set(conversationId, {
@@ -329,29 +355,54 @@ Responde en formato JSON:
           timestamp: Date.now()
         });
         
-        const propertyNames = properties.map(p => p.name).join(', ');
-        return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}. Te estoy preparando las tarjetas interactivas con toda la información...`;
+        const propertyNames = properties.map(p => p.title || p.name).join(', ');
+        const sourceText = dataSource === 'internal' ? 'en nuestra base de datos' : 'disponibles';
+        return `🏠 Encontré ${properties.length} propiedades ${sourceText} que podrían interesarte: ${propertyNames}. Te estoy preparando las tarjetas interactivas con toda la información...`;
       }
       
       // Para una sola propiedad, usar formato mejorado con enlace directo
       const property = properties[0];
-      const propertyUrl = alterEstateService.getPropertyPublicUrl(
-        property.slug, 
-        context.realEstateWebsiteUrl
-      );
       
-      // Formato mejorado para una sola propiedad con enlace directo
-      const salePrice = property.sale_price;
-      const currency = property.currency_sale || 'RD$';
-      const formattedPrice = salePrice && typeof salePrice === 'number' 
-        ? `${currency} ${salePrice.toLocaleString()}`
-        : 'Precio a consultar';
+      let formattedPrice: string;
+      let categoryName: string;
+      let enhancedPropertyInfo: string;
       
-      const categoryName = property.category && typeof property.category === 'object' 
-        ? property.category.name 
-        : property.category || 'Tipo no especificado';
-      
-      const enhancedPropertyInfo = `🏠 **${property.name || 'Propiedad sin nombre'}**
+      if (dataSource === 'internal') {
+        // Formato para propiedades internas
+        formattedPrice = property.price && typeof property.price === 'number' 
+          ? `${property.currency || 'RD$'} ${property.price.toLocaleString()}`
+          : property.priceText || 'Precio a consultar';
+        
+        categoryName = property.propertyType || 'Tipo no especificado';
+        
+        enhancedPropertyInfo = `🏠 **${property.title || 'Propiedad sin nombre'}**
+
+💰 **Precio**: ${formattedPrice}
+🏢 **Tipo**: ${categoryName}
+🏠 **Habitaciones**: ${property.bedrooms || 'N/A'}
+🚿 **Baños**: ${property.bathrooms || 'N/A'}
+📍 **Ubicación**: ${property.sector || property.city || 'Ubicación no especificada'}
+
+🔗 **Ver publicación completa**: ${property.sourceUrl}
+
+📝 **Descripción**: ${property.description ? property.description.substring(0, 200) + '...' : 'Ver más detalles en el enlace'}`;
+      } else {
+        // Formato para AlterEstate (mantener compatibilidad)
+        const { alterEstateService } = await import('./alterEstateService');
+        const propertyUrl = alterEstateService.getPropertyPublicUrl(
+          property.slug, 
+          context.realEstateWebsiteUrl
+        );
+        
+        formattedPrice = property.sale_price && typeof property.sale_price === 'number' 
+          ? `${property.currency_sale || 'RD$'} ${property.sale_price.toLocaleString()}`
+          : 'Precio a consultar';
+        
+        categoryName = property.category && typeof property.category === 'object' 
+          ? property.category.name 
+          : property.category || 'Tipo no especificado';
+        
+        enhancedPropertyInfo = `🏠 **${property.name || 'Propiedad sin nombre'}**
 
 💰 **Precio**: ${formattedPrice}
 🏢 **Tipo**: ${categoryName}
@@ -362,15 +413,17 @@ Responde en formato JSON:
 🔗 **Ver publicación completa**: ${propertyUrl}
 
 📝 **Descripción**: ${property.short_description || 'Información disponible en el enlace'}`;
+      }
       
       // Generar respuesta contextual usando IA
       const conversationContext = this.conversationContexts.get(conversationId) || [];
+      const dataSourceText = dataSource === 'internal' ? 'nuestra base de datos interna' : 'nuestro CRM';
       const systemPrompt = this.buildSystemPrompt(context) + 
-        '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+        `\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales de ${dataSourceText}. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.`;
       
       const propertyPrompt = `El usuario preguntó: "${message}"
 
-He encontrado esta propiedad real disponible en nuestro CRM:
+He encontrado esta propiedad real disponible en ${dataSourceText}:
 
 ${enhancedPropertyInfo}
 
@@ -409,7 +462,10 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       
     } catch (error) {
       console.error('❌ [AI] Error in property search:', error);
-      return 'Disculpa, tuve un problema consultando nuestro inventario de propiedades. ¿Podrías repetir tu búsqueda?';
+      const errorMessage = dataSource === 'internal' 
+        ? 'Disculpa, tuve un problema consultando nuestra base de datos de propiedades. ¿Podrías repetir tu búsqueda?'
+        : 'Disculpa, tuve un problema consultando nuestro inventario de propiedades. ¿Podrías repetir tu búsqueda?';
+      return errorMessage;
     }
   }
 
@@ -459,12 +515,15 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
   /**
    * Procesar solicitud de medios de propiedades
    */
-  private async processPropertyMediaRequest(message: string, context: any, conversationId: string): Promise<string> {
+  private async processPropertyMediaRequest(message: string, context: any, conversationId: string, dataSource: string = 'alterestate'): Promise<string> {
     try {
       console.log('📸 [AI] Processing property media request');
       
-      if (!context.alterEstateEnabled || !context.alterEstateToken) {
-        return 'Para poder enviarte fotos de propiedades, necesito que AlterEstate CRM esté configurado en las configuraciones.';
+      const { internalPropertyService } = await import('./internalPropertyService');
+      const isScrapingEnabled = await internalPropertyService.isScrapingEnabled(context.userId);
+      
+      if (!isScrapingEnabled && (!context.alterEstateEnabled || !context.alterEstateToken)) {
+        return 'Para poder enviarte fotos de propiedades, necesito que configures sitios web para extraer propiedades o que AlterEstate CRM esté configurado en las configuraciones.';
       }
       
       // Extract property ID from message if mentioned
@@ -484,19 +543,33 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         // If no property in context, search for property by location/description
         if (!propertySlug) {
           console.log('🔍 [AI] No property ID found, searching by location/description');
-          const { alterEstateService } = await import('./alterEstateService');
           
-          // Search for properties matching the description
-          const searchResult = await alterEstateService.intelligentPropertySearch(
-            context.alterEstateToken,
-            message,
-            context.userLocation
-          );
-          
-          if (searchResult.length > 0) {
-            property = searchResult[0]; // Take the first match
-            propertySlug = property.slug;
-            console.log(`🏠 [AI] Found property by search: ${propertySlug} (${property.name})`);
+          if (dataSource === 'internal') {
+            const { internalPropertyService } = await import('./internalPropertyService');
+            const searchResult = await internalPropertyService.intelligentPropertySearch(
+              context.userId,
+              message,
+              context.userLocation
+            );
+            
+            if (searchResult.length > 0) {
+              property = searchResult[0];
+              propertySlug = property.id; // Use internal ID
+              console.log(`🏠 [AI] Found property by search: ${propertySlug} (${property.title})`);
+            }
+          } else {
+            const { alterEstateService } = await import('./alterEstateService');
+            const searchResult = await alterEstateService.intelligentPropertySearch(
+              context.alterEstateToken,
+              message,
+              context.userLocation
+            );
+            
+            if (searchResult.length > 0) {
+              property = searchResult[0];
+              propertySlug = property.slug;
+              console.log(`🏠 [AI] Found property by search: ${propertySlug} (${property.name})`);
+            }
           }
         }
       }
@@ -505,9 +578,15 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         return 'Me gustaría enviarte las fotos, pero ¿de cuál propiedad específicamente? Por favor menciona el ID de la propiedad que te interesa, o hazme una búsqueda de propiedades primero.';
       }
       
-      // Get property media from AlterEstate
-      const { alterEstateService } = await import('./alterEstateService');
-      const media = await alterEstateService.getPropertyMedia(context.alterEstateToken, propertySlug);
+      // Get property media from appropriate source
+      let media: any;
+      if (dataSource === 'internal') {
+        const { internalPropertyService } = await import('./internalPropertyService');
+        media = await internalPropertyService.getPropertyMedia(context.userId, propertySlug);
+      } else {
+        const { alterEstateService } = await import('./alterEstateService');
+        media = await alterEstateService.getPropertyMedia(context.alterEstateToken, propertySlug);
+      }
       
       // Send media through WhatsApp queue system
       await this.sendPropertyMedia(conversationId, propertySlug, media);

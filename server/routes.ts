@@ -176,6 +176,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/whatsapp/initialize-instances-public', whatsappController.initializeInstances);
   app.post('/api/whatsapp/simulate-message', whatsappController.simulateIncomingMessage);
 
+  // Web Scraping routes
+  app.post('/api/scraping/analyze-site', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { url, name, description } = req.body;
+      
+      if (!url || !name) {
+        return res.status(400).json({ message: "URL y nombre son requeridos" });
+      }
+
+      const { webScrapingService } = await import('./services/webScrapingService');
+      const result = await webScrapingService.analyzeSite(userId, url, name, description);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error analyzing site:", error);
+      res.status(500).json({ message: "Error al analizar el sitio web" });
+    }
+  });
+
+  app.get('/api/scraping/websites', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      const websites = await webScrapingService.getUserWebsites(userId);
+      
+      res.json(websites);
+    } catch (error) {
+      console.error("Error fetching websites:", error);
+      res.status(500).json({ message: "Error al obtener sitios web configurados" });
+    }
+  });
+
+  app.post('/api/scraping/run-scraping/:websiteId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { websiteId } = req.params;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      
+      // Ejecutar scraping en background
+      webScrapingService.scrapeWebsite(websiteId).catch(error => {
+        console.error("Background scraping error:", error);
+      });
+      
+      res.json({ message: "Scraping iniciado en segundo plano" });
+    } catch (error) {
+      console.error("Error starting scraping:", error);
+      res.status(500).json({ message: "Error al iniciar el scraping" });
+    }
+  });
+
+  app.get('/api/scraping/properties', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { websiteId } = req.query;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      
+      const properties = await webScrapingService.getScrapedProperties(userId, websiteId as string);
+      
+      res.json(properties);
+    } catch (error) {
+      console.error("Error fetching scraped properties:", error);
+      res.status(500).json({ message: "Error al obtener propiedades extraídas" });
+    }
+  });
+
+  app.get('/api/scraping/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { query, filters } = req.query;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      
+      const properties = await webScrapingService.searchProperties(
+        userId, 
+        query as string || '', 
+        filters ? JSON.parse(filters as string) : {}
+      );
+      
+      res.json(properties);
+    } catch (error) {
+      console.error("Error searching scraped properties:", error);
+      res.status(500).json({ message: "Error al buscar propiedades" });
+    }
+  });
+
+  // Scraping Scheduler routes
+  app.get('/api/scraping/scheduler/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const { scrapingScheduler } = await import('./services/scrapingScheduler');
+      const status = scrapingScheduler.getStatus();
+      const stats = await scrapingScheduler.getStats();
+      
+      res.json({ ...status, ...stats });
+    } catch (error) {
+      console.error("Error getting scheduler status:", error);
+      res.status(500).json({ message: "Error al obtener estado del scheduler" });
+    }
+  });
+
+  app.post('/api/scraping/scheduler/manual/:websiteId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { websiteId } = req.params;
+      const { scrapingScheduler } = await import('./services/scrapingScheduler');
+      
+      const result = await scrapingScheduler.runManualScraping(websiteId);
+      
+      res.json({ message: result });
+    } catch (error) {
+      console.error("Error running manual scraping:", error);
+      res.status(500).json({ message: "Error al ejecutar scraping manual" });
+    }
+  });
+
+  app.post('/api/scraping/scheduler/cleanup', isAuthenticated, async (req: any, res) => {
+    try {
+      const { days } = req.body;
+      const { scrapingScheduler } = await import('./services/scrapingScheduler');
+      
+      await scrapingScheduler.cleanupOldJobs(days || 30);
+      
+      res.json({ message: "Limpieza de trabajos antiguos completada" });
+    } catch (error) {
+      console.error("Error cleaning up old jobs:", error);
+      res.status(500).json({ message: "Error al limpiar trabajos antiguos" });
+    }
+  });
+
   // Test route for settings page without auth
   app.get('/test-settings', (req, res) => {
     res.send(`

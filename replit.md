@@ -2,7 +2,7 @@
 
 ## Overview
 
-RealEstate AI Assistant is a comprehensive SAAS platform that automates real estate WhatsApp conversations using AI. The application enables real estate agents to manage leads, schedule appointments, and handle property inquiries through an intelligent WhatsApp bot integration. The system processes incoming messages, provides automated responses using OpenAI's GPT model, and escalates conversations to human agents when needed.
+RealEstate AI Assistant is a comprehensive SAAS platform that automates real estate WhatsApp conversations using AI. The application enables real estate agents to manage leads, schedule appointments, and handle property inquiries through an intelligent WhatsApp bot integration. The system features an advanced web scraping infrastructure that automatically extracts and maintains property data from real estate websites, providing comprehensive property search capabilities with automated responses using OpenAI's GPT model.
 
 ## User Preferences
 
@@ -35,6 +35,11 @@ PostgreSQL database with Drizzle ORM providing type-safe database operations:
 - **WhatsApp Integration**: Instance management, conversations, and message history  
 - **CRM Features**: Leads tracking, property management, and appointment scheduling
 - **Session Management**: Secure session storage for authentication
+- **Web Scraping System**: Scraped websites configuration, property data storage, and scraping job management
+  - `scraped_websites`: Website configurations and scraping settings
+  - `scraped_properties`: Extracted property data with comprehensive details
+  - `property_images`: Property image galleries with featured image support
+  - `scraping_jobs`: Automated scraping job tracking and status management
 
 ### AI Integration
 OpenAI GPT-5 powers the conversational AI with context-aware responses:
@@ -43,6 +48,8 @@ OpenAI GPT-5 powers the conversational AI with context-aware responses:
 - **Context Management**: Conversation history maintenance for coherent responses
 - **Response Humanization**: Natural delay patterns and message chunking
 - **Escalation Logic**: Automatic handoff to human agents based on conversation complexity
+- **Intelligent Property Search**: Prioritizes internal scraped data over external APIs
+- **Dynamic Data Source Selection**: Automatically uses internal database when web scraping is configured, falls back to AlterEstate API when needed
 
 ### WhatsApp Integration
 Evolution API integration for WhatsApp Web automation:
@@ -51,6 +58,20 @@ Evolution API integration for WhatsApp Web automation:
 - **QR Code Authentication**: Secure WhatsApp Web connection
 - **Webhook Processing**: Real-time message receipt and status updates
 - **Media Handling**: Support for images, documents, and voice messages
+- **Enhanced Interactive Messages**: Multiple strategies for button messages with improved fallbacks
+- **Property Carousels**: Rich media property presentations with interactive elements
+
+### Web Scraping System
+Advanced automated web scraping infrastructure for property data extraction:
+
+- **Intelligent Site Analysis**: Automatic detection of property listing patterns and CSS selectors
+- **Multi-Source Support**: Configurable scraping of multiple real estate websites per user
+- **Automated Property Detection**: Smart identification of property links and data extraction
+- **Deduplication System**: URL-based hash system prevents duplicate property processing
+- **Periodic Scraping**: Automated scheduling system with configurable intervals
+- **Image Gallery Support**: Extraction and storage of property images with featured image detection
+- **Property Search Engine**: Intelligent search with natural language query parsing
+- **Data Enrichment**: Automatic categorization and standardization of property information
 
 ## External Dependencies
 

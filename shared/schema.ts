@@ -86,6 +86,13 @@ export const userSettings = pgTable("user_settings", {
   alterEstateEnabled: boolean("alter_estate_enabled").default(false),
   realEstateWebsiteUrl: varchar("real_estate_website_url"), // URL del sitio web de la inmobiliaria
   
+  // Web Scraping configuration
+  webScrapingEnabled: boolean("web_scraping_enabled").default(false),
+  defaultScrapingInterval: integer("default_scraping_interval").default(24), // hours
+  maxPropertiesPerSite: integer("max_properties_per_site").default(1000),
+  autoDetectPatterns: boolean("auto_detect_patterns").default(true),
+  enableImageScraping: boolean("enable_image_scraping").default(true),
+  
   // Calendar configuration
   googleCalendarId: varchar("google_calendar_id"),
   calComUsername: varchar("cal_com_username"),
@@ -200,6 +207,125 @@ export const leads = pgTable("leads", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Web Scraping Tables
+export const scrapedWebsites = pgTable("scraped_websites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  url: varchar("url").notNull(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  
+  // Scraping configuration
+  isActive: boolean("is_active").default(true),
+  scrapingInterval: integer("scraping_interval").default(24), // hours
+  maxPages: integer("max_pages").default(100),
+  
+  // Auto-detected patterns
+  propertyUrlPattern: varchar("property_url_pattern"),
+  titleSelector: varchar("title_selector"),
+  priceSelector: varchar("price_selector"),
+  imageSelector: varchar("image_selector"),
+  locationSelector: varchar("location_selector"),
+  descriptionSelector: varchar("description_selector"),
+  
+  // Metadata
+  lastScrapedAt: timestamp("last_scraped_at"),
+  totalPropertiesFound: integer("total_properties_found").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const scrapedProperties = pgTable("scraped_properties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  websiteId: varchar("website_id").notNull().references(() => scrapedWebsites.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Property URL (unique identifier)
+  sourceUrl: varchar("source_url").notNull().unique(),
+  urlHash: varchar("url_hash").notNull().unique(), // Para evitar duplicados
+  
+  // Basic property information
+  title: varchar("title").notNull(),
+  description: text("description"),
+  price: doublePrecision("price"),
+  currency: varchar("currency").default("RD$"),
+  priceText: varchar("price_text"), // Texto original del precio
+  
+  // Property details
+  propertyType: varchar("property_type"), // "apartment", "house", "villa", etc.
+  listingType: varchar("listing_type"), // "sale", "rent"
+  bedrooms: integer("bedrooms"),
+  bathrooms: integer("bathrooms"),
+  area: doublePrecision("area"),
+  areaUnit: varchar("area_unit").default("m2"),
+  
+  // Location
+  location: varchar("location"),
+  city: varchar("city"),
+  sector: varchar("sector"),
+  country: varchar("country").default("Dominican Republic"),
+  
+  // Status
+  status: varchar("status").default("ACTIVE").notNull(),
+  isAvailable: boolean("is_available").default(true),
+  
+  // Metadata
+  scrapedAt: timestamp("scraped_at").defaultNow(),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+  imageCount: integer("image_count").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const propertyImages = pgTable("property_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  propertyId: varchar("property_id").notNull().references(() => scrapedProperties.id),
+  
+  originalUrl: varchar("original_url").notNull(),
+  imageUrl: varchar("image_url").notNull(), // URL procesada/optimizada
+  altText: varchar("alt_text"),
+  caption: varchar("caption"),
+  
+  width: integer("width"),
+  height: integer("height"),
+  fileSize: integer("file_size"),
+  
+  isFeatured: boolean("is_featured").default(false),
+  sortOrder: integer("sort_order").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const scrapingJobs = pgTable("scraping_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  websiteId: varchar("website_id").notNull().references(() => scrapedWebsites.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  status: varchar("status").default("PENDING").notNull(), // PENDING, RUNNING, COMPLETED, FAILED
+  jobType: varchar("job_type").default("FULL_SCRAPE").notNull(), // FULL_SCRAPE, INCREMENTAL, DISCOVERY
+  
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Results
+  pagesScraped: integer("pages_scraped").default(0),
+  propertiesFound: integer("properties_found").default(0),
+  propertiesAdded: integer("properties_added").default(0),
+  propertiesUpdated: integer("properties_updated").default(0),
+  
+  // Error handling
+  errorMessage: text("error_message"),
+  errorDetails: jsonb("error_details"),
+  
+  // Metadata
+  metadata: jsonb("metadata"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -243,6 +369,28 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   updatedAt: true,
 });
 
+export const insertScrapedWebsiteSchema = createInsertSchema(scrapedWebsites).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertScrapedPropertySchema = createInsertSchema(scrapedProperties).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPropertyImageSchema = createInsertSchema(propertyImages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertScrapingJobSchema = createInsertSchema(scrapingJobs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -258,3 +406,11 @@ export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
+export type InsertScrapedWebsite = z.infer<typeof insertScrapedWebsiteSchema>;
+export type ScrapedWebsite = typeof scrapedWebsites.$inferSelect;
+export type InsertScrapedProperty = z.infer<typeof insertScrapedPropertySchema>;
+export type ScrapedProperty = typeof scrapedProperties.$inferSelect;
+export type InsertPropertyImage = z.infer<typeof insertPropertyImageSchema>;
+export type PropertyImage = typeof propertyImages.$inferSelect;
+export type InsertScrapingJob = z.infer<typeof insertScrapingJobSchema>;
+export type ScrapingJob = typeof scrapingJobs.$inferSelect;
