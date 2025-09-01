@@ -240,31 +240,62 @@ class InternalWebhookService {
       console.log(`🚀 [INTERNAL AI] Message: "${message}"`);
       console.log(`🚀 [INTERNAL AI] ConversationId: ${conversationId}`);
       
+      // Obtener conversación para obtener userId
+      const conversation = await storage.getConversationById(conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      // Obtener configuración del usuario
+      const settings = await storage.getUserSettings(conversation.userId);
+      console.log(`⚙️ [INTERNAL AI] User settings loaded for user: ${conversation.userId}`);
+      
       // Obtener configuración de IA del usuario
       const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
       console.log(`📞 [INTERNAL AI] Phone number: ${phoneNumber}`);
       
+      // Build proper context with AlterEstate integration
+      const context = {
+        assistantName: settings?.assistantName || 'Asistente Inmobiliario',
+        assistantPersonality: settings?.assistantPersonality,
+        customSystemPrompt: settings?.systemPrompt,
+        language: settings?.language || 'es',
+        // AlterEstate integration
+        alterEstateEnabled: settings?.alterEstateEnabled || false,
+        alterEstateToken: settings?.alterEstateToken,
+        alterEstateApiKey: settings?.alterEstateApiKey,
+        userLocation: phoneNumber?.includes('1829') ? 'Santo Domingo' : undefined,
+        realEstateWebsiteUrl: settings?.realEstateWebsiteUrl || 'https://miinmobiliaria.com',
+      };
+
+      console.log('🎯 [INTERNAL AI] Context:', context);
+      
       console.log(`🤖 [INTERNAL AI] Calling aiService.processConversation...`);
       const aiResponse = await aiService.processConversation(
+        conversation.userId,
         conversationId,
-        conversationId, // usando conversationId como sessionId
         message,
-        {
-          assistantName: 'Asistente Inmobiliario',
-          context: 'eres un asistente de bienes raíces especializado en ayudar a clientes con propiedades'
-        }
+        context
       );
 
       console.log(`📤 [INTERNAL AI] AI response received: "${aiResponse}"`);
 
+      // Check if there are pending media files or carousels to send
+      const { AIService } = await import('./aiService');
+      const pendingMedia = AIService.getPendingMedia(conversationId);
+      
+      if (pendingMedia && context.alterEstateToken) {
+        if (pendingMedia.type === 'carousel') {
+          console.log('🎠 [INTERNAL AI] Pending carousel detected, sending property cards...');
+          await this.sendPropertyCarousel(pendingMedia.properties, instanceName, phoneNumber, conversationId, whatsappInstanceId);
+        } else {
+          console.log('📸 [INTERNAL AI] Pending media detected, processing...');
+          await this.sendPropertyMediaFromQueue(pendingMedia, instanceName, phoneNumber, conversationId, whatsappInstanceId);
+        }
+      }
+
       if (aiResponse && aiResponse.trim()) {
         console.log(`📱 [INTERNAL AI] Attempting to send message via ${instanceName} to ${phoneNumber}`);
-        
-        // Obtener userId desde conversación
-        const conversation = await storage.getConversationById(conversationId);
-        if (!conversation) {
-          throw new Error(`Conversation ${conversationId} not found`);
-        }
 
         // Usar respuestas humanizadas
         await messageBufferService.humanizeResponse(
@@ -380,6 +411,168 @@ class InternalWebhookService {
       
     } catch (error) {
       console.error('Error handling QR update:', error);
+    }
+  }
+
+  private async sendPropertyCarousel(
+    properties: Array<{
+      imageUrl: string;
+      title: string;
+      price: string;
+      description: string;
+      propertyUrl: string;
+      uid: string;
+      slug: string;
+    }>,
+    instanceName: string,
+    phoneNumber: string,
+    conversationId: string,
+    whatsappInstanceId: string
+  ): Promise<void> {
+    try {
+      console.log(`🎠 [INTERNAL AI] Sending property carousel with ${properties.length} properties`);
+      
+      // Enviar mensaje introductorio
+      await evolutionApiService.sendMessage(
+        instanceName,
+        phoneNumber,
+        `🏠 Encontré ${properties.length} propiedades perfectas para ti:`
+      );
+      
+      // Guardar mensaje introductorio
+      await storage.createMessage({
+        conversationId,
+        whatsappInstanceId,
+        messageId: `intro_${Date.now()}`,
+        fromMe: true,
+        messageType: 'text',
+        content: `🏠 Encontré ${properties.length} propiedades perfectas para ti:`,
+        timestamp: new Date(),
+      });
+      
+      // Esperar un momento antes de enviar las tarjetas
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Enviar carrusel usando Evolution API
+      const { whatsappService } = await import('./whatsappService');
+      await whatsappService.sendPropertyCarousel(
+        instanceName,
+        phoneNumber,
+        properties
+      );
+      
+      // Mensaje de seguimiento
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const followUpMessage = '💡 Toca los botones de las tarjetas para ver más detalles o fotos de cada propiedad. ¿Alguna te llama la atención?';
+      
+      await evolutionApiService.sendMessage(
+        instanceName,
+        phoneNumber,
+        followUpMessage
+      );
+      
+      // Guardar mensaje de seguimiento
+      await storage.createMessage({
+        conversationId,
+        whatsappInstanceId,
+        messageId: `followup_${Date.now()}`,
+        fromMe: true,
+        messageType: 'text',
+        content: followUpMessage,
+        timestamp: new Date(),
+      });
+      
+    } catch (error) {
+      console.error('❌ [INTERNAL AI] Error sending property carousel:', error);
+      // Fallback: enviar como texto
+      const textSummary = properties.map((p, i) => 
+        `${i + 1}. ${p.title}\n💰 ${p.price}\n📍 ${p.description}\n🔗 ${p.propertyUrl}`
+      ).join('\n\n');
+      
+      await evolutionApiService.sendMessage(
+        instanceName,
+        phoneNumber,
+        `🏠 Propiedades encontradas:\n\n${textSummary}`
+      );
+    }
+  }
+
+  private async sendPropertyMediaFromQueue(
+    mediaQueue: any,
+    instanceName: string,
+    phoneNumber: string,
+    conversationId: string,
+    whatsappInstanceId: string
+  ): Promise<void> {
+    try {
+      console.log(`📸 [INTERNAL AI] Sending queued media for property: ${mediaQueue.propertySlug}`);
+      
+      const mediaToSend: string[] = [];
+      
+      // Agregar imagen destacada si existe
+      if (mediaQueue.featuredImage) {
+        mediaToSend.push(mediaQueue.featuredImage);
+      }
+      
+      // Agregar imágenes de galería
+      if (mediaQueue.images && mediaQueue.images.length > 0) {
+        mediaToSend.push(...mediaQueue.images.slice(0, 4)); // Máximo 4 imágenes adicionales
+      }
+      
+      if (mediaToSend.length === 0) {
+        console.log('📷 [INTERNAL AI] No media available for this property');
+        return;
+      }
+      
+      console.log(`📸 [INTERNAL AI] Sending ${mediaToSend.length} media files`);
+      
+      // Enviar cada imagen con un delay
+      for (let i = 0; i < mediaToSend.length; i++) {
+        const mediaUrl = mediaToSend[i];
+        console.log(`📤 [INTERNAL AI] Sending media ${i + 1}/${mediaToSend.length}: ${mediaUrl}`);
+        
+        try {
+          const { whatsappService } = await import('./whatsappService');
+          await whatsappService.sendMedia(
+            instanceName,
+            phoneNumber,
+            mediaUrl,
+            'image',
+            i === 0 ? `📸 Propiedad ${mediaQueue.propertySlug}` : ''
+          );
+          
+          // Store media message in database
+          await storage.createMessage({
+            conversationId,
+            whatsappInstanceId,
+            messageId: `media_${Date.now()}_${i}`,
+            fromMe: true,
+            messageType: 'IMAGE',
+            content: mediaUrl,
+            timestamp: new Date(),
+          });
+          
+          // Delay entre imágenes para evitar spam
+          if (i < mediaToSend.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2500));
+          }
+        } catch (mediaError) {
+          console.error(`❌ [INTERNAL AI] Error sending media ${i + 1}:`, mediaError);
+        }
+      }
+      
+      // Enviar tour virtual si existe
+      if (mediaQueue.virtualTour) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await evolutionApiService.sendMessage(
+          instanceName,
+          phoneNumber,
+          `🎥 Tour Virtual: ${mediaQueue.virtualTour}`
+        );
+      }
+      
+    } catch (error) {
+      console.error('❌ [INTERNAL AI] Error sending queued media:', error);
     }
   }
 
