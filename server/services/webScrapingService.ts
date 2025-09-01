@@ -55,7 +55,7 @@ export class WebScrapingService {
     try {
       // Intentar inicializar Puppeteer, pero no es crítico si falla
       this.browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -70,7 +70,7 @@ export class WebScrapingService {
         ]
       });
       console.log('🌐 [SCRAPING] Browser initialized successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.log('⚠️ [SCRAPING] Browser initialization failed, using HTTP mode:', error.message);
       this.browser = null;
     }
@@ -347,16 +347,18 @@ export class WebScrapingService {
     }
 
     // Buscar cualquier elemento con texto que contenga símbolos de moneda
-    $('*').each((_, element) => {
+    const found = $('*').filter((_, element) => {
       const text = $(element).text();
-      if (currencySymbols.some(symbol => text.includes(symbol)) && text.length < 100) {
-        const className = $(element).attr('class');
-        if (className) {
-          return `.${className.split(' ')[0]}`;
-        }
-        return $(element).prop('tagName')?.toLowerCase() || 'div';
+      return currencySymbols.some(symbol => text.includes(symbol)) && text.length < 100;
+    }).first();
+    
+    if (found.length > 0) {
+      const className = found.attr('class');
+      if (className) {
+        return `.${className.split(' ')[0]}`;
       }
-    });
+      return found.prop('tagName')?.toLowerCase() || 'div';
+    }
 
     return '.price, .precio, [class*="price"]';
   }
@@ -766,7 +768,7 @@ export class WebScrapingService {
   /**
    * Guardar propiedad en la base de datos
    */
-  private async saveProperty(property: PropertyData, userId: string): Promise<{ isNew: boolean; propertyId: string }> {
+  private async saveProperty(property: PropertyData, userId: string, websiteId?: string): Promise<{ isNew: boolean; propertyId: string }> {
     try {
       // Crear hash único para la URL
       const urlHash = crypto.createHash('md5').update(property.sourceUrl).digest('hex');
@@ -779,7 +781,7 @@ export class WebScrapingService {
 
       const propertyData: InsertScrapedProperty = {
         userId,
-        websiteId: '', // Se actualizará en la llamada
+        websiteId: websiteId || '',
         sourceUrl: property.sourceUrl,
         urlHash,
         title: property.title,
@@ -931,12 +933,12 @@ export class WebScrapingService {
             });
             
             const $ = cheerio.load(response.data);
-            const title = this.extractText($, website.titleSelector) || 
+            const title = this.extractText($, website.titleSelector || '') || 
                          $('title').text() || 
                          $('h1').first().text() || 
                          'Título no disponible';
             
-            const preview = this.extractText($, website.descriptionSelector) ||
+            const preview = this.extractText($, website.descriptionSelector || '') ||
                            $('meta[name="description"]').attr('content') ||
                            $('p').first().text() ||
                            '';
@@ -998,7 +1000,7 @@ export class WebScrapingService {
           const propertyData = await this.scrapeProperty(url, website);
           
           if (propertyData) {
-            const saved = await this.savePropertyData(propertyData, websiteId, website.userId);
+            const saved = await this.saveProperty(propertyData, websiteId, website.userId);
             if (saved) {
               successCount++;
               console.log(`✅ [SCRAPING] Successfully saved property from: ${url}`);
