@@ -12,7 +12,7 @@ class CRMController {
         return res.status(400).json({ message: 'AlterEstate token not configured' });
       }
 
-      const properties = await alterEstateService.getAllProperties(settings.alterEstateToken, req.query);
+      const properties = await alterEstateService.searchProperties(settings.alterEstateToken, req.query);
       res.json(properties);
     } catch (error) {
       console.error('Error fetching properties:', error);
@@ -62,7 +62,7 @@ class CRMController {
         budgetCurrency: req.body.budgetCurrency,
         preferredLocation: req.body.preferredLocation,
         listingType: req.body.listingType,
-        alterEstateLeadId: alterEstateLead.id,
+        alterEstateLeadId: alterEstateLead.data?.id || null,
       });
 
       res.json(lead);
@@ -81,7 +81,7 @@ class CRMController {
         return res.status(400).json({ message: 'AlterEstate token not configured' });
       }
 
-      const cities = await alterEstateService.getCities(settings.alterEstateToken, req.query.countryId);
+      const cities = await alterEstateService.getCities(settings.alterEstateToken);
       res.json(cities);
     } catch (error) {
       console.error('Error fetching cities:', error);

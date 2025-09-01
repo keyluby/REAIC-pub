@@ -247,7 +247,7 @@ export class AlterEstateService {
   /**
    * Obtener ciudades por país
    */
-  async getCities(countryId: number = 149): Promise<AlterEstateCity[]> {
+  async getCities(aeToken: string, countryId: number = 149): Promise<AlterEstateCity[]> {
     try {
       const cacheKey = this.getCacheKey('/cities', { country: countryId });
       const cached = this.getCache(cacheKey);
@@ -259,6 +259,7 @@ export class AlterEstateService {
         `${this.baseUrl}/cities/?country=${countryId}`,
         {
           headers: {
+            'aetoken': aeToken,
             'Content-Type': 'application/json'
           }
         }
@@ -277,7 +278,7 @@ export class AlterEstateService {
   /**
    * Obtener sectores por ciudad
    */
-  async getSectors(cityId: number): Promise<AlterEstateSector[]> {
+  async getSectors(aeToken: string, cityId: number): Promise<AlterEstateSector[]> {
     try {
       const cacheKey = this.getCacheKey('/sectors', { city: cityId });
       const cached = this.getCache(cacheKey);
@@ -289,6 +290,7 @@ export class AlterEstateService {
         `${this.baseUrl}/sectors/?city=${cityId}`,
         {
           headers: {
+            'aetoken': aeToken,
             'Content-Type': 'application/json'
           }
         }
@@ -526,18 +528,26 @@ export class AlterEstateService {
     try {
       console.log('🔐 [ALTERESTATE] Validating token...');
       
-      await axios.get(`${this.baseUrl}/agents/`, {
+      // Use the properties filter endpoint with minimal parameters to validate token
+      // This endpoint is more reliable than /agents/
+      const response = await axios.get(`${this.baseUrl}/properties/filter/?page=1`, {
         headers: {
           'aetoken': aeToken,
           'Content-Type': 'application/json'
         }
       });
       
-      console.log('✅ [ALTERESTATE] Token is valid');
-      return true;
+      // Check if we get a valid response structure
+      if (response.status === 200 && response.data && typeof response.data.count !== 'undefined') {
+        console.log('✅ [ALTERESTATE] Token is valid');
+        return true;
+      }
       
-    } catch (error) {
-      console.error('❌ [ALTERESTATE] Invalid token:', error);
+      console.log('❌ [ALTERESTATE] Invalid response structure');
+      return false;
+      
+    } catch (error: any) {
+      console.error('❌ [ALTERESTATE] Invalid token:', error?.response?.status, error?.response?.data);
       return false;
     }
   }

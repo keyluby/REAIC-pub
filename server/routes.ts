@@ -111,21 +111,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Get agent info to verify connection
-      const agents = await alterEstateService.getAgents(alterEstateToken);
+      // Get properties to verify connection (more reliable than agents)
+      let propertiesCount = 0;
+      try {
+        const properties = await alterEstateService.searchProperties(alterEstateToken, {}, 1);
+        propertiesCount = properties.count || 0;
+      } catch (error) {
+        console.log('Could not get properties count, but token is valid');
+      }
       
       // Test API key if provided (for write operations)
       let apiKeyStatus = null;
       if (alterEstateApiKey) {
         try {
-          // Try a minimal test with the API key
-          await axios.get('https://secure.alterestate.com/api/v1/agents/', {
+          // Try a minimal test with the API key using properties endpoint
+          const testResponse = await axios.get('https://secure.alterestate.com/api/v1/properties/filter/?page=1', {
             headers: {
               'Authorization': `Token ${alterEstateApiKey}`,
               'Content-Type': 'application/json'
             }
           });
-          apiKeyStatus = "✅ API Key de escritura válida";
+          if (testResponse.status === 200) {
+            apiKeyStatus = "✅ API Key de escritura válida";
+          } else {
+            apiKeyStatus = "❌ API Key de escritura inválida";
+          }
         } catch (error) {
           apiKeyStatus = "❌ API Key de escritura inválida";
         }
@@ -137,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: {
           readToken: "✅ Token de lectura válido",
           apiKey: apiKeyStatus,
-          agentsFound: `✅ ${agents.length} agentes encontrados`,
+          propertiesFound: `✅ ${propertiesCount} propiedades disponibles`,
           companyId: alterEstateCompanyId ? `✅ ID de empresa: ${alterEstateCompanyId}` : "⚠️ ID de empresa no configurado"
         }
       });
