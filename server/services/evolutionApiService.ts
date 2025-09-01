@@ -402,6 +402,74 @@ class EvolutionApiService {
     }
   }
 
+  /**
+   * Enviar mensaje con botones interactivos
+   */
+  async sendButtonMessage(instanceName: string, messageData: any): Promise<{ success: boolean; messageId?: string }> {
+    const instance = this.instances.get(instanceName);
+    
+    if (!instance || !instance.socket) {
+      throw new Error(`Instance ${instanceName} not found or not connected`);
+    }
+
+    if (instance.status !== 'CONNECTED') {
+      throw new Error(`Instance ${instanceName} is not connected. Status: ${instance.status}`);
+    }
+
+    try {
+      const formattedNumber = this.formatPhoneNumber(messageData.number);
+      console.log(`🃏 Sending button message via ${instanceName} to ${formattedNumber}`);
+      
+      // Construir mensaje con botones para Baileys
+      const buttonMessage = {
+        text: messageData.buttonMessage.text,
+        buttons: messageData.buttonMessage.buttons.map((btn: any) => ({
+          buttonId: btn.buttonId,
+          buttonText: { displayText: btn.buttonText },
+          type: 1
+        })),
+        headerType: 1
+      };
+
+      // Si hay imagen, incluirla como header
+      if (messageData.buttonMessage.imageMessage?.image?.url) {
+        try {
+          buttonMessage.headerType = 4; // IMAGE_TYPE
+          (buttonMessage as any).imageMessage = {
+            url: messageData.buttonMessage.imageMessage.image.url
+          };
+        } catch (imageError) {
+          console.error('Error adding image to button message:', imageError);
+        }
+      }
+
+      const result = await instance.socket.sendMessage(formattedNumber, buttonMessage);
+      
+      return {
+        success: true,
+        messageId: result?.key?.id || undefined
+      };
+      
+    } catch (error) {
+      console.error(`❌ Error sending button message via ${instanceName}:`, error);
+      
+      // Fallback: enviar como mensaje de texto normal
+      try {
+        const fallbackText = messageData.buttonMessage.text + '\n\n' + 
+          messageData.buttonMessage.buttons.map((btn: any, i: number) => `${i + 1}. ${btn.buttonText}`).join('\n');
+        
+        const result = await instance.socket.sendMessage(this.formatPhoneNumber(messageData.number), { text: fallbackText });
+        return {
+          success: true,
+          messageId: result?.key?.id || undefined
+        };
+      } catch (fallbackError) {
+        console.error('Fallback text message also failed:', fallbackError);
+        throw error;
+      }
+    }
+  }
+
   private formatPhoneNumber(number: string): string {
     // Limpiar número y agregar formato WhatsApp
     let cleaned = number.replace(/\D/g, '');

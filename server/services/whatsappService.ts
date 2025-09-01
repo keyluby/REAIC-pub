@@ -232,6 +232,102 @@ export class WhatsAppService {
     }
   }
 
+  /**
+   * Enviar tarjeta interactiva con botones
+   */
+  async sendInteractiveCard(
+    instanceName: string, 
+    number: string, 
+    imageUrl: string,
+    title: string,
+    description: string,
+    buttons: Array<{id: string, text: string, url?: string}>
+  ) {
+    try {
+      console.log(`🃏 Sending interactive card - Instance: ${instanceName}, To: ${number}`);
+      
+      // Evolution API formato para tarjetas con botones
+      const cardMessage = {
+        number: number.replace('@s.whatsapp.net', ''),
+        buttonMessage: {
+          text: `${title}\n\n${description}`,
+          buttons: buttons.map((btn, index) => ({
+            buttonId: btn.id,
+            buttonText: btn.text,
+            type: btn.url ? 'url' : 'response'
+          })),
+          headerType: imageUrl ? 'image' : 'text',
+          imageMessage: imageUrl ? {
+            image: { url: imageUrl },
+            caption: ''
+          } : undefined
+        }
+      };
+
+      const result = await evolutionApiService.sendButtonMessage(instanceName, cardMessage);
+      
+      return {
+        success: result.success,
+        messageId: result.messageId,
+        message: 'Interactive card sent successfully'
+      };
+    } catch (error: any) {
+      console.error('Error sending interactive card:', error.message);
+      // Fallback: enviar como mensaje de texto con imagen
+      return await this.sendMediaMessage(instanceName, number, imageUrl, `${title}\n\n${description}`);
+    }
+  }
+
+  /**
+   * Enviar carrusel de propiedades
+   */
+  async sendPropertyCarousel(
+    instanceName: string,
+    number: string,
+    properties: Array<{
+      imageUrl: string;
+      title: string;
+      price: string;
+      description: string;
+      propertyUrl: string;
+      uid: string;
+    }>
+  ) {
+    try {
+      console.log(`🎠 Sending property carousel - Instance: ${instanceName}, To: ${number}, Properties: ${properties.length}`);
+      
+      // Enviar cada propiedad como tarjeta individual (máximo 3 para no saturar)
+      const propertiesToSend = properties.slice(0, 3);
+      
+      for (let i = 0; i < propertiesToSend.length; i++) {
+        const property = propertiesToSend[i];
+        
+        await this.sendInteractiveCard(
+          instanceName,
+          number,
+          property.imageUrl,
+          property.title,
+          `💰 ${property.price}\n${property.description}`,
+          [
+            { id: `info_${property.uid}`, text: '📋 Ver info' },
+            { id: `photos_${property.uid}`, text: '📸 Ver fotos' }
+          ]
+        );
+        
+        // Delay entre tarjetas
+        if (i < propertiesToSend.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+      
+      return { success: true, count: propertiesToSend.length };
+      
+    } catch (error: any) {
+      console.error('Error sending property carousel:', error.message);
+      throw new Error('Failed to send property carousel');
+    }
+  }
+
   async setTyping(instanceName: string, number: string, isTyping: boolean) {
     try {
       // Por ahora, solo logear - la funcionalidad de typing se puede implementar después

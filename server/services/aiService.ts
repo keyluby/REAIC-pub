@@ -312,7 +312,25 @@ Responde en formato JSON:
         return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
       }
       
-      // Formatear propiedades para respuesta natural
+      // Si hay múltiples propiedades (2 o más), usar carrusel interactivo
+      if (properties.length >= 2) {
+        console.log(`🎠 [AI] Found ${properties.length} properties, preparing carousel`);
+        
+        // Preparar datos para carrusel
+        const carouselData = alterEstateService.formatPropertiesForCarousel(properties);
+        
+        // Marcar que se debe enviar carrusel
+        pendingMediaQueue.set(conversationId, {
+          type: 'carousel',
+          properties: carouselData,
+          timestamp: Date.now()
+        });
+        
+        const propertyNames = properties.map(p => p.name).join(', ');
+        return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}. Te estoy preparando las tarjetas interactivas con toda la información...`;
+      }
+      
+      // Para una sola propiedad, usar formato de texto tradicional
       const formattedProperties = alterEstateService.formatPropertiesForAI(properties);
       
       // Generar respuesta contextual usando IA

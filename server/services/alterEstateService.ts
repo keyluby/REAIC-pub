@@ -23,6 +23,7 @@ interface AlterEstateProperty {
   bathroom?: number;
   parkinglot?: number;
   property_area?: number;
+  featured_image?: string;
 }
 
 interface AlterEstatePropertyDetail extends AlterEstateProperty {
@@ -543,6 +544,37 @@ export class AlterEstateService {
 
   clearCache() {
     this.cache.clear();
+  }
+
+  /**
+   * Construir enlace público de la propiedad
+   */
+  getPropertyPublicUrl(propertySlug: string): string {
+    // AlterEstate proporciona enlaces públicos basados en el slug
+    return `https://alterestate.com/properties/${propertySlug}`;
+  }
+
+  /**
+   * Formatear propiedades para carrusel interactivo de WhatsApp
+   */
+  formatPropertiesForCarousel(properties: AlterEstateProperty[]): Array<{
+    imageUrl: string;
+    title: string;
+    price: string;
+    description: string;
+    propertyUrl: string;
+    uid: string;
+    slug: string;
+  }> {
+    return properties.map(property => ({
+      imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
+      title: property.name,
+      price: `${property.currency_sale} ${property.sale_price.toLocaleString()}`,
+      description: `${property.room || 0} hab • ${property.bathroom || 0} baños\n${property.sector}, ${property.city}`,
+      propertyUrl: this.getPropertyPublicUrl(property.slug),
+      uid: property.uid,
+      slug: property.slug
+    }));
   }
 }
 

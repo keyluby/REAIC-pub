@@ -434,6 +434,13 @@ class WhatsAppController {
         }
       }
 
+      // Check if this is a button click response
+      if (this.isButtonClick(messageContent)) {
+        console.log('🔘 Button click detected, processing...');
+        await this.handleButtonClick(messageContent, instance, conversation);
+        return;
+      }
+
       // Get user settings for buffer configuration
       const settings = await storage.getUserSettings(instance.userId);
       const bufferTime = settings?.bufferTime || 10;
@@ -511,13 +518,18 @@ class WhatsAppController {
         context
       );
 
-      // Check if there are pending media files to send
+      // Check if there are pending media files or carousels to send
       const { AIService } = await import('../services/aiService');
       const pendingMedia = AIService.getPendingMedia(conversation.id);
       
       if (pendingMedia && context.alterEstateToken) {
-        console.log('📸 [WHATSAPP] Pending media detected, processing...');
-        await this.sendPropertyMediaFromQueue(pendingMedia, instance, conversation, context);
+        if (pendingMedia.type === 'carousel') {
+          console.log('🎠 [WHATSAPP] Pending carousel detected, sending property cards...');
+          await this.sendPropertyCarousel(pendingMedia.properties, instance, conversation);
+        } else {
+          console.log('📸 [WHATSAPP] Pending media detected, processing...');
+          await this.sendPropertyMediaFromQueue(pendingMedia, instance, conversation, context);
+        }
       }
       
       // Also check legacy detection method for backwards compatibility
@@ -734,6 +746,65 @@ class WhatsAppController {
   }
 
   /**
+   * Enviar carrusel de propiedades con tarjetas interactivas
+   */
+  private async sendPropertyCarousel(
+    properties: Array<{
+      imageUrl: string;
+      title: string;
+      price: string;
+      description: string;
+      propertyUrl: string;
+      uid: string;
+      slug: string;
+    }>,
+    instance: any,
+    conversation: any
+  ): Promise<void> {
+    try {
+      console.log(`🎠 [WHATSAPP] Sending property carousel with ${properties.length} properties`);
+      
+      // Enviar mensaje introductorio
+      await whatsappService.sendMessage(
+        instance.instanceName,
+        conversation.clientPhone,
+        `🏠 Encontré ${properties.length} propiedades perfectas para ti:`
+      );
+      
+      // Esperar un momento antes de enviar las tarjetas
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Enviar carrusel usando el servicio de WhatsApp
+      await whatsappService.sendPropertyCarousel(
+        instance.instanceName,
+        conversation.clientPhone,
+        properties
+      );
+      
+      // Mensaje de seguimiento
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await whatsappService.sendMessage(
+        instance.instanceName,
+        conversation.clientPhone,
+        '💡 Toca los botones de las tarjetas para ver más detalles o fotos de cada propiedad. ¿Alguna te llama la atención?'
+      );
+      
+    } catch (error) {
+      console.error('❌ [WHATSAPP] Error sending property carousel:', error);
+      // Fallback: enviar como texto
+      const textSummary = properties.map((p, i) => 
+        `${i + 1}. ${p.title}\n💰 ${p.price}\n📍 ${p.description}\n🔗 ${p.propertyUrl}`
+      ).join('\n\n');
+      
+      await whatsappService.sendMessage(
+        instance.instanceName,
+        conversation.clientPhone,
+        `🏠 Propiedades encontradas:\n\n${textSummary}`
+      );
+    }
+  }
+
+  /**
    * Manejar solicitud de medios de propiedades
    */
   private async handlePropertyMediaRequest(
@@ -890,6 +961,164 @@ class WhatsAppController {
     } catch (error) {
       console.error('❌ [WHATSAPP] Error creating lead:', error);
       // No interrumpir la conversación por errores de lead
+    }
+  }
+
+  /**
+   * Detectar si el mensaje es un click de botón
+   */
+  private isButtonClick(messageContent: string): boolean {
+    // Los clicks de botones tienen patrones específicos como "info_PROPERTY_UID" o "photos_PROPERTY_UID"
+    const buttonPatterns = [
+      /^info_[A-Z0-9]{8,12}$/i,
+      /^photos_[A-Z0-9]{8,12}$/i,
+      /^details_[A-Z0-9]{8,12}$/i
+    ];
+    
+    return buttonPatterns.some(pattern => pattern.test(messageContent.trim()));
+  }
+
+  /**
+   * Manejar clicks en botones de tarjetas de propiedades
+   */
+  private async handleButtonClick(
+    buttonId: string, 
+    instance: any, 
+    conversation: any
+  ): Promise<void> {
+    try {
+      console.log(`🔘 [WHATSAPP] Processing button click: ${buttonId}`);
+      
+      // Extraer acción y property UID del buttonId
+      const [action, propertyUid] = buttonId.split('_');
+      
+      if (!propertyUid) {
+        console.log('⚠️ [WHATSAPP] Invalid button ID format');
+        return;
+      }
+      
+      // Obtener configuraciones del usuario
+      const settings = await storage.getUserSettings(instance.userId);
+      const context = {
+        alterEstateEnabled: settings?.alterEstateEnabled || false,
+        alterEstateToken: settings?.alterEstateToken,
+        alterEstateApiKey: settings?.alterEstateApiKey,
+      };
+      
+      if (!context.alterEstateEnabled || !context.alterEstateToken) {
+        await whatsappService.sendMessage(
+          instance.instanceName,
+          conversation.clientPhone,
+          'Para acceder a los detalles de la propiedad, necesito que AlterEstate CRM esté configurado.'
+        );
+        return;
+      }
+
+      const { alterEstateService } = await import('../services/alterEstateService');
+      
+      if (action === 'info') {
+        // Enviar información detallada de la propiedad
+        console.log(`📋 [WHATSAPP] Sending detailed info for property: ${propertyUid}`);
+        
+        try {
+          // Buscar la propiedad por UID
+          const searchResult = await alterEstateService.searchProperties(context.alterEstateToken, {});
+          const property = searchResult.results.find(p => p.uid === propertyUid);
+          
+          if (!property) {
+            await whatsappService.sendMessage(
+              instance.instanceName,
+              conversation.clientPhone,
+              'No pude encontrar los detalles de esa propiedad. ¿Podrías intentar de nuevo?'
+            );
+            return;
+          }
+          
+          // Obtener detalles completos
+          const propertyDetail = await alterEstateService.getPropertyDetail(context.alterEstateToken, property.slug);
+          const propertyUrl = alterEstateService.getPropertyPublicUrl(property.slug);
+          
+          // Formatear información detallada
+          const detailsMessage = `🏠 **${propertyDetail.name}**
+
+💰 **Precio**: ${propertyDetail.currency_sale} ${propertyDetail.sale_price.toLocaleString()}
+🏢 **Tipo**: ${propertyDetail.category.name}
+🏠 **Habitaciones**: ${propertyDetail.room || 'N/A'}
+🚿 **Baños**: ${propertyDetail.bathroom || 'N/A'}
+🚗 **Estacionamientos**: ${propertyDetail.parkinglot || 'N/A'}
+📐 **Área**: ${propertyDetail.property_area ? propertyDetail.property_area + ' m²' : 'N/A'}
+📍 **Ubicación**: ${propertyDetail.sector}, ${propertyDetail.city}
+
+📝 **Descripción**: 
+${propertyDetail.description || propertyDetail.short_description}
+
+🔗 **Ver en línea**: ${propertyUrl}
+
+¿Te gustaría agendar una visita o ver las fotos de esta propiedad?`;
+
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            detailsMessage
+          );
+          
+        } catch (error) {
+          console.error(`❌ [WHATSAPP] Error getting property details:`, error);
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            'Disculpa, tuve un problema obteniendo los detalles de la propiedad. ¿Podrías intentar de nuevo?'
+          );
+        }
+        
+      } else if (action === 'photos') {
+        // Enviar fotos de la propiedad
+        console.log(`📸 [WHATSAPP] Sending photos for property: ${propertyUid}`);
+        
+        try {
+          // Buscar la propiedad y obtener media
+          const searchResult = await alterEstateService.searchProperties(context.alterEstateToken, {});
+          const property = searchResult.results.find(p => p.uid === propertyUid);
+          
+          if (!property) {
+            await whatsappService.sendMessage(
+              instance.instanceName,
+              conversation.clientPhone,
+              'No pude encontrar las fotos de esa propiedad. ¿Podrías intentar de nuevo?'
+            );
+            return;
+          }
+          
+          // Obtener media de la propiedad
+          const media = await alterEstateService.getPropertyMedia(context.alterEstateToken, property.slug);
+          
+          // Enviar fotos usando el sistema existente
+          const mediaQueue = {
+            propertySlug: property.slug,
+            images: media.images,
+            featuredImage: media.featuredImage,
+            virtualTour: media.virtualTour
+          };
+          
+          await this.sendPropertyMediaFromQueue(mediaQueue, instance, conversation, context);
+          
+        } catch (error) {
+          console.error(`❌ [WHATSAPP] Error getting property photos:`, error);
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            'Disculpa, tuve un problema obteniendo las fotos de la propiedad. ¿Podrías intentar de nuevo?'
+          );
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ [WHATSAPP] Error handling button click:', error);
+      await whatsappService.sendMessage(
+        instance.instanceName,
+        conversation.clientPhone,
+        'Disculpa, tuve un problema procesando tu solicitud. ¿Podrías intentar de nuevo?'
+      );
     }
   }
 }
