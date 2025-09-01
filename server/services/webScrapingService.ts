@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import { chromium, Browser, Page } from 'playwright';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import crypto from 'crypto';
@@ -53,25 +53,21 @@ export class WebScrapingService {
 
   private async initializeBrowser() {
     try {
-      // Intentar inicializar Puppeteer, pero no es crítico si falla
-      this.browser = await puppeteer.launch({
+      // Intentar inicializar Playwright, con fallback a HTTP si falla
+      this.browser = await chromium.launch({
         headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
           '--disable-gpu',
           '--disable-web-security',
           '--disable-features=VizDisplayCompositor'
         ]
       });
-      console.log('🌐 [SCRAPING] Browser initialized successfully');
+      console.log('🌐 [SCRAPING] Playwright browser initialized successfully');
     } catch (error: any) {
-      console.log('⚠️ [SCRAPING] Browser initialization failed, using HTTP mode:', error.message);
+      console.log('⚠️ [SCRAPING] Playwright initialization failed, using HTTP mode:', error.message);
       this.browser = null;
     }
   }
@@ -149,9 +145,9 @@ export class WebScrapingService {
   }
 
   /**
-   * Detectar enlaces de propiedades en una página
+   * Detectar enlaces de propiedades en una página (versión mejorada)
    */
-  private async detectPropertyLinks($: cheerio.CheerioAPI, baseUrl: string): Promise<string[]> {
+  private async detectPropertyLinksEnhanced($: cheerio.CheerioAPI, baseUrl: string): Promise<string[]> {
     const links = new Set<string>();
     const baseHost = new URL(baseUrl).hostname;
     
@@ -242,6 +238,76 @@ export class WebScrapingService {
     });
 
     return Array.from(links);
+  }
+
+  /**
+   * Extraer atributos data-* específicos usando Playwright
+   */
+  private async extractPlaywrightDataAttributes(page: Page, baseUrl: string, allLinks: Set<string>): Promise<void> {
+    try {
+      // Buscar elementos con atributos data-* relacionados con propiedades
+      const dataAttributes = await page.evaluate(() => {
+        const elements = document.querySelectorAll('[data-property-id], [data-listing-id], [data-href], [data-url], [data-link]');
+        return Array.from(elements).map(el => ({
+          href: el.getAttribute('data-href') || el.getAttribute('data-url') || el.getAttribute('data-link'),
+          propertyId: el.getAttribute('data-property-id') || el.getAttribute('data-listing-id'),
+          onClick: el.getAttribute('onclick')
+        }));
+      });
+
+      for (const attr of dataAttributes) {
+        if (attr.href) {
+          try {
+            const fullUrl = new URL(attr.href, baseUrl).toString();
+            allLinks.add(fullUrl);
+            console.log(`🔗 [SCRAPING] Found data attribute URL: ${fullUrl}`);
+          } catch (urlError) {
+            // URL malformada
+          }
+        }
+        
+        // Extraer URLs de onclick handlers
+        if (attr.onClick && attr.onClick.includes('http')) {
+          const urlMatch = attr.onClick.match(/https?:\/\/[^\s'"]+/);
+          if (urlMatch) {
+            allLinks.add(urlMatch[0]);
+            console.log(`🔗 [SCRAPING] Found onclick URL: ${urlMatch[0]}`);
+          }
+        }
+      }
+
+      // Buscar enlaces generados dinámicamente por JavaScript
+      const dynamicLinks = await page.evaluate((baseUrlForEval) => {
+        const allAnchors = document.querySelectorAll('a[href]');
+        const propertyPatterns = [
+          /\/propiedad[\/\-]?\d+/i,
+          /\/property[\/\-]?\d+/i,
+          /\/p\/\d+/i,
+          /\/listing[\/\-]?\d+/i,
+          /\/\d+$/i
+        ];
+        
+        return Array.from(allAnchors)
+          .map(a => a.getAttribute('href'))
+          .filter(href => href && propertyPatterns.some(pattern => pattern.test(href)))
+          .map(href => {
+            try {
+              return new URL(href, baseUrlForEval).toString();
+            } catch {
+              return null;
+            }
+          })
+          .filter(url => url !== null);
+      }, baseUrl);
+
+      dynamicLinks.forEach(link => {
+        allLinks.add(link);
+        console.log(`🔗 [SCRAPING] Found dynamic link: ${link}`);
+      });
+
+    } catch (error) {
+      console.log('⚠️ [SCRAPING] Error extracting Playwright data attributes:', error.message);
+    }
   }
 
   /**
@@ -522,71 +588,143 @@ export class WebScrapingService {
   }
 
   /**
-   * Obtener URLs de propiedades de un sitio usando HTTP
+   * Obtener URLs de propiedades usando Playwright (con fallback a HTTP)
    */
   private async getPropertyUrls(baseUrl: string): Promise<string[]> {
     try {
       console.log(`🔍 [SCRAPING] Getting property URLs from: ${baseUrl}`);
       
-      const allLinks = new Set<string>();
-      
-      // Lista de rutas comunes donde pueden estar las propiedades
-      const propertyRoutes = [
-        '', // Página principal
-        '/propiedades',
-        '/properties', 
-        '/listings',
-        '/inmuebles',
-        '/casas',
-        '/apartamentos',
-        '/venta',
-        '/alquiler',
-        '/rent',
-        '/sale'
-      ];
-      
-      // Probar cada ruta
-      for (const route of propertyRoutes) {
-        try {
-          const testUrl = baseUrl.endsWith('/') ? baseUrl + route.substring(1) : baseUrl + route;
-          console.log(`🔍 [SCRAPING] Checking route: ${testUrl}`);
-          
-          const response = await axios.get(testUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-            },
-            timeout: 15000
-          });
-          
-          if (response.status === 200 && response.data) {
-            const $ = cheerio.load(response.data);
-            const propertyLinks = await this.detectPropertyLinks($, baseUrl);
-            
-            // Agregar enlaces encontrados
-            propertyLinks.forEach(link => allLinks.add(link));
-            
-            console.log(`✅ [SCRAPING] Found ${propertyLinks.length} property URLs in route: ${route}`);
-            
-            // Si encontramos enlaces en esta ruta, continuar buscando
-            if (propertyLinks.length > 0) {
-              // También buscar datos JSON embebidos
-              await this.extractJSONData($, baseUrl, allLinks);
-            }
-          }
-        } catch (routeError) {
-          console.log(`⚠️ [SCRAPING] Route ${route} not accessible or returned error`);
-          // Continuar con la siguiente ruta
-        }
+      // Intentar usar Playwright primero si está disponible
+      if (this.browser) {
+        return await this.getPropertyUrlsWithPlaywright(baseUrl);
+      } else {
+        return await this.getPropertyUrlsWithHTTP(baseUrl);
       }
-      
-      const finalLinks = Array.from(allLinks);
-      console.log(`✅ [SCRAPING] Total found ${finalLinks.length} property URLs across all routes`);
-      return finalLinks;
     } catch (error) {
       console.error(`❌ [SCRAPING] Error getting property URLs:`, error);
+      // Fallback a HTTP si Playwright falla
+      if (this.browser) {
+        console.log('🔄 [SCRAPING] Playwright failed, falling back to HTTP mode');
+        return await this.getPropertyUrlsWithHTTP(baseUrl);
+      }
       return [];
     }
+  }
+
+  /**
+   * Obtener URLs usando Playwright (para sitios JavaScript modernos)
+   */
+  private async getPropertyUrlsWithPlaywright(baseUrl: string): Promise<string[]> {
+    const allLinks = new Set<string>();
+    const propertyRoutes = [
+      '', // Página principal
+      '/propiedades',
+      '/properties', 
+      '/listings'
+    ];
+
+    for (const route of propertyRoutes) {
+      try {
+        const testUrl = baseUrl.endsWith('/') ? baseUrl + route.substring(1) : baseUrl + route;
+        console.log(`🎭 [SCRAPING] Playwright checking route: ${testUrl}`);
+        
+        const page = await this.browser!.newPage();
+        
+        // Configurar viewport y user agent
+        await page.setViewportSize({ width: 1280, height: 720 });
+        await page.setExtraHTTPHeaders({
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        });
+
+        try {
+          // Navegar y esperar a que se cargue el contenido
+          await page.goto(testUrl, { 
+            waitUntil: 'networkidle',
+            timeout: 30000 
+          });
+
+          // Esperar un poco más para contenido dinámico
+          await page.waitForTimeout(3000);
+
+          // Hacer scroll para cargar contenido lazy-loaded
+          await page.evaluate(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+          });
+          await page.waitForTimeout(2000);
+
+          // Obtener el contenido final
+          const content = await page.content();
+          const $ = cheerio.load(content);
+          
+          // Buscar enlaces de propiedades
+          const propertyLinks = await this.detectPropertyLinksEnhanced($, baseUrl);
+          propertyLinks.forEach(link => allLinks.add(link));
+          
+          console.log(`✅ [SCRAPING] Playwright found ${propertyLinks.length} property URLs in route: ${route}`);
+
+          // Buscar elementos con atributos data-* específicos de propiedades
+          await this.extractPlaywrightDataAttributes(page, baseUrl, allLinks);
+
+        } catch (pageError) {
+          console.log(`⚠️ [SCRAPING] Playwright route ${route} failed:`, pageError.message);
+        } finally {
+          await page.close();
+        }
+      } catch (routeError) {
+        console.log(`⚠️ [SCRAPING] Playwright route ${route} not accessible`);
+      }
+    }
+
+    const finalLinks = Array.from(allLinks);
+    console.log(`✅ [SCRAPING] Playwright total found ${finalLinks.length} property URLs`);
+    return finalLinks;
+  }
+
+  /**
+   * Método HTTP de fallback (mejorado)
+   */
+  private async getPropertyUrlsWithHTTP(baseUrl: string): Promise<string[]> {
+    const allLinks = new Set<string>();
+    const propertyRoutes = [
+      '', // Página principal
+      '/propiedades',
+      '/properties', 
+      '/listings',
+      '/inmuebles'
+    ];
+    
+    for (const route of propertyRoutes) {
+      try {
+        const testUrl = baseUrl.endsWith('/') ? baseUrl + route.substring(1) : baseUrl + route;
+        console.log(`🌐 [SCRAPING] HTTP checking route: ${testUrl}`);
+        
+        const response = await axios.get(testUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+          },
+          timeout: 15000
+        });
+        
+        if (response.status === 200 && response.data) {
+          const $ = cheerio.load(response.data);
+          const propertyLinks = await this.detectPropertyLinksEnhanced($, baseUrl);
+          
+          propertyLinks.forEach(link => allLinks.add(link));
+          console.log(`✅ [SCRAPING] HTTP found ${propertyLinks.length} property URLs in route: ${route}`);
+          
+          if (propertyLinks.length > 0) {
+            await this.extractJSONData($, baseUrl, allLinks);
+          }
+        }
+      } catch (routeError) {
+        console.log(`⚠️ [SCRAPING] HTTP route ${route} not accessible`);
+      }
+    }
+    
+    const finalLinks = Array.from(allLinks);
+    console.log(`✅ [SCRAPING] HTTP total found ${finalLinks.length} property URLs`);
+    return finalLinks;
   }
 
   /**
