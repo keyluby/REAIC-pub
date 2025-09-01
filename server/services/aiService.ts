@@ -29,18 +29,18 @@ export class AIService {
       if (context.alterEstateEnabled && context.alterEstateToken) {
         console.log('🏘️ [AI] AlterEstate integration enabled, checking for property search intent');
         
-        // Detect if user is searching for properties
+        // FIRST: Check if user is requesting property media (photos/videos) - this has priority
+        if (this.isRequestingPropertyMedia(message)) {
+          console.log('📸 [AI] Property media request detected');
+          return await this.processPropertyMediaRequest(message, context, conversationId);
+        }
+        
+        // SECOND: Detect if user is searching for properties
         const intent = await this.detectIntent(message);
         
         if (intent.intent === 'search_property' && intent.confidence > 0.6) {
           console.log('🔍 [AI] Property search intent detected, querying AlterEstate');
           return await this.processPropertySearch(message, context, conversationId);
-        }
-        
-        // Check if user is requesting property media (photos/videos)
-        if (this.isRequestingPropertyMedia(message)) {
-          console.log('📸 [AI] Property media request detected');
-          return await this.processPropertyMediaRequest(message, context, conversationId);
         }
       }
       
@@ -370,31 +370,42 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
    */
   private isRequestingPropertyMedia(message: string): boolean {
     const messageLower = message.toLowerCase();
+    
+    // Palabras clave relacionadas con solicitar ver contenido visual
     const mediaKeywords = [
       'foto', 'fotos', 'imagen', 'imágenes', 'video', 'videos',
       'ver', 'muestra', 'enseña', 'galería', 'picture', 'photo',
       'mira', 'envía', 'manda', 'comparte', 'visual', 'aspecto',
-      'cómo se ve', 'que tal se ve', 'ver como es'
+      'cómo se ve', 'que tal se ve', 'ver como es', 'podria ver',
+      'puedes mostrar', 'me puedes enviar', 'tienes fotos'
     ];
     
+    // Referencias a propiedades específicas
     const propertyKeywords = [
       'propiedad', 'apartament', 'casa', 'inmueble', 'villa',
       'penthouse', 'property', 'unit', 'building', 'lugar',
-      'esa', 'esta', 'ese', 'este'
+      'esa', 'esta', 'ese', 'este', 'del que', 'de la que',
+      'que se encuentra', 'ubicado', 'ubicada', 'en la calle',
+      'en el', 'en la', 'el de', 'la de'
     ];
     
     const hasMediaKeyword = mediaKeywords.some(keyword => messageLower.includes(keyword));
     const hasPropertyKeyword = propertyKeywords.some(keyword => messageLower.includes(keyword));
     
-    // También detectar solicitudes implícitas como "quiero ver más detalles"
-    const implicitRequests = [
-      'más información', 'más detalles', 'tell me more', 'mas info',
-      'información adicional', 'detalles adicionales'
+    // Detectar patrones específicos de solicitud de fotos
+    const mediaPatterns = [
+      /podria?\s+ver\s+(foto|imagen)/i,
+      /puedes?\s+(mostrar|enviar|mandar)\s+(foto|imagen)/i,
+      /ver\s+(foto|imagen).*?(del?|de\s+la?)\s+(que|propiedad|casa|apartament)/i,
+      /foto.*?(del?|de\s+la?)\s+(que|propiedad|casa|apartament)/i
     ];
     
-    const hasImplicitRequest = implicitRequests.some(phrase => messageLower.includes(phrase));
+    const hasMediaPattern = mediaPatterns.some(pattern => pattern.test(message));
     
-    return (hasMediaKeyword && hasPropertyKeyword) || hasImplicitRequest;
+    console.log(`🔍 [AI] Media detection for: "${message}"`);
+    console.log(`📸 [AI] Has media keyword: ${hasMediaKeyword}, property keyword: ${hasPropertyKeyword}, pattern: ${hasMediaPattern}`);
+    
+    return hasMediaPattern || (hasMediaKeyword && hasPropertyKeyword);
   }
 
   /**
@@ -412,14 +423,34 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
       const propertyIdMatch = message.match(/([A-Z0-9]{8,12})/); // AlterEstate UIDs are typically 8-12 chars
       
       let propertySlug: string | null = null;
+      let property: any = null;
       
       if (propertyIdMatch) {
         propertySlug = propertyIdMatch[1];
         console.log(`🏠 [AI] Property ID extracted from message: ${propertySlug}`);
       } else {
-        // Try to get property from recent conversation context
+        // Try to get property from recent conversation context first
         propertySlug = await this.extractPropertyFromContext(conversationId);
         console.log(`🏠 [AI] Property extracted from context: ${propertySlug}`);
+        
+        // If no property in context, search for property by location/description
+        if (!propertySlug) {
+          console.log('🔍 [AI] No property ID found, searching by location/description');
+          const { alterEstateService } = await import('./alterEstateService');
+          
+          // Search for properties matching the description
+          const searchResult = await alterEstateService.intelligentPropertySearch(
+            context.alterEstateToken,
+            message,
+            context.userLocation
+          );
+          
+          if (searchResult.length > 0) {
+            property = searchResult[0]; // Take the first match
+            propertySlug = property.slug;
+            console.log(`🏠 [AI] Found property by search: ${propertySlug} (${property.name})`);
+          }
+        }
       }
       
       if (!propertySlug) {
@@ -430,20 +461,23 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
       const { alterEstateService } = await import('./alterEstateService');
       const media = await alterEstateService.getPropertyMedia(context.alterEstateToken, propertySlug);
       
-      // Send media through WhatsApp (this will be handled by a special flag)
+      // Send media through WhatsApp queue system
       await this.sendPropertyMedia(conversationId, propertySlug, media);
       
       if (media.images.length === 0 && !media.featuredImage) {
         return 'Esta propiedad no tiene fotos disponibles en este momento. ¿Te gustaría que coordine una visita para que puedas verla en persona?';
       }
       
-      let response = `📸 Te estoy enviando ${media.images.length + (media.featuredImage ? 1 : 0)} foto(s) de esta propiedad.`;
+      // This special message triggers the WhatsApp controller to send the actual photos
+      let response = `Te estoy preparando las fotos de esta propiedad. Un momento por favor...`;
       
-      if (media.virtualTour) {
-        response += `\n\n🎥 También tiene un tour virtual disponible: ${media.virtualTour}`;
+      if (media.images.length > 0) {
+        response = `📸 Te estoy preparando ${media.images.length + (media.featuredImage ? 1 : 0)} fotos de esta propiedad. Un momento por favor...`;
       }
       
-      response += '\n\n¿Te gustaría agendar una visita para conocer la propiedad en persona?';
+      if (media.virtualTour) {
+        response += `\n\n🎥 También incluiré el tour virtual.`;
+      }
       
       return response;
       
