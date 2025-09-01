@@ -155,31 +155,30 @@ export class WebScrapingService {
     const links = new Set<string>();
     const baseHost = new URL(baseUrl).hostname;
     
-    // Patrones comunes para enlaces de propiedades
+    // Patrones comunes para enlaces de propiedades (más específicos)
     const propertyPatterns = [
-      /\/propiedad\//i,
-      /\/property\//i,
-      /\/inmueble\//i,
-      /\/listing\//i,
-      /\/casa\//i,
-      /\/apartamento\//i,
-      /\/apartment\//i,
-      /\/house\//i,
-      /\/villa\//i,
-      /\/penthouse\//i,
-      /\/lote\//i,
-      /\/lot\//i,
-      /\/rent\//i,
-      /\/sale\//i,
-      /\/venta\//i,
-      /\/alquiler\//i,
-      /\/details\//i,
-      /\/detalles\//i,
-      /\/view\//i,
-      /\/ver\//i
+      /\/propiedad[\/\-]?\d+/i,
+      /\/property[\/\-]?\d+/i,
+      /\/inmueble[\/\-]?\d+/i,
+      /\/listing[\/\-]?\d+/i,
+      /\/casa[\/\-]?\d+/i,
+      /\/apartamento[\/\-]?\d+/i,
+      /\/apartment[\/\-]?\d+/i,
+      /\/house[\/\-]?\d+/i,
+      /\/villa[\/\-]?\d+/i,
+      /\/penthouse[\/\-]?\d+/i,
+      /\/lote[\/\-]?\d+/i,
+      /\/lot[\/\-]?\d+/i,
+      /\/details[\/\-]?\d+/i,
+      /\/detalles[\/\-]?\d+/i,
+      /\/view[\/\-]?\d+/i,
+      /\/ver[\/\-]?\d+/i,
+      /\/p\/\d+/i,
+      /\/id\/\d+/i,
+      /\/\d+$/i  // URLs que terminan solo en número
     ];
 
-    // Buscar enlaces que coincidan con patrones
+    // Buscar enlaces que coincidan con patrones más específicos
     $('a[href]').each((_, element) => {
       const href = $(element).attr('href');
       if (!href) return;
@@ -202,16 +201,18 @@ export class WebScrapingService {
         const matchesPattern = propertyPatterns.some(pattern => pattern.test(fullUrl));
         if (matchesPattern) {
           links.add(fullUrl);
+          console.log(`🔗 [SCRAPING] Found property link by pattern: ${fullUrl}`);
         }
       } catch (error) {
         // Ignorar URLs malformadas
       }
     });
 
-    // También buscar por textos de enlaces comunes
+    // Buscar por textos de enlaces comunes
     const propertyTexts = [
       'ver propiedad', 'view property', 'más información', 'more info',
-      'detalles', 'details', 'ver más', 'see more', 'conocer más'
+      'detalles', 'details', 'ver más', 'see more', 'conocer más',
+      'ver detalles', 'view details', 'más detalles', 'more details'
     ];
 
     $('a').each((_, element) => {
@@ -527,22 +528,120 @@ export class WebScrapingService {
     try {
       console.log(`🔍 [SCRAPING] Getting property URLs from: ${baseUrl}`);
       
-      const response = await axios.get(baseUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-        },
-        timeout: 15000
-      });
+      const allLinks = new Set<string>();
       
-      const $ = cheerio.load(response.data);
-      const propertyLinks = await this.detectPropertyLinks($, baseUrl);
+      // Lista de rutas comunes donde pueden estar las propiedades
+      const propertyRoutes = [
+        '', // Página principal
+        '/propiedades',
+        '/properties', 
+        '/listings',
+        '/inmuebles',
+        '/casas',
+        '/apartamentos',
+        '/venta',
+        '/alquiler',
+        '/rent',
+        '/sale'
+      ];
       
-      console.log(`✅ [SCRAPING] Found ${propertyLinks.length} property URLs`);
-      return propertyLinks;
+      // Probar cada ruta
+      for (const route of propertyRoutes) {
+        try {
+          const testUrl = baseUrl.endsWith('/') ? baseUrl + route.substring(1) : baseUrl + route;
+          console.log(`🔍 [SCRAPING] Checking route: ${testUrl}`);
+          
+          const response = await axios.get(testUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            },
+            timeout: 15000
+          });
+          
+          if (response.status === 200 && response.data) {
+            const $ = cheerio.load(response.data);
+            const propertyLinks = await this.detectPropertyLinks($, baseUrl);
+            
+            // Agregar enlaces encontrados
+            propertyLinks.forEach(link => allLinks.add(link));
+            
+            console.log(`✅ [SCRAPING] Found ${propertyLinks.length} property URLs in route: ${route}`);
+            
+            // Si encontramos enlaces en esta ruta, continuar buscando
+            if (propertyLinks.length > 0) {
+              // También buscar datos JSON embebidos
+              await this.extractJSONData($, baseUrl, allLinks);
+            }
+          }
+        } catch (routeError) {
+          console.log(`⚠️ [SCRAPING] Route ${route} not accessible or returned error`);
+          // Continuar con la siguiente ruta
+        }
+      }
+      
+      const finalLinks = Array.from(allLinks);
+      console.log(`✅ [SCRAPING] Total found ${finalLinks.length} property URLs across all routes`);
+      return finalLinks;
     } catch (error) {
       console.error(`❌ [SCRAPING] Error getting property URLs:`, error);
       return [];
+    }
+  }
+
+  /**
+   * Extraer datos JSON embebidos que puedan contener URLs de propiedades
+   */
+  private async extractJSONData($: cheerio.CheerioAPI, baseUrl: string, allLinks: Set<string>): Promise<void> {
+    try {
+      // Buscar scripts con datos JSON
+      $('script[type="application/json"], script[id*="__NEXT_DATA__"], script').each((_, element) => {
+        const scriptContent = $(element).html();
+        if (scriptContent && (scriptContent.includes('properties') || scriptContent.includes('propiedades'))) {
+          try {
+            // Intentar parsear JSON y buscar URLs
+            const jsonData = JSON.parse(scriptContent);
+            this.extractUrlsFromJSON(jsonData, baseUrl, allLinks);
+          } catch (jsonError) {
+            // No es JSON válido, continuar
+          }
+        }
+      });
+
+      // Buscar atributos data-* que puedan contener URLs
+      $('[data-property-url], [data-href], [data-link]').each((_, element) => {
+        const dataUrl = $(element).attr('data-property-url') || 
+                       $(element).attr('data-href') || 
+                       $(element).attr('data-link');
+        if (dataUrl) {
+          try {
+            const fullUrl = new URL(dataUrl, baseUrl).toString();
+            allLinks.add(fullUrl);
+          } catch (urlError) {
+            // URL malformada
+          }
+        }
+      });
+    } catch (error) {
+      console.log('⚠️ [SCRAPING] Error extracting JSON data:', error);
+    }
+  }
+
+  /**
+   * Extraer URLs de un objeto JSON recursivamente
+   */
+  private extractUrlsFromJSON(obj: any, baseUrl: string, allLinks: Set<string>): void {
+    if (typeof obj === 'string' && (obj.includes('/propiedad') || obj.includes('/property') || obj.includes('http'))) {
+      try {
+        const fullUrl = obj.startsWith('http') ? obj : new URL(obj, baseUrl).toString();
+        allLinks.add(fullUrl);
+      } catch (urlError) {
+        // URL malformada
+      }
+    } else if (Array.isArray(obj)) {
+      obj.forEach(item => this.extractUrlsFromJSON(item, baseUrl, allLinks));
+    } else if (typeof obj === 'object' && obj !== null) {
+      Object.values(obj).forEach(value => this.extractUrlsFromJSON(value, baseUrl, allLinks));
     }
   }
 
