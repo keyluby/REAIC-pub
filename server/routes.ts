@@ -241,6 +241,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Obtener URLs de propiedades encontradas de un sitio web para selección manual
+  app.get('/api/scraping/discover-urls/:websiteId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { websiteId } = req.params;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      
+      const result = await webScrapingService.discoverPropertyUrls(websiteId);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error discovering URLs:", error);
+      res.status(500).json({ message: "Error al descubrir URLs de propiedades" });
+    }
+  });
+
+  // Scrapear propiedades seleccionadas manualmente
+  app.post('/api/scraping/scrape-selected', isAuthenticated, async (req: any, res) => {
+    try {
+      const { websiteId, selectedUrls } = req.body;
+      const { webScrapingService } = await import('./services/webScrapingService');
+      
+      // Ejecutar scraping de URLs seleccionadas en background
+      webScrapingService.scrapeSelectedProperties(websiteId, selectedUrls).catch(error => {
+        console.error("Background scraping error:", error);
+      });
+      
+      res.json({ message: `Scraping iniciado para ${selectedUrls.length} propiedades seleccionadas` });
+    } catch (error) {
+      console.error("Error starting selective scraping:", error);
+      res.status(500).json({ message: "Error al iniciar scraping selectivo" });
+    }
+  });
+
   app.get('/api/scraping/search', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

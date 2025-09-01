@@ -519,40 +519,47 @@ export class WebScrapingService {
   }
 
   /**
-   * Obtener URLs de propiedades de un sitio
+   * Obtener URLs de propiedades de un sitio usando HTTP
    */
   private async getPropertyUrls(baseUrl: string): Promise<string[]> {
-    if (!this.browser) {
-      await this.initializeBrowser();
+    try {
+      console.log(`🔍 [SCRAPING] Getting property URLs from: ${baseUrl}`);
+      
+      const response = await axios.get(baseUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        },
+        timeout: 15000
+      });
+      
+      const $ = cheerio.load(response.data);
+      const propertyLinks = await this.detectPropertyLinks($, baseUrl);
+      
+      console.log(`✅ [SCRAPING] Found ${propertyLinks.length} property URLs`);
+      return propertyLinks;
+    } catch (error) {
+      console.error(`❌ [SCRAPING] Error getting property URLs:`, error);
+      return [];
     }
-
-    const page = await this.browser!.newPage();
-    await page.goto(baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    
-    const content = await page.content();
-    const $ = cheerio.load(content);
-    
-    const propertyLinks = await this.detectPropertyLinks($, baseUrl);
-    
-    await page.close();
-    
-    return propertyLinks;
   }
 
   /**
-   * Extraer datos de una propiedad específica
+   * Extraer datos de una propiedad específica usando HTTP
    */
   private async scrapeProperty(url: string, website: any): Promise<PropertyData | null> {
     try {
-      if (!this.browser) {
-        await this.initializeBrowser();
-      }
-
-      const page = await this.browser!.newPage();
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      console.log(`🏠 [SCRAPING] Scraping property: ${url}`);
       
-      const content = await page.content();
-      const $ = cheerio.load(content);
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        },
+        timeout: 15000
+      });
+      
+      const $ = cheerio.load(response.data);
       
       // Extraer datos usando los selectores detectados
       const title = this.extractText($, website.titleSelector) || 'Título no disponible';
@@ -575,7 +582,7 @@ export class WebScrapingService {
       // Procesar ubicación
       const { city, sector } = this.parseLocation(location);
       
-      await page.close();
+      console.log(`✅ [SCRAPING] Successfully scraped property: ${title}`);
 
       return {
         title,
@@ -882,6 +889,148 @@ export class WebScrapingService {
     // TODO: Implementar búsqueda inteligente similar a AlterEstate
     // Por ahora retornamos todas las propiedades del usuario
     return await this.getScrapedProperties(userId);
+  }
+
+  /**
+   * Descubrir URLs de propiedades para selección manual
+   */
+  async discoverPropertyUrls(websiteId: string): Promise<{
+    success: boolean;
+    urls: Array<{
+      url: string;
+      title: string;
+      preview?: string;
+    }>;
+    website: any;
+  }> {
+    try {
+      console.log(`🔍 [SCRAPING] Discovering property URLs for website: ${websiteId}`);
+      
+      // Obtener configuración del sitio web
+      const [website] = await db
+        .select()
+        .from(scrapedWebsites)
+        .where(eq(scrapedWebsites.id, websiteId));
+      
+      if (!website) {
+        throw new Error('Website not found');
+      }
+      
+      // Obtener URLs de propiedades
+      const propertyUrls = await this.getPropertyUrls(website.url);
+      
+      // Obtener previews de las primeras URLs
+      const urlsWithPreviews = await Promise.all(
+        propertyUrls.slice(0, 20).map(async (url) => {
+          try {
+            const response = await axios.get(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              },
+              timeout: 10000
+            });
+            
+            const $ = cheerio.load(response.data);
+            const title = this.extractText($, website.titleSelector) || 
+                         $('title').text() || 
+                         $('h1').first().text() || 
+                         'Título no disponible';
+            
+            const preview = this.extractText($, website.descriptionSelector) ||
+                           $('meta[name="description"]').attr('content') ||
+                           $('p').first().text() ||
+                           '';
+            
+            return {
+              url,
+              title: title.trim().substring(0, 100),
+              preview: preview.trim().substring(0, 150)
+            };
+          } catch (error) {
+            return {
+              url,
+              title: 'Error al cargar título',
+              preview: 'No se pudo obtener vista previa'
+            };
+          }
+        })
+      );
+      
+      console.log(`✅ [SCRAPING] Discovered ${urlsWithPreviews.length} property URLs with previews`);
+      
+      return {
+        success: true,
+        urls: urlsWithPreviews,
+        website
+      };
+      
+    } catch (error) {
+      console.error('❌ [SCRAPING] Error discovering property URLs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Scrapear propiedades seleccionadas manualmente
+   */
+  async scrapeSelectedProperties(websiteId: string, selectedUrls: string[]): Promise<void> {
+    try {
+      console.log(`🚀 [SCRAPING] Starting selective scraping for ${selectedUrls.length} URLs`);
+      
+      // Obtener configuración del sitio web
+      const [website] = await db
+        .select()
+        .from(scrapedWebsites)
+        .where(eq(scrapedWebsites.id, websiteId));
+      
+      if (!website) {
+        throw new Error('Website not found');
+      }
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // Procesar cada URL seleccionada
+      for (const url of selectedUrls) {
+        try {
+          console.log(`🏠 [SCRAPING] Processing selected URL: ${url}`);
+          
+          const propertyData = await this.scrapeProperty(url, website);
+          
+          if (propertyData) {
+            const saved = await this.savePropertyData(propertyData, websiteId, website.userId);
+            if (saved) {
+              successCount++;
+              console.log(`✅ [SCRAPING] Successfully saved property from: ${url}`);
+            }
+          } else {
+            errorCount++;
+            console.log(`❌ [SCRAPING] Failed to extract data from: ${url}`);
+          }
+          
+          // Pausa entre peticiones
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (urlError) {
+          errorCount++;
+          console.error(`❌ [SCRAPING] Error processing URL ${url}:`, urlError);
+        }
+      }
+      
+      // Actualizar timestamp del sitio web
+      await db
+        .update(scrapedWebsites)
+        .set({ 
+          lastScrapedAt: new Date(),
+          totalPropertiesFound: successCount
+        })
+        .where(eq(scrapedWebsites.id, websiteId));
+      
+      console.log(`✅ [SCRAPING] Selective scraping completed: ${successCount} success, ${errorCount} errors`);
+      
+    } catch (error) {
+      console.error('❌ [SCRAPING] Error in selective scraping:', error);
+      throw error;
+    }
   }
 
   /**

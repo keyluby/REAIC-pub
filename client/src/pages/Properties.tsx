@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Building, Search, Filter, Bed, Bath, Square, Globe, Plus, Play, Clock, CheckCircle, XCircle, ExternalLink, Image } from "lucide-react";
+import { AlertCircle, Building, Search, Filter, Bed, Bath, Square, Globe, Plus, Play, Clock, CheckCircle, XCircle, ExternalLink, Image, Eye, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ScrapedWebsite {
   id: string;
@@ -58,6 +59,9 @@ export default function Properties() {
   const [activeTab, setActiveTab] = useState("websites");
   const [isAddWebsiteOpen, setIsAddWebsiteOpen] = useState(false);
   const [newWebsite, setNewWebsite] = useState({ name: "", url: "", description: "" });
+  const [showUrlsDialog, setShowUrlsDialog] = useState(false);
+  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string | null>(null);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
 
   // Consultas para obtener datos
   const { data: websites = [], isLoading: websitesLoading } = useQuery({
@@ -124,6 +128,44 @@ export default function Properties() {
     }
   });
 
+  // Query para obtener URLs descubiertas
+  const { data: discoveredUrls, isLoading: urlsLoading } = useQuery({
+    queryKey: ['/api/scraping/discover-urls', selectedWebsiteId],
+    enabled: !!selectedWebsiteId && showUrlsDialog,
+    queryFn: async () => {
+      const response = await fetch(`/api/scraping/discover-urls/${selectedWebsiteId}`);
+      if (!response.ok) throw new Error('Error al descubrir URLs');
+      return response.json();
+    }
+  });
+
+  // Mutación para scrapear URLs seleccionadas
+  const scrapeSelectedMutation = useMutation({
+    mutationFn: async ({ websiteId, urls }: { websiteId: string; urls: string[] }) => {
+      const response = await fetch('/api/scraping/scrape-selected', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ websiteId, selectedUrls: urls })
+      });
+      if (!response.ok) throw new Error('Error al iniciar scraping selectivo');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Scraping iniciado", description: data.message || "Extracción selectiva iniciada" });
+      setShowUrlsDialog(false);
+      setSelectedUrls([]);
+      queryClient.invalidateQueries({ queryKey: ['/api/scraping/properties'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/scraping/scheduler/status'] });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Error al iniciar scraping selectivo",
+        variant: "destructive" 
+      });
+    }
+  });
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       toast({
@@ -149,6 +191,42 @@ export default function Properties() {
     }
     
     analyzeSiteMutation.mutate(newWebsite);
+  };
+
+  // Funciones para manejo de URLs
+  const handleDiscoverUrls = (websiteId: string) => {
+    setSelectedWebsiteId(websiteId);
+    setShowUrlsDialog(true);
+    setSelectedUrls([]);
+  };
+
+  const handleUrlToggle = (url: string) => {
+    setSelectedUrls(prev => {
+      if (prev.includes(url)) {
+        return prev.filter(u => u !== url);
+      } else {
+        return [...prev, url];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (discoveredUrls?.urls) {
+      setSelectedUrls(discoveredUrls.urls.map((item: any) => item.url));
+    }
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedUrls([]);
+  };
+
+  const handleScrapeSelected = () => {
+    if (selectedWebsiteId && selectedUrls.length > 0) {
+      scrapeSelectedMutation.mutate({
+        websiteId: selectedWebsiteId,
+        urls: selectedUrls
+      });
+    }
   };
 
   const filteredProperties = (properties as ScrapedProperty[]).filter((property: ScrapedProperty) =>
@@ -323,6 +401,15 @@ export default function Properties() {
                         </div>
                       </div>
                       <div className="flex space-x-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleDiscoverUrls(website.id)}
+                          data-testid={`button-discover-urls-${website.id}`}
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          Ver URLs
+                        </Button>
                         <Button 
                           size="sm" 
                           variant="outline" 
@@ -555,6 +642,121 @@ export default function Properties() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Diálogo para mostrar URLs encontradas */}
+        <Dialog open={showUrlsDialog} onOpenChange={setShowUrlsDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>URLs de Propiedades Encontradas</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Selecciona las propiedades que deseas agregar a tu base de datos
+              </p>
+            </DialogHeader>
+
+            {urlsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-sm text-muted-foreground">Descubriendo URLs...</p>
+                </div>
+              </div>
+            ) : discoveredUrls?.urls ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Se encontraron {discoveredUrls.urls.length} propiedades
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSelectAll}
+                      data-testid="button-select-all"
+                    >
+                      Seleccionar Todas
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDeselectAll}
+                      data-testid="button-deselect-all"
+                    >
+                      Deseleccionar Todas
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg">
+                  <div className="max-h-96 overflow-y-auto">
+                    {discoveredUrls.urls.map((item: any, index: number) => (
+                      <div
+                        key={item.url}
+                        className={`p-4 border-b last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                          selectedUrls.includes(item.url) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                        data-testid={`property-url-item-${index}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedUrls.includes(item.url)}
+                            onCheckedChange={() => handleUrlToggle(item.url)}
+                            data-testid={`checkbox-url-${index}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm mb-1 truncate">
+                              {item.title}
+                            </h4>
+                            {item.preview && (
+                              <p className="text-xs text-muted-foreground mb-2">
+                                {item.preview}
+                              </p>
+                            )}
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline truncate block"
+                              data-testid={`link-property-${index}`}
+                            >
+                              {item.url}
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    {selectedUrls.length} propiedades seleccionadas
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUrlsDialog(false)}
+                      data-testid="button-cancel-urls"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleScrapeSelected}
+                      disabled={selectedUrls.length === 0 || scrapeSelectedMutation.isPending}
+                      data-testid="button-scrape-selected"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      {scrapeSelectedMutation.isPending ? 'Procesando...' : `Extraer ${selectedUrls.length} Propiedades`}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No se encontraron URLs de propiedades</p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
