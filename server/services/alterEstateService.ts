@@ -586,15 +586,31 @@ export class AlterEstateService {
     uid: string;
     slug: string;
   }> {
-    return properties.map(property => ({
-      imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
-      title: property.name,
-      price: `${property.currency_sale} ${property.sale_price.toLocaleString()}`,
-      description: `${property.room || 0} hab • ${property.bathroom || 0} baños\n${property.sector}, ${property.city}`,
-      propertyUrl: this.getPropertyPublicUrl(property.slug, userWebsiteUrl),
-      uid: property.uid,
-      slug: property.slug
-    }));
+    return properties.map(property => {
+      // Manejar precio null/undefined
+      const salePrice = property.sale_price;
+      const currency = property.currency_sale || 'RD$';
+      const formattedPrice = salePrice && typeof salePrice === 'number' 
+        ? `${currency} ${salePrice.toLocaleString()}`
+        : 'Precio a consultar';
+
+      // Manejar campos opcionales
+      const rooms = property.room || 0;
+      const bathrooms = property.bathroom || 0;
+      const sector = property.sector || 'Sector no especificado';
+      const city = property.city || 'Ciudad no especificada';
+      const title = property.name || 'Propiedad sin nombre';
+
+      return {
+        imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
+        title: title,
+        price: formattedPrice,
+        description: `${rooms} hab • ${bathrooms} baños\n${sector}, ${city}`,
+        propertyUrl: this.getPropertyPublicUrl(property.slug, userWebsiteUrl),
+        uid: property.uid,
+        slug: property.slug
+      };
+    });
   }
 }
 

@@ -341,13 +341,23 @@ Responde en formato JSON:
       );
       
       // Formato mejorado para una sola propiedad con enlace directo
-      const enhancedPropertyInfo = `🏠 **${property.name}**
+      const salePrice = property.sale_price;
+      const currency = property.currency_sale || 'RD$';
+      const formattedPrice = salePrice && typeof salePrice === 'number' 
+        ? `${currency} ${salePrice.toLocaleString()}`
+        : 'Precio a consultar';
+      
+      const categoryName = property.category && typeof property.category === 'object' 
+        ? property.category.name 
+        : property.category || 'Tipo no especificado';
+      
+      const enhancedPropertyInfo = `🏠 **${property.name || 'Propiedad sin nombre'}**
 
-💰 **Precio**: ${property.currency_sale} ${property.sale_price.toLocaleString()}
-🏢 **Tipo**: ${property.category}
+💰 **Precio**: ${formattedPrice}
+🏢 **Tipo**: ${categoryName}
 🏠 **Habitaciones**: ${property.room || 'N/A'}
 🚿 **Baños**: ${property.bathroom || 'N/A'}
-📍 **Ubicación**: ${property.sector}, ${property.city}
+📍 **Ubicación**: ${property.sector || 'Sector no especificado'}, ${property.city || 'Ciudad no especificada'}
 
 🔗 **Ver publicación completa**: ${propertyUrl}
 
