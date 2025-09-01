@@ -549,15 +549,25 @@ export class AlterEstateService {
   /**
    * Construir enlace público de la propiedad
    */
-  getPropertyPublicUrl(propertySlug: string): string {
-    // AlterEstate proporciona enlaces públicos basados en el slug
+  getPropertyPublicUrl(propertySlug: string, userWebsiteUrl?: string): string {
+    // Si el usuario tiene configurada una URL personalizada, usarla
+    if (userWebsiteUrl) {
+      // Asegurar que la URL termine sin slash
+      const baseUrl = userWebsiteUrl.replace(/\/$/, '');
+      return `${baseUrl}/propiedades/${propertySlug}`;
+    }
+    
+    // Fallback: URL genérica de AlterEstate
     return `https://alterestate.com/properties/${propertySlug}`;
   }
 
   /**
    * Formatear propiedades para carrusel interactivo de WhatsApp
    */
-  formatPropertiesForCarousel(properties: AlterEstateProperty[]): Array<{
+  formatPropertiesForCarousel(
+    properties: AlterEstateProperty[], 
+    userWebsiteUrl?: string
+  ): Array<{
     imageUrl: string;
     title: string;
     price: string;
@@ -571,7 +581,7 @@ export class AlterEstateService {
       title: property.name,
       price: `${property.currency_sale} ${property.sale_price.toLocaleString()}`,
       description: `${property.room || 0} hab • ${property.bathroom || 0} baños\n${property.sector}, ${property.city}`,
-      propertyUrl: this.getPropertyPublicUrl(property.slug),
+      propertyUrl: this.getPropertyPublicUrl(property.slug, userWebsiteUrl),
       uid: property.uid,
       slug: property.slug
     }));

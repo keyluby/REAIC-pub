@@ -317,7 +317,10 @@ Responde en formato JSON:
         console.log(`🎠 [AI] Found ${properties.length} properties, preparing carousel`);
         
         // Preparar datos para carrusel
-        const carouselData = alterEstateService.formatPropertiesForCarousel(properties);
+        const carouselData = alterEstateService.formatPropertiesForCarousel(
+          properties, 
+          context.realEstateWebsiteUrl
+        );
         
         // Marcar que se debe enviar carrusel
         pendingMediaQueue.set(conversationId, {
@@ -330,21 +333,38 @@ Responde en formato JSON:
         return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}. Te estoy preparando las tarjetas interactivas con toda la información...`;
       }
       
-      // Para una sola propiedad, usar formato de texto tradicional
-      const formattedProperties = alterEstateService.formatPropertiesForAI(properties);
+      // Para una sola propiedad, usar formato mejorado con enlace directo
+      const property = properties[0];
+      const propertyUrl = alterEstateService.getPropertyPublicUrl(
+        property.slug, 
+        context.realEstateWebsiteUrl
+      );
+      
+      // Formato mejorado para una sola propiedad con enlace directo
+      const enhancedPropertyInfo = `🏠 **${property.name}**
+
+💰 **Precio**: ${property.currency_sale} ${property.sale_price.toLocaleString()}
+🏢 **Tipo**: ${property.category}
+🏠 **Habitaciones**: ${property.room || 'N/A'}
+🚿 **Baños**: ${property.bathroom || 'N/A'}
+📍 **Ubicación**: ${property.sector}, ${property.city}
+
+🔗 **Ver publicación completa**: ${propertyUrl}
+
+📝 **Descripción**: ${property.short_description || 'Información disponible en el enlace'}`;
       
       // Generar respuesta contextual usando IA
       const conversationContext = this.conversationContexts.get(conversationId) || [];
       const systemPrompt = this.buildSystemPrompt(context) + 
-        '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+        '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
       
       const propertyPrompt = `El usuario preguntó: "${message}"
 
-He encontrado estas propiedades reales disponibles en nuestro CRM:
+He encontrado esta propiedad real disponible en nuestro CRM:
 
-${formattedProperties}
+${enhancedPropertyInfo}
 
-Presenta estas propiedades de manera natural y conversacional. Destaca las características más relevantes y pregunta si le gustaría más información, fotos o agendar una visita.`;
+Presenta esta propiedad de manera natural y conversacional. Destaca las características más relevantes, menciona que puede ver la publicación completa en el enlace proporcionado, y pregunta si le gustaría agendar una visita o ver más fotos.`;
 
       const messages = [
         { role: "system", content: systemPrompt },
@@ -359,7 +379,7 @@ Presenta estas propiedades de manera natural y conversacional. Destaca las carac
         temperature: 0.7,
       });
 
-      const aiResponse = response.choices[0].message.content || formattedProperties;
+      const aiResponse = response.choices[0].message.content || enhancedPropertyInfo;
       
       // Update conversation context
       conversationContext.push(

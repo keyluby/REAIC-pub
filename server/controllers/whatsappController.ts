@@ -1036,7 +1036,10 @@ class WhatsAppController {
           
           // Obtener detalles completos
           const propertyDetail = await alterEstateService.getPropertyDetail(context.alterEstateToken, property.slug);
-          const propertyUrl = alterEstateService.getPropertyPublicUrl(property.slug);
+          const propertyUrl = alterEstateService.getPropertyPublicUrl(
+            property.slug, 
+            settings?.realEstateWebsiteUrl || undefined
+          );
           
           // Formatear información detallada
           const detailsMessage = `🏠 **${propertyDetail.name}**
@@ -1108,6 +1111,68 @@ ${propertyDetail.description || propertyDetail.short_description}
             instance.instanceName,
             conversation.clientPhone,
             'Disculpa, tuve un problema obteniendo las fotos de la propiedad. ¿Podrías intentar de nuevo?'
+          );
+        }
+        
+      } else if (action === 'visit') {
+        // Agendar visita a la propiedad
+        console.log(`🗓️ [WHATSAPP] Scheduling visit for property: ${propertyUid}`);
+        
+        try {
+          // Buscar la propiedad por UID
+          const searchResult = await alterEstateService.searchProperties(context.alterEstateToken, {});
+          const property = searchResult.results.find(p => p.uid === propertyUid);
+          
+          if (!property) {
+            await whatsappService.sendMessage(
+              instance.instanceName,
+              conversation.clientPhone,
+              'No pude encontrar esa propiedad para agendar la visita. ¿Podrías intentar de nuevo?'
+            );
+            return;
+          }
+          
+          // Crear lead automáticamente si hay interés en visita
+          const { aiService } = await import('../services/aiService');
+          await aiService.createLeadFromConversation(
+            context,
+            conversation.clientPhone,
+            conversation.clientName || 'Cliente WhatsApp',
+            propertyUid,
+            `Interesado en agendar visita para propiedad: ${property.name}`
+          );
+          
+          // Mensaje para coordinar la visita
+          const visitMessage = `🗓️ **Agendar Visita - ${property.name}**
+
+¡Perfecto! Me encanta que te interese esta propiedad. 
+
+📍 **Ubicación**: ${property.sector}, ${property.city}
+💰 **Precio**: ${property.currency_sale} ${property.sale_price.toLocaleString()}
+
+Para coordinar tu visita, necesito algunos datos:
+
+1️⃣ **¿Qué días prefieres?** (Lun-Vie o fin de semana)
+2️⃣ **¿Qué horario te conviene mejor?** (mañana, tarde)
+3️⃣ **¿Tu nombre completo?**
+4️⃣ **¿Un número de contacto adicional?**
+
+También he registrado tu interés en nuestro sistema para darte seguimiento personalizado. 📝
+
+¿Con qué información empezamos?`;
+
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            visitMessage
+          );
+          
+        } catch (error) {
+          console.error(`❌ [WHATSAPP] Error scheduling visit:`, error);
+          await whatsappService.sendMessage(
+            instance.instanceName,
+            conversation.clientPhone,
+            'Disculpa, tuve un problema organizando la visita. ¿Podrías escribirme directamente que te gustaría agendar una visita?'
           );
         }
       }

@@ -84,6 +84,7 @@ export const userSettings = pgTable("user_settings", {
   alterEstateApiKey: varchar("alter_estate_api_key"), // Para crear leads
   alterEstateCompanyId: varchar("alter_estate_company_id"),
   alterEstateEnabled: boolean("alter_estate_enabled").default(false),
+  realEstateWebsiteUrl: varchar("real_estate_website_url"), // URL del sitio web de la inmobiliaria
   
   // Calendar configuration
   googleCalendarId: varchar("google_calendar_id"),

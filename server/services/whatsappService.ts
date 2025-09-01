@@ -310,7 +310,8 @@ export class WhatsAppService {
           `💰 ${property.price}\n${property.description}`,
           [
             { id: `info_${property.uid}`, text: '📋 Ver info' },
-            { id: `photos_${property.uid}`, text: '📸 Ver fotos' }
+            { id: `photos_${property.uid}`, text: '📸 Ver fotos' },
+            { id: `visit_${property.uid}`, text: '🗓️ Agendar visita' }
           ]
         );
         
