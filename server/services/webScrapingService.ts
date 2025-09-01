@@ -53,8 +53,9 @@ export class WebScrapingService {
 
   private async initializeBrowser() {
     try {
+      // Intentar inicializar Puppeteer, pero no es crítico si falla
       this.browser = await puppeteer.launch({
-        headless: true,
+        headless: 'new',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -63,12 +64,15 @@ export class WebScrapingService {
           '--no-first-run',
           '--no-zygote',
           '--single-process',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
         ]
       });
       console.log('🌐 [SCRAPING] Browser initialized successfully');
     } catch (error) {
-      console.error('❌ [SCRAPING] Failed to initialize browser:', error);
+      console.log('⚠️ [SCRAPING] Browser initialization failed, using HTTP mode:', error.message);
+      this.browser = null;
     }
   }
 
@@ -89,15 +93,20 @@ export class WebScrapingService {
     try {
       console.log(`🔍 [SCRAPING] Analyzing site: ${mainUrl}`);
       
-      if (!this.browser) {
-        await this.initializeBrowser();
-      }
-
-      const page = await this.browser!.newPage();
-      await page.goto(mainUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      // Usar HTTP + Cheerio como método principal (más confiable)
+      const response = await axios.get(mainUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive'
+        },
+        timeout: 15000,
+        maxRedirects: 5
+      });
       
-      const content = await page.content();
-      const $ = cheerio.load(content);
+      const $ = cheerio.load(response.data);
       
       // Detectar enlaces de propiedades automáticamente
       const propertyLinks = await this.detectPropertyLinks($, mainUrl);
@@ -117,12 +126,12 @@ export class WebScrapingService {
         imageSelector: patterns.imageSelector,
         locationSelector: patterns.locationSelector,
         descriptionSelector: patterns.descriptionSelector,
-        totalPropertiesFound: propertyLinks.length
+        totalPropertiesFound: propertyLinks.length,
+        isActive: true,
+        scrapingInterval: 24 // 24 horas por defecto
       };
 
       const [website] = await db.insert(scrapedWebsites).values(websiteData).returning();
-      
-      await page.close();
       
       console.log(`✅ [SCRAPING] Site analyzed: Found ${propertyLinks.length} property links`);
       
@@ -135,7 +144,7 @@ export class WebScrapingService {
       
     } catch (error) {
       console.error('❌ [SCRAPING] Error analyzing site:', error);
-      throw new Error(`Failed to analyze site: ${error}`);
+      throw new Error(`Failed to analyze site: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
