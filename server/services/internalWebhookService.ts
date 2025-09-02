@@ -265,7 +265,7 @@ class InternalWebhookService {
         alterEstateToken: settings?.alterEstateToken,
         alterEstateApiKey: settings?.alterEstateApiKey,
         userLocation: phoneNumber?.includes('1829') ? 'Santo Domingo' : undefined,
-        realEstateWebsiteUrl: settings?.realEstateWebsiteUrl || 'https://miinmobiliaria.com',
+        realEstateWebsiteUrl: settings?.realEstateWebsiteUrl,
       };
 
       console.log('🎯 [INTERNAL AI] Context:', context);
