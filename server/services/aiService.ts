@@ -402,31 +402,37 @@ Responde en formato JSON:
         return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
       }
       
-      // Si hay múltiples propiedades (2 o más), usar carrusel interactivo
+      // Para múltiples propiedades, formatear con información directa y enlaces
       if (properties.length >= 2) {
-        console.log(`🎠 [AI] Found ${properties.length} properties, preparing carousel`);
+        console.log(`📋 [AI] Found ${properties.length} properties, formatting with direct links`);
         
-        // Preparar datos para carrusel
-        const carouselData = alterEstateService.formatPropertiesForCarousel(
-          properties, 
-          context.realEstateWebsiteUrl
-        );
-        
-        // Marcar que se debe enviar carrusel
-        pendingMediaQueue.set(conversationId, {
-          type: 'carousel',
-          properties: carouselData,
-          timestamp: Date.now()
-        });
-        
-        // Respuesta personalizada según si es refinamiento o nueva búsqueda
-        const propertyNames = properties.map(p => p.name).slice(0, 3).join(', ');
-        const moreProperties = properties.length > 3 ? ` y ${properties.length - 3} más` : '';
+        // Formatear hasta 5 propiedades con información completa
+        const propertiesToShow = properties.slice(0, 5);
+        const propertiesText = propertiesToShow.map((property, index) => {
+          const salePrice = property.sale_price;
+          const currency = property.currency_sale || 'USD';
+          const formattedPrice = salePrice && typeof salePrice === 'number' 
+            ? `${currency} ${salePrice.toLocaleString()}`
+            : 'Precio a consultar';
+          
+          const propertyUrl = alterEstateService.getPropertyPublicUrl(
+            property.slug, 
+            context.realEstateWebsiteUrl
+          );
+          
+          return `${index + 1}. 🏠 **${property.name}**
+💰 ${formattedPrice}
+🏠 ${property.room || 'N/A'} hab • 🚿 ${property.bathroom || 'N/A'} baños
+📍 ${property.sector || 'Sector no especificado'}, ${property.city || 'Ciudad no especificada'}
+🔗 Ver detalles: ${propertyUrl}`;
+        }).join('\n\n');
+
+        const moreProperties = properties.length > 5 ? `\n\n➕ *Tengo ${properties.length - 5} propiedades adicionales que podrían interesarte.*` : '';
         
         if (isRefinement) {
-          return `Perfecto! 😊 Considerando tu presupuesto y las preferencias que me has mencionado, encontré ${properties.length} propiedades que se ajustan mejor a lo que buscas: ${propertyNames}${moreProperties}. Te estoy preparando las tarjetas interactivas con toda la información actualizada...`;
+          return `Perfecto! 😊 Considerando tu presupuesto y las preferencias que me has mencionado, aquí tienes las mejores opciones:\n\n${propertiesText}${moreProperties}\n\n¿Te interesa alguna en particular? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
         } else {
-          return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}${moreProperties}. Te estoy preparando las tarjetas interactivas con toda la información...`;
+          return `🏠 ¡Encontré ${properties.length} excelentes opciones para ti!\n\n${propertiesText}${moreProperties}\n\n¿Cuál te llama más la atención? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
         }
       }
       
