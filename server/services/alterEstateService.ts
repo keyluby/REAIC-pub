@@ -350,15 +350,19 @@ export class AlterEstateService {
     try {
       console.log(`🔍 [ALTERESTATE] Intelligent search for: "${query}"`);
       
-      // Analizar la consulta para extraer criterios de búsqueda
-      const filters: PropertyFilters = this.parseSearchQuery(query);
+      // Analizar la consulta usando IA para extraer criterios más precisos
+      const filters: PropertyFilters = await this.analyzeQueryWithAI(query);
       
-      // Si hay ubicación del usuario, agregarla
-      if (userLocation) {
+      // Si hay ubicación del usuario, agregarla o combinarla
+      if (userLocation && !filters.search) {
         filters.search = userLocation;
       }
       
+      console.log(`🎯 [ALTERESTATE] Final filters for API:`, filters);
+      
       const result = await this.searchProperties(aeToken, filters);
+      
+      console.log(`📊 [ALTERESTATE] API returned ${result.results.length} properties from ${result.count} total`);
       
       // Limitar a las primeras 10 propiedades para respuestas eficientes
       return result.results.slice(0, 10);
@@ -370,7 +374,85 @@ export class AlterEstateService {
   }
 
   /**
-   * Analizar consulta de texto natural para extraer filtros
+   * Analizar consulta usando IA para extraer criterios más precisos
+   */
+  private async analyzeQueryWithAI(query: string): Promise<PropertyFilters> {
+    try {
+      const { OpenAI } = await import('openai');
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      
+      const prompt = `Analiza esta consulta de búsqueda de propiedades inmobiliarias y extrae TODOS los criterios específicos posibles:
+
+Consulta: "${query}"
+
+Extrae criterios para formar filtros API precisos. Considera contexto dominicano.
+
+CATEGORÍAS DE PROPIEDADES:
+1 = Apartamentos
+2 = Casas  
+3 = Edificios
+4 = Solares
+5 = Hoteles
+6 = Locales Comerciales
+7 = Naves Industriales
+10 = Penthouse
+13 = Villas
+14 = Lofts
+17 = Townhouses
+
+TIPOS DE OPERACIÓN:
+1 = Venta/Compra
+2 = Alquiler
+
+UBICACIONES ESPECÍFICAS DOMINICANAS:
+- Santo Domingo y sectores: Piantini, Naco, Bella Vista, Evaristo Morales, Gazcue, Zona Colonial, etc.
+- Santiago, Punta Cana, Puerto Plata, La Romana
+
+Responde en JSON:
+{
+  "listing_type": number_o_null,
+  "category": number_o_null,
+  "rooms_min": number_o_null,
+  "rooms_max": number_o_null,
+  "bath_min": number_o_null,
+  "bath_max": number_o_null,
+  "value_min": number_o_null,
+  "value_max": number_o_null,
+  "currency": "USD_o_DOP_o_null",
+  "search": "ubicacion_especifica_o_null",
+  "property_area_min": number_o_null,
+  "property_area_max": number_o_null
+}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 500,
+        temperature: 0.3,
+      });
+
+      const filters = JSON.parse(response.choices[0].message.content || '{}');
+      console.log(`🧠 [ALTERESTATE] AI analyzed query "${query}" -> filters:`, filters);
+      
+      // Filtrar valores null y convertir a PropertyFilters
+      const cleanFilters: PropertyFilters = {};
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          (cleanFilters as any)[key] = value;
+        }
+      });
+      
+      return cleanFilters;
+      
+    } catch (error) {
+      console.error('❌ [ALTERESTATE] Error analyzing query with AI, falling back to basic parsing:', error);
+      return this.parseSearchQuery(query);
+    }
+  }
+
+  /**
+   * Analizar consulta de texto natural para extraer filtros (método básico de respaldo)
    */
   private parseSearchQuery(query: string): PropertyFilters {
     const filters: PropertyFilters = {};
