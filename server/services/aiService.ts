@@ -35,12 +35,13 @@ export class AIService {
           return await this.processPropertyMediaRequest(message, context, conversationId);
         }
         
-        // SECOND: Detect if user is searching for properties
-        const intent = await this.detectIntent(message);
+        // SECOND: Detect if user is searching for properties or providing additional search criteria
+        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const intent = await this.detectIntentWithContext(message, conversationContext);
         
-        if (intent.intent === 'search_property' && intent.confidence > 0.6) {
-          console.log('🔍 [AI] Property search intent detected, querying AlterEstate');
-          return await this.processPropertySearch(message, context, conversationId);
+        if ((intent.intent === 'search_property' || intent.intent === 'refine_search') && intent.confidence > 0.6) {
+          console.log(`🔍 [AI] ${intent.intent} intent detected, querying AlterEstate`);
+          return await this.processPropertySearch(message, context, conversationId, intent.intent === 'refine_search');
         }
       }
       
@@ -114,18 +115,28 @@ PERSONALIDAD:
 - Empático y consultivo
 - Orientado a soluciones
 - Paciente y detallado
+- Cálido y personal - recuerdas las conversaciones anteriores
+
+MEMORIA DE CONVERSACIÓN:
+- CRUCIAL: Siempre revisa el historial de la conversación antes de responder
+- Si el cliente ha mencionado preferencias anteriormente, recuérdalas y úsalas
+- Con cada interacción, sé más amigable y cercano
+- Reconoce cuando es segunda, tercera, o cuarta vez que interactúas con el cliente
+- Haz comentarios personales basados en información previa: "Como mencionaste antes..." o "Recordando lo que buscabas..."
+- NUNCA preguntes información que ya tienes del historial de conversación
 
 PROCESO DE CALIFICACIÓN:
-1. Saludo personalizado
-2. Determinar tipo de búsqueda (compra/alquiler)
-3. Establecer presupuesto y moneda
-4. Identificar ubicación preferida
-5. Determinar características requeridas
-6. Mostrar opciones relevantes
-7. Agendar visita si hay interés
+1. Saludo personalizado (más cálido si ya conoces al cliente)
+2. Revisar preferencias previas si existen
+3. Determinar tipo de búsqueda (compra/alquiler) - solo si no lo sabes ya
+4. Establecer presupuesto y moneda - solo si no lo tienes ya
+5. Identificar ubicación preferida - solo si no la conoces ya
+6. Determinar características requeridas - solo las que falten
+7. Mostrar opciones relevantes
+8. Agendar visita si hay interés
 
 REGLAS:
-- Siempre pregunta antes de mostrar propiedades
+- SIEMPRE revisa la conversación previa antes de hacer cualquier pregunta
 - Máximo 3 propiedades por respuesta
 - Incluye detalles relevantes cuando muestres propiedades
 - Usa información actualizada del CRM
@@ -136,7 +147,8 @@ FORMATO DE RESPUESTA:
 - Usa emojis apropiados pero con moderación
 - Mantén un tono profesional pero cercano
 - Haz preguntas específicas para entender mejor las necesidades
-- Proporciona información valiosa en cada respuesta`;
+- Proporciona información valiosa en cada respuesta
+- Siempre reconoce el contexto previo cuando existe`;
   }
 
   async generatePropertyRecommendations(userPreferences: any, availableProperties: any[]) {
@@ -275,26 +287,104 @@ Responde en formato JSON:
     }
   }
 
+  async detectIntentWithContext(message: string, conversationContext: any[]): Promise<{
+    intent: string;
+    confidence: number;
+    entities?: any;
+  }> {
+    try {
+      // Analizar el contexto de conversación para detectar búsquedas previas
+      const contextSummary = conversationContext.slice(-6).map(msg => 
+        `${msg.role}: ${msg.content}`
+      ).join('\n');
+
+      const prompt = `Analiza el siguiente mensaje de un cliente de bienes raíces considerando el contexto de la conversación anterior:
+
+Contexto previo de la conversación:
+${contextSummary}
+
+Mensaje actual: "${message}"
+
+Posibles intenciones:
+- "search_property": buscar propiedades (nueva búsqueda)
+- "refine_search": refinar o agregar información a una búsqueda anterior
+- "schedule_appointment": agendar cita
+- "ask_question": hacer pregunta general
+- "request_info": solicitar información específica
+- "escalate_human": hablar con persona real
+- "greeting": saludo
+- "complaint": queja o problema
+- "goodbye": despedida
+
+IMPORTANTE: Si el contexto muestra búsquedas previas de propiedades y el mensaje actual proporciona información adicional (presupuesto, preferencias, etc.), usa "refine_search".
+
+Responde en formato JSON:
+{
+  "intent": "string",
+  "confidence": number (0-1),
+  "entities": {
+    "budget": number_or_null,
+    "location": "string_or_null",
+    "property_type": "string_or_null",
+    "urgency": "low|medium|high"
+  }
+}`;
+
+      const response = await this.openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+
+      return JSON.parse(response.choices[0].message.content || '{"intent": "ask_question", "confidence": 0.5}');
+    } catch (error) {
+      console.error('Error detecting intent with context:', error);
+      return { intent: "ask_question", confidence: 0.5 };
+    }
+  }
+
   /**
    * Procesar búsqueda de propiedades usando AlterEstate
    */
-  private async processPropertySearch(message: string, context: any, conversationId: string): Promise<string> {
+  private async processPropertySearch(message: string, context: any, conversationId: string, isRefinement: boolean = false): Promise<string> {
     try {
       const { alterEstateService } = await import('./alterEstateService');
+      
+      let searchQuery = message;
+      
+      // Si es un refinamiento, combinar con contexto de búsquedas anteriores
+      if (isRefinement) {
+        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const previousSearches = conversationContext
+          .filter(msg => msg.role === 'user')
+          .map(msg => msg.content)
+          .join(' ');
+        
+        searchQuery = `${previousSearches} ${message}`;
+        console.log(`🔄 [AI] Refining previous search with new criteria: "${message}"`);
+        console.log(`🔍 [AI] Combined search query: "${searchQuery}"`);
+      } else {
+        console.log('🔍 [AI] Starting new property search');
+      }
       
       // Buscar propiedades reales usando AlterEstate
       console.log('🔍 [AI] Searching real properties in AlterEstate');
       const properties = await alterEstateService.intelligentPropertySearch(
         context.alterEstateToken,
-        message,
+        searchQuery,
         context.userLocation
       );
       
       if (properties.length === 0) {
-        // No se encontraron propiedades, dar respuesta personalizada
+        // No se encontraron propiedades, dar respuesta personalizada considerando el historial
         const conversationContext = this.conversationContexts.get(conversationId) || [];
-        const systemPrompt = this.buildSystemPrompt(context) + 
-          '\n\nNOTA: No se encontraron propiedades que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+        const contextNote = isRefinement 
+          ? '\n\nNOTA: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y sugiere alternativas basadas en su historial de búsqueda. Sé cálido y personal.'
+          : '\n\nNOTA: No se encontraron propiedades que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+          
+        const systemPrompt = this.buildSystemPrompt(context) + contextNote;
         
         const messages = [
           { role: "system", content: systemPrompt },
@@ -329,8 +419,15 @@ Responde en formato JSON:
           timestamp: Date.now()
         });
         
-        const propertyNames = properties.map(p => p.name).join(', ');
-        return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}. Te estoy preparando las tarjetas interactivas con toda la información...`;
+        // Respuesta personalizada según si es refinamiento o nueva búsqueda
+        const propertyNames = properties.map(p => p.name).slice(0, 3).join(', ');
+        const moreProperties = properties.length > 3 ? ` y ${properties.length - 3} más` : '';
+        
+        if (isRefinement) {
+          return `Perfecto! 😊 Considerando tu presupuesto y las preferencias que me has mencionado, encontré ${properties.length} propiedades que se ajustan mejor a lo que buscas: ${propertyNames}${moreProperties}. Te estoy preparando las tarjetas interactivas con toda la información actualizada...`;
+        } else {
+          return `🏠 Encontré ${properties.length} propiedades que podrían interesarte: ${propertyNames}${moreProperties}. Te estoy preparando las tarjetas interactivas con toda la información...`;
+        }
       }
       
       // Para una sola propiedad, usar formato mejorado con enlace directo
@@ -365,10 +462,21 @@ Responde en formato JSON:
       
       // Generar respuesta contextual usando IA
       const conversationContext = this.conversationContexts.get(conversationId) || [];
-      const systemPrompt = this.buildSystemPrompt(context) + 
-        '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+      const contextInstructions = isRefinement 
+        ? '\n\nINSTRUCCIONES ESPECIALES: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y presenta esta propiedad como resultado de haber considerado toda su información. Sé cálido, personal y muestra que has estado atento a sus necesidades. Tienes acceso a propiedades reales del CRM. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads.'
+        : '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+        
+      const systemPrompt = this.buildSystemPrompt(context) + contextInstructions;
       
-      const propertyPrompt = `El usuario preguntó: "${message}"
+      const propertyPrompt = isRefinement 
+        ? `El usuario ha estado refinando su búsqueda y ahora dice: "${message}"
+
+Basándome en toda nuestra conversación y sus criterios, he encontrado esta propiedad real que se ajusta perfectamente:
+
+${enhancedPropertyInfo}
+
+Presenta esta propiedad reconociendo que recuerdas sus preferencias anteriores. Destaca cómo esta propiedad cumple con los criterios que ha mencionado, menciona que puede ver la publicación completa en el enlace proporcionado, y pregunta si le gustaría agendar una visita o ver más fotos.`
+        : `El usuario preguntó: "${message}"
 
 He encontrado esta propiedad real disponible en nuestro CRM:
 
