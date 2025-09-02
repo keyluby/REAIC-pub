@@ -374,7 +374,24 @@ Responde en formato JSON:
         
         if (!qualificationStatus.isQualified) {
           console.log(`❓ [AI] Client not qualified yet, asking qualifying questions`);
-          return await this.askQualifyingQuestions(qualificationStatus, context);
+          const qualifyingResponse = await this.askQualifyingQuestions(qualificationStatus, context);
+          
+          // CRÍTICO: Actualizar contexto de conversación con la pregunta de calificación
+          const conversationContext = this.conversationContexts.get(conversationId) || [];
+          conversationContext.push(
+            { role: "user", content: message },
+            { role: "assistant", content: qualifyingResponse }
+          );
+          
+          // Mantener solo últimos 20 mensajes
+          if (conversationContext.length > 20) {
+            conversationContext.splice(0, conversationContext.length - 20);
+          }
+          
+          this.conversationContexts.set(conversationId, conversationContext);
+          console.log(`💾 [AI] Updated conversation context with qualifying question`);
+          
+          return qualifyingResponse;
         }
         
         console.log(`✅ [AI] Client qualified, proceeding with targeted search`);
@@ -803,13 +820,16 @@ Responde en JSON:
     "currency": "USD|DOP|null",
     "rooms": number_or_null,
     "bathrooms": number_or_null,
-    "zones": ["zona1", "zona2"] or null,
+    "zones": ["zona1", "zona2"] or ["cualquier_zona"] or null,
     "area_min": number_or_null,
     "area_max": number_or_null
   }
 }
 
-IMPORTANTE: Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona específica.`;
+IMPORTANTE: 
+- Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona específica.
+- Si el cliente dice "cualquier zona de [ciudad]" o "en toda la ciudad", extraer como zones: ["cualquier_zona"] y considerar como zona válida.
+- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad"`;
 
       const response = await this.openaiClient.chat.completions.create({
         model: "gpt-4o",
