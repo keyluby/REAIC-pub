@@ -367,6 +367,17 @@ Responde en formato JSON:
         console.log(`🔍 [AI] Combined search query: "${searchQuery}"`);
       } else {
         console.log('🔍 [AI] Starting new property search');
+        
+        // SISTEMA DE CALIFICACIÓN: Verificar si tenemos criterios suficientes para búsqueda
+        const qualificationStatus = await this.assessClientQualification(searchQuery, conversationId);
+        console.log(`🎯 [AI] Qualification status:`, qualificationStatus);
+        
+        if (!qualificationStatus.isQualified) {
+          console.log(`❓ [AI] Client not qualified yet, asking qualifying questions`);
+          return await this.askQualifyingQuestions(qualificationStatus, context);
+        }
+        
+        console.log(`✅ [AI] Client qualified, proceeding with targeted search`);
       }
       
       // Buscar propiedades reales usando AlterEstate
@@ -748,6 +759,123 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       console.error('❌ [AI] Error creating lead:', error);
       return false;
     }
+  }
+
+  /**
+   * Evaluar si el cliente ha proporcionado criterios suficientes para una búsqueda dirigida
+   */
+  private async assessClientQualification(message: string, conversationId: string): Promise<{
+    isQualified: boolean;
+    missingCriteria: string[];
+    extractedCriteria: any;
+  }> {
+    try {
+      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      const fullConversation = conversationContext.map(msg => `${msg.role}: ${msg.content}`).join('\n');
+      
+      const prompt = `Analiza la conversación de este cliente de bienes raíces para determinar si tiene criterios suficientes para una búsqueda dirigida:
+
+Conversación completa:
+${fullConversation}
+Mensaje actual: "${message}"
+
+Criterios ESENCIALES para búsqueda dirigida:
+1. Presupuesto aproximado (rango mínimo/máximo)
+2. Número de habitaciones (preferido)
+3. Zona específica o sectores preferidos
+4. Tipo de operación (compra/alquiler) - si no está claro asumir compra
+
+Criterios ADICIONALES útiles:
+- Número de baños
+- Área aproximada en m²
+- Amenidades específicas
+- Urgencia de la búsqueda
+
+Responde en JSON:
+{
+  "isQualified": boolean,
+  "missingCriteria": ["criterio1", "criterio2"],
+  "extractedCriteria": {
+    "operation": "compra|alquiler|null",
+    "property_type": "apartamento|casa|local|null",
+    "budget_min": number_or_null,
+    "budget_max": number_or_null,
+    "currency": "USD|DOP|null",
+    "rooms": number_or_null,
+    "bathrooms": number_or_null,
+    "zones": ["zona1", "zona2"] or null,
+    "area_min": number_or_null,
+    "area_max": number_or_null
+  }
+}
+
+IMPORTANTE: Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona específica.`;
+
+      const response = await this.openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 800,
+        temperature: 0.3,
+      });
+
+      return JSON.parse(response.choices[0].message.content || '{"isQualified": false, "missingCriteria": ["presupuesto", "habitaciones", "zona"], "extractedCriteria": {}}');
+    } catch (error) {
+      console.error('Error assessing client qualification:', error);
+      return {
+        isQualified: false,
+        missingCriteria: ["presupuesto", "habitaciones", "zona"],
+        extractedCriteria: {}
+      };
+    }
+  }
+
+  /**
+   * Hacer preguntas de calificación profesionales basadas en lo que falta
+   */
+  private async askQualifyingQuestions(qualificationStatus: any, context: any): Promise<string> {
+    const { missingCriteria, extractedCriteria } = qualificationStatus;
+    
+    // Construir preguntas inteligentes basadas en lo que ya tenemos
+    let questions = [];
+    let currentInfo = "";
+    
+    // Mostrar lo que ya sabemos
+    if (extractedCriteria.property_type) {
+      currentInfo += `Perfecto, veo que buscas ${extractedCriteria.property_type}`;
+      if (extractedCriteria.operation) {
+        currentInfo += ` para ${extractedCriteria.operation}`;
+      }
+      currentInfo += ". ";
+    }
+    
+    // Preguntar por presupuesto si falta
+    if (missingCriteria.includes("presupuesto")) {
+      questions.push("💰 ¿Cuál es tu presupuesto aproximado? (puedes darme un rango, ej: entre 100k-200k USD)");
+    }
+    
+    // Preguntar por habitaciones si falta
+    if (missingCriteria.includes("habitaciones")) {
+      questions.push("🏠 ¿Cuántas habitaciones necesitas?");
+    }
+    
+    // Preguntar por zona si falta
+    if (missingCriteria.includes("zona")) {
+      questions.push(`📍 ¿En qué zona o sector específico te gustaría? (ej: Evaristo Morales, Piantini, Arroyo Hondo, etc.)`);
+    }
+    
+    // Preguntar por baños si no se ha mencionado
+    if (!extractedCriteria.bathrooms && questions.length < 3) {
+      questions.push("🚿 ¿Cuántos baños prefieres?");
+    }
+    
+    // Respuesta profesional y cálida
+    const greeting = currentInfo || "¡Excelente! Me encanta ayudarte a encontrar la propiedad perfecta. ";
+    const explanation = "Para mostrarte las mejores opciones que realmente se ajusten a tus necesidades, necesito conocer algunos detalles importantes:\n\n";
+    const questionsList = questions.slice(0, 3).map((q, i) => `${i + 1}. ${q}`).join('\n');
+    const closing = "\n\nCon esta información podré ofrecerte propiedades que realmente valgan la pena tu tiempo. 😊";
+    
+    return greeting + explanation + questionsList + closing;
   }
 
   clearConversationContext(conversationId: string) {
