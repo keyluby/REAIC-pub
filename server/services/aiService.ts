@@ -288,14 +288,44 @@ Responde en formato JSON:
       let carouselData: any[] = [];
       
       if (dataSource === 'internal') {
-        // Usar datos internos de web scraping
+        // Usar datos internos de web scraping Y propiedades manuales
         const { internalPropertyService } = await import('./internalPropertyService');
-        console.log('🔍 [AI] Searching properties in internal database');
-        properties = await internalPropertyService.intelligentPropertySearch(
+        const { manualPropertyService } = await import('./manualPropertyService');
+        
+        console.log('🔍 [AI] Searching properties in internal database + manual properties');
+        
+        // Buscar en propiedades scraped
+        const scrapedProperties = await internalPropertyService.intelligentPropertySearch(
           context.userId,
           message,
           context.userLocation
         );
+        
+        // Buscar en propiedades manuales
+        const manualProperties = await manualPropertyService.getActiveProperties(context.userId);
+        
+        // Combinar ambas fuentes - priorizar propiedades manuales
+        properties = [
+          ...manualProperties.map(prop => ({
+            id: prop.id,
+            title: prop.title,
+            price: prop.price,
+            priceText: prop.price,
+            location: prop.location,
+            propertyType: prop.propertyType,
+            bedrooms: prop.bedrooms,
+            bathrooms: prop.bathrooms,
+            area: prop.area,
+            description: prop.description,
+            features: prop.features,
+            images: prop.images ? JSON.parse(prop.images) : [],
+            sourceUrl: '#manual-property', // Identificador para propiedades manuales
+            isManual: true
+          })),
+          ...scrapedProperties
+        ];
+        
+        console.log(`📊 [AI] Found ${manualProperties.length} manual + ${scrapedProperties.length} scraped = ${properties.length} total properties`);
         
         if (properties.length >= 2) {
           carouselData = internalPropertyService.formatPropertiesForCarousel(properties);

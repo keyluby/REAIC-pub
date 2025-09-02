@@ -105,7 +105,7 @@ export class WebScrapingService {
       const $ = cheerio.load(response.data);
       
       // Detectar enlaces de propiedades automáticamente
-      const propertyLinks = await this.detectPropertyLinks($, mainUrl);
+      const propertyLinks = await this.detectPropertyLinksEnhanced($, mainUrl);
       
       // Detectar patrones de selectores CSS
       const patterns = await this.detectPatterns($, mainUrl, propertyLinks.slice(0, 3));

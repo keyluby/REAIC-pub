@@ -414,3 +414,26 @@ export type InsertPropertyImage = z.infer<typeof insertPropertyImageSchema>;
 export type PropertyImage = typeof propertyImages.$inferSelect;
 export type InsertScrapingJob = z.infer<typeof insertScrapingJobSchema>;
 export type ScrapingJob = typeof scrapingJobs.$inferSelect;
+
+// Tabla para propiedades agregadas manualmente por el agente
+export const manualProperties = pgTable("manual_properties", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  price: varchar("price"),
+  location: varchar("location"),
+  propertyType: varchar("property_type"), // casa, apartamento, local, etc.
+  bedrooms: integer("bedrooms"),
+  bathrooms: integer("bathrooms"),
+  area: varchar("area"), // metros cuadrados
+  features: text("features"), // JSON string con características
+  images: text("images"), // JSON array con URLs de imágenes
+  contactInfo: text("contact_info"), // JSON con info de contacto
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type ManualProperty = typeof manualProperties.$inferSelect;
+export type InsertManualProperty = typeof manualProperties.$inferInsert;

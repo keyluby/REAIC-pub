@@ -7,6 +7,7 @@ import { whatsappController } from "./controllers/whatsappController";
 import { crmController } from "./controllers/crmController";
 import { appointmentController } from "./controllers/appointmentController";
 import { validateRequest } from "./middleware/validation";
+import { manualPropertyService } from './services/manualPropertyService';
 import axios from "axios";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -511,6 +512,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching leads:", error);
       res.status(500).json({ message: "Failed to fetch leads" });
+    }
+  });
+
+  // Manual Properties routes
+  app.get('/api/manual-properties', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const properties = await manualPropertyService.getUserProperties(userId);
+      res.json(properties);
+    } catch (error) {
+      console.error("Error fetching manual properties:", error);
+      res.status(500).json({ message: "Failed to fetch properties" });
+    }
+  });
+
+  app.post('/api/manual-properties', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const property = await manualPropertyService.createProperty(userId, req.body);
+      res.status(201).json(property);
+    } catch (error) {
+      console.error("Error creating manual property:", error);
+      res.status(500).json({ message: "Failed to create property" });
+    }
+  });
+
+  app.get('/api/manual-properties/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const property = await manualPropertyService.getProperty(userId, req.params.id);
+      if (!property) {
+        return res.status(404).json({ message: "Property not found" });
+      }
+      res.json(property);
+    } catch (error) {
+      console.error("Error fetching manual property:", error);
+      res.status(500).json({ message: "Failed to fetch property" });
+    }
+  });
+
+  app.put('/api/manual-properties/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const property = await manualPropertyService.updateProperty(userId, req.params.id, req.body);
+      res.json(property);
+    } catch (error) {
+      console.error("Error updating manual property:", error);
+      res.status(500).json({ message: "Failed to update property" });
+    }
+  });
+
+  app.delete('/api/manual-properties/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await manualPropertyService.deleteProperty(userId, req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting manual property:", error);
+      res.status(500).json({ message: "Failed to delete property" });
     }
   });
 

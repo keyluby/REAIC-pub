@@ -7,7 +7,8 @@ import {
   Calendar, 
   Settings,
   Menu,
-  User
+  User,
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,6 +27,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: "Panel", href: "/", icon: BarChart3, current: location === "/" },
     { name: "Conversaciones", href: "/conversations", icon: MessageCircle, current: location === "/conversations", badge: "3" },
     { name: "Propiedades", href: "/properties", icon: Building, current: location === "/properties" },
+    { name: "Mis Propiedades", href: "/manual-properties", icon: Home, current: location === "/manual-properties" },
     { name: "Prospectos", href: "/leads", icon: Users, current: location === "/leads" },
     { name: "Citas", href: "/appointments", icon: Calendar, current: location === "/appointments" },
   ];
