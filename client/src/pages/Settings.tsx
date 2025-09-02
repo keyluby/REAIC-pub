@@ -59,6 +59,7 @@ export default function SettingsPage() {
     alterEstateToken: '',
     alterEstateApiKey: '',
     alterEstateCompanyId: '',
+    realEstateWebsiteUrl: '',
     
     // Legacy fields
     bufferTime: 10,
@@ -140,6 +141,7 @@ export default function SettingsPage() {
         alterEstateToken: (settings as any).alterEstateToken || '',
         alterEstateApiKey: (settings as any).alterEstateApiKey || '',
         alterEstateCompanyId: (settings as any).alterEstateCompanyId || '',
+        realEstateWebsiteUrl: (settings as any).realEstateWebsiteUrl || '',
         
         // Legacy fields
         bufferTime: (settings as any).bufferTime || 10,
@@ -571,6 +573,21 @@ export default function SettingsPage() {
                         />
                         <p className="text-sm text-muted-foreground mt-1">
                           Identificador único de tu empresa en la plataforma AlterEstate
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="realEstateWebsiteUrl">URL de tu Página Web <span className="text-red-500">*</span></Label>
+                        <Input
+                          id="realEstateWebsiteUrl"
+                          value={formData.realEstateWebsiteUrl}
+                          onChange={(e) => handleInputChange('realEstateWebsiteUrl', e.target.value)}
+                          placeholder="https://tuinmobiliaria.com"
+                          data-testid="input-real-estate-website"
+                        />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          <span className="font-medium text-amber-600">📋 Importante:</span> URL base donde tienes publicadas las propiedades. Se usa para generar enlaces directos usando el slug de AlterEstate.
+                          <br />Ejemplo: <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">https://tuinmobiliaria.com</span>
                         </p>
                       </div>
                       
