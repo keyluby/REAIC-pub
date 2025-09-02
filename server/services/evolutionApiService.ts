@@ -416,78 +416,58 @@ class EvolutionApiService {
       throw new Error(`Instance ${instanceName} is not connected. Status: ${instance.status}`);
     }
 
-    const formattedNumber = this.formatPhoneNumber(messageData.number);
-    console.log(`🃏 Attempting to send interactive message via ${instanceName} to ${formattedNumber}`);
-    
-    let messagesSent = [];
-    
-    // ESTRATEGIA 1: Enviar imagen primero si está disponible
-    if (messageData.buttonMessage.imageMessage?.image?.url) {
-      try {
-        console.log('📸 Sending image first...');
-        const imageResult = await instance.socket.sendMessage(formattedNumber, {
-          image: { url: messageData.buttonMessage.imageMessage.image.url },
-          caption: ''
-        });
-        messagesSent.push(imageResult?.key?.id);
-        
-        // Pausa entre imagen y botones
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (imageError) {
-        console.error('Image send failed, continuing with text:', imageError);
-      }
-    }
-    
-    // ESTRATEGIA 2: Intentar botones interactivos (formato mejorado)
     try {
-      console.log('🔘 Attempting interactive buttons...');
-      const interactiveMessage = {
+      const formattedNumber = this.formatPhoneNumber(messageData.number);
+      console.log(`🃏 Sending button message via ${instanceName} to ${formattedNumber}`);
+      
+      // Construir mensaje con botones para Baileys
+      const buttonMessage = {
         text: messageData.buttonMessage.text,
-        footer: 'Selecciona una opción:',
-        buttons: messageData.buttonMessage.buttons.map((btn: any, index: number) => ({
-          buttonId: btn.buttonId || `btn_${index}`,
+        buttons: messageData.buttonMessage.buttons.map((btn: any) => ({
+          buttonId: btn.buttonId,
           buttonText: { displayText: btn.buttonText },
           type: 1
-        }))
+        })),
+        headerType: 1
       };
+
+      // Si hay imagen, incluirla como header
+      if (messageData.buttonMessage.imageMessage?.image?.url) {
+        try {
+          buttonMessage.headerType = 4; // IMAGE_TYPE
+          (buttonMessage as any).imageMessage = {
+            url: messageData.buttonMessage.imageMessage.image.url
+          };
+        } catch (imageError) {
+          console.error('Error adding image to button message:', imageError);
+        }
+      }
+
+      const result = await instance.socket.sendMessage(formattedNumber, buttonMessage);
       
-      const result = await instance.socket.sendMessage(formattedNumber, interactiveMessage);
-      messagesSent.push(result?.key?.id);
-      
-      console.log('✅ Interactive message sent successfully');
       return {
         success: true,
-        messageId: result?.key?.id || messagesSent[0]
+        messageId: result?.key?.id || undefined
       };
       
-    } catch (buttonError) {
-      console.log('❌ Interactive buttons failed, trying text with emojis:', buttonError.message);
+    } catch (error) {
+      console.error(`❌ Error sending button message via ${instanceName}:`, error);
       
-      // ESTRATEGIA 3: Fallback mejorado con emojis y formato
+      // Fallback: enviar como mensaje de texto normal
       try {
-        const formattedButtons = messageData.buttonMessage.buttons
-          .map((btn: any, i: number) => `${this.getButtonEmoji(i)} *${btn.buttonText}*`)
-          .join('\n');
+        const fallbackText = messageData.buttonMessage.text + '\n\n' + 
+          messageData.buttonMessage.buttons.map((btn: any, i: number) => `${i + 1}. ${btn.buttonText}`).join('\n');
         
-        const fallbackText = `${messageData.buttonMessage.text}\n\n🔹 *Opciones disponibles:*\n${formattedButtons}\n\n_Responde con el número o nombre de la opción que prefieras_`;
-        
-        const result = await instance.socket.sendMessage(formattedNumber, { text: fallbackText });
-        
-        console.log('✅ Text fallback sent successfully');
+        const result = await instance.socket.sendMessage(this.formatPhoneNumber(messageData.number), { text: fallbackText });
         return {
           success: true,
-          messageId: result?.key?.id || messagesSent[0]
+          messageId: result?.key?.id || undefined
         };
       } catch (fallbackError) {
-        console.error('❌ Even text fallback failed:', fallbackError);
-        throw buttonError;
+        console.error('Fallback text message also failed:', fallbackError);
+        throw error;
       }
     }
-  }
-  
-  private getButtonEmoji(index: number): string {
-    const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-    return emojis[index] || `${index + 1}️⃣`;
   }
 
   private formatPhoneNumber(number: string): string {

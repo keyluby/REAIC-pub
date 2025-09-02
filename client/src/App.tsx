@@ -9,7 +9,6 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Conversations from "@/pages/Conversations";
 import Properties from "@/pages/Properties";
-import ManualProperties from "@/pages/ManualProperties";
 import Leads from "@/pages/Leads";
 import Appointments from "@/pages/Appointments";
 import Settings from "@/pages/Settings";
@@ -26,7 +25,6 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/conversations" component={Conversations} />
           <Route path="/properties" component={Properties} />
-          <Route path="/manual-properties" component={ManualProperties} />
           <Route path="/leads" component={Leads} />
           <Route path="/appointments" component={Appointments} />
           <Route path="/settings" component={Settings} />
