@@ -584,10 +584,34 @@ Responde en JSON:
       
       const propertyDetail = await this.getPropertyDetail(aeToken, propertySlug);
       
+      // Asegurar que las imágenes sean URLs string, no objetos
+      const processImageUrls = (imageData: any): string[] => {
+        if (!imageData) return [];
+        if (Array.isArray(imageData)) {
+          return imageData.map(img => {
+            if (typeof img === 'string') return img;
+            if (typeof img === 'object' && img.url) return img.url;
+            if (typeof img === 'object' && img.image) return img.image;
+            console.warn('🚨 [ALTERESTATE] Unexpected image format:', img);
+            return null;
+          }).filter(url => url !== null);
+        }
+        return [];
+      };
+      
+      const processFeaturedImage = (imageData: any): string | undefined => {
+        if (!imageData) return undefined;
+        if (typeof imageData === 'string') return imageData;
+        if (typeof imageData === 'object' && imageData.url) return imageData.url;
+        if (typeof imageData === 'object' && imageData.image) return imageData.image;
+        console.warn('🚨 [ALTERESTATE] Unexpected featured image format:', imageData);
+        return undefined;
+      };
+
       const media = {
-        images: propertyDetail.gallery_image || [],
+        images: processImageUrls(propertyDetail.gallery_image),
         videos: [], // AlterEstate no especifica videos en la documentación actual
-        featuredImage: propertyDetail.featured_image,
+        featuredImage: processFeaturedImage(propertyDetail.featured_image),
         virtualTour: propertyDetail.virtual_tour
       };
       
