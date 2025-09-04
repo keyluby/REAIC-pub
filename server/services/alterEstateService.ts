@@ -319,32 +319,39 @@ export class AlterEstateService {
     try {
       console.log('📝 [ALTERESTATE] Creating new lead:', leadData.full_name);
       
-      // Prepare lead data according to official AlterEstate API documentation
-      // Only required fields: full_name, phone, email
-      // Optional fields: notes, via, utm_*, property_uid, related, etc.
+      // Use minimal data structure that worked in curl test
       const apiLeadData = {
         full_name: leadData.full_name,
         phone: leadData.phone,
-        email: leadData.email,
-        notes: leadData.notes || 'Lead de prueba creado automáticamente para validar API Key',
-        via: leadData.via || 'WhatsApp AI Test'
+        email: leadData.email
       };
+      
+      // Only add optional fields if provided
+      if (leadData.notes) {
+        apiLeadData.notes = leadData.notes;
+      }
+      if (leadData.via) {
+        apiLeadData.via = leadData.via;
+      }
       
       console.log('📝 [ALTERESTATE] API-compliant lead data:', apiLeadData);
       
-      const response = await axios.post(
-        `${this.baseUrl}/leads/`,
-        apiLeadData,
-        {
-          headers: {
-            'Authorization': `Token ${apiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          timeout: 15000,
-          validateStatus: (status) => status < 500 // Accept 4xx responses for better error handling
-        }
-      );
+      console.log('🔧 [ALTERESTATE] Exact curl replication - URL:', `${this.baseUrl}/leads/`);
+      console.log('🔧 [ALTERESTATE] Exact curl replication - Data:', apiLeadData);
+      
+      // Replicate exact curl command that worked
+      const response = await axios({
+        method: 'POST',
+        url: `${this.baseUrl}/leads/`,
+        data: apiLeadData,
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        timeout: 30000,
+        validateStatus: (status) => status >= 200 && status < 300
+      });
       
       console.log(`✅ [ALTERESTATE] Lead API response:`, {
         status: response.status,
@@ -392,25 +399,26 @@ export class AlterEstateService {
         }
       });
       
-      // Enhanced error handling based on official API documentation
-      if (error.response?.status === 400) {
-        const errorMsg = error.response?.data?.message || 'Datos del lead inválidos';
-        throw new Error(`Validación falló: ${errorMsg}`);
-      } else if (error.response?.status === 401) {
-        throw new Error('API Key inválida - verificar token en configuración AlterEstate');
-      } else if (error.response?.status === 403) {
-        throw new Error('Sin permisos para crear leads - contactar administrador AlterEstate');
-      } else if (error.response?.status === 422) {
-        throw new Error('Datos mal formateados - verificar campos requeridos');
-      } else if (error.response?.status >= 500) {
-        throw new Error('Error del servidor AlterEstate - intentar más tarde');
-      } else if (error.code === 'ECONNABORTED') {
-        throw new Error('Timeout de conexión - red lenta o servidor ocupado');
-      } else if (!error.response) {
-        throw new Error('Sin respuesta del servidor - verificar conectividad');
+      // Return structured error responses for better frontend handling
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        return {
+          status: status,
+          message: `Error ${status}: ${data?.message || error.response.statusText || 'Error desconocido'}`
+        };
+      } else if (error.request) {
+        return {
+          status: 500,
+          message: 'No se pudo conectar con AlterEstate - verificar conectividad'
+        };
+      } else {
+        return {
+          status: 500,
+          message: `Error de configuración: ${error.message}`
+        };
       }
-      
-      throw new Error(`Error inesperado: ${error.response?.status || error.message}`);
     }
   }
 
