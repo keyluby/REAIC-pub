@@ -319,23 +319,58 @@ export class AlterEstateService {
     try {
       console.log('📝 [ALTERESTATE] Creating new lead:', leadData.full_name);
       
+      // Enhanced lead data with additional required fields
+      const enhancedLeadData = {
+        ...leadData,
+        // Add common required fields for AlterEstate
+        source: leadData.via || 'WhatsApp AI Test',
+        status: 'pending',
+        priority: 'medium'
+      };
+      
+      console.log('📝 [ALTERESTATE] Enhanced lead data:', enhancedLeadData);
+      
       const response = await axios.post(
         `${this.baseUrl}/leads/`,
-        leadData,
+        enhancedLeadData,
         {
           headers: {
             'Authorization': `Token ${apiKey}`,
-            'Content-Type': 'application/json'
-          }
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 10000
         }
       );
       
-      console.log(`📝 [ALTERESTATE] Lead created successfully: ${response.data.data?.uid}`);
-      return response.data;
+      console.log(`✅ [ALTERESTATE] Lead created successfully:`, response.data);
+      return {
+        status: response.status,
+        data: response.data,
+        message: 'Lead creado exitosamente'
+      };
       
-    } catch (error) {
-      console.error('❌ [ALTERESTATE] Error creating lead:', error);
-      throw new Error('Error al crear lead en AlterEstate');
+    } catch (error: any) {
+      console.error('❌ [ALTERESTATE] Error creating lead:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        message: error.message
+      });
+      
+      // More specific error handling
+      if (error.response?.status === 400) {
+        throw new Error(`Error de validación: ${error.response?.data?.message || 'Datos del lead inválidos'}`);
+      } else if (error.response?.status === 401) {
+        throw new Error('API Key de escritura inválida o sin permisos');
+      } else if (error.response?.status === 403) {
+        throw new Error('Sin permisos para crear leads - verificar API Key');
+      } else if (error.response?.status === 500) {
+        throw new Error('Error interno del servidor AlterEstate - contactar soporte');
+      }
+      
+      throw new Error(`Error al crear lead: ${error.response?.status || 'conexión'}`);
     }
   }
 
