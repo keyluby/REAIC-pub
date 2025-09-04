@@ -86,7 +86,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test AlterEstate connection
+  // Test AlterEstate connection with detailed validation
   app.post('/api/test-alterestate-connection', isAuthenticated, async (req: any, res) => {
     try {
       const { alterEstateToken, alterEstateApiKey, alterEstateCompanyId } = req.body;
@@ -101,62 +101,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import AlterEstate service
       const { alterEstateService } = await import('./services/alterEstateService');
       
-      // Test read token with agents endpoint
-      const isTokenValid = await alterEstateService.validateToken(alterEstateToken);
-      
-      if (!isTokenValid) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Token de lectura inválido" 
-        });
+      const testResults = {
+        readToken: null as any,
+        apiKey: null as any,
+        companyId: alterEstateCompanyId ? `✅ ID de empresa: ${alterEstateCompanyId}` : "⚠️ ID de empresa no configurado"
+      };
+
+      // 1. TEST READ TOKEN - Get random property with complete details
+      try {
+        console.log('🔐 [ALTERESTATE TEST] Testing read token...');
+        
+        // First validate token
+        const isTokenValid = await alterEstateService.validateToken(alterEstateToken);
+        if (!isTokenValid) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Token de lectura inválido" 
+          });
+        }
+
+        // Get properties and select one random property for detailed test
+        const properties = await alterEstateService.searchProperties(alterEstateToken, {}, 1);
+        if (properties.results.length === 0) {
+          testResults.readToken = {
+            status: "⚠️ Token válido pero no hay propiedades disponibles",
+            details: "El token funciona correctamente, pero no se encontraron propiedades en el CRM."
+          };
+        } else {
+          // Get random property details
+          const randomProperty = properties.results[Math.floor(Math.random() * Math.min(properties.results.length, 5))];
+          const propertyDetail = await alterEstateService.getPropertyDetail(alterEstateToken, randomProperty.slug);
+          
+          // Count media files
+          const images = propertyDetail.gallery_image?.length || 0;
+          const hasVirtualTour = !!propertyDetail.virtual_tour;
+          
+          testResults.readToken = {
+            status: "✅ Token de lectura funcionando perfectamente",
+            details: `Probado con propiedad: "${propertyDetail.name}"`,
+            propertyInfo: {
+              name: propertyDetail.name,
+              location: `${propertyDetail.sector}, ${propertyDetail.city}`,
+              price: propertyDetail.sale_price ? `${propertyDetail.currency_sale} ${propertyDetail.sale_price.toLocaleString()}` : 'Precio a consultar',
+              type: propertyDetail.category.name,
+              rooms: propertyDetail.room || 'N/A',
+              bathrooms: propertyDetail.bathroom || 'N/A',
+              area: propertyDetail.property_area ? `${propertyDetail.property_area} m²` : 'N/A',
+              images: `${images} foto${images !== 1 ? 's' : ''}`,
+              virtualTour: hasVirtualTour ? 'Sí' : 'No',
+              agents: propertyDetail.agents?.length || 0
+            },
+            totalProperties: properties.count
+          };
+        }
+      } catch (error) {
+        console.error('❌ [ALTERESTATE TEST] Read token test failed:', error);
+        testResults.readToken = {
+          status: "❌ Error al probar token de lectura",
+          details: error instanceof Error ? error.message : 'Error desconocido'
+        };
       }
 
-      // Get properties to verify connection (more reliable than agents)
-      let propertiesCount = 0;
-      try {
-        const properties = await alterEstateService.searchProperties(alterEstateToken, {}, 1);
-        propertiesCount = properties.count || 0;
-      } catch (error) {
-        console.log('Could not get properties count, but token is valid');
-      }
-      
-      // Test API key if provided (for write operations)
-      let apiKeyStatus = null;
+      // 2. TEST API KEY - Create and delete test lead
       if (alterEstateApiKey) {
         try {
-          // Try a minimal test with the API key using properties endpoint
-          const testResponse = await axios.get('https://secure.alterestate.com/api/v1/properties/filter/?page=1', {
-            headers: {
-              'Authorization': `Token ${alterEstateApiKey}`,
-              'Content-Type': 'application/json'
+          console.log('🔑 [ALTERESTATE TEST] Testing API key with lead creation/deletion...');
+          
+          // Create test lead
+          const testLeadData = {
+            full_name: "PRUEBA - Test Connection",
+            phone: "+1809123456789",
+            email: "test.connection@alterestate.test",
+            notes: "Lead de prueba creado automáticamente para validar API Key - ELIMINAR",
+            via: "WhatsApp AI Test"
+          };
+
+          const createResult = await alterEstateService.createLead(alterEstateApiKey, testLeadData);
+          
+          if (createResult.status === 200 && createResult.data?.uid) {
+            // Lead created successfully, now try to delete it
+            const leadId = createResult.data.uid;
+            console.log(`✅ [ALTERESTATE TEST] Test lead created: ${leadId}`);
+            
+            // Attempt to delete the test lead
+            const deleteSuccess = await alterEstateService.deleteLead(alterEstateApiKey, leadId);
+            
+            if (deleteSuccess) {
+              testResults.apiKey = {
+                status: "✅ API Key de escritura funcionando perfectamente",
+                details: "Lead de prueba creado y eliminado exitosamente",
+                operations: {
+                  create: "✅ Creación de leads funcional",
+                  delete: "✅ Eliminación de leads funcional",
+                  testLeadId: leadId
+                }
+              };
+            } else {
+              testResults.apiKey = {
+                status: "⚠️ API Key funciona parcialmente",
+                details: "Se pudo crear el lead pero no eliminarlo automáticamente",
+                operations: {
+                  create: "✅ Creación de leads funcional",
+                  delete: "❌ Eliminación falló - eliminar manualmente",
+                  testLeadId: leadId,
+                  warning: `Por favor elimina manualmente el lead de prueba: ${leadId}`
+                }
+              };
             }
-          });
-          if (testResponse.status === 200) {
-            apiKeyStatus = "✅ API Key de escritura válida";
           } else {
-            apiKeyStatus = "❌ API Key de escritura inválida";
+            testResults.apiKey = {
+              status: "❌ API Key de escritura inválida",
+              details: "No se pudo crear el lead de prueba",
+              error: createResult.message || 'Error desconocido en la creación'
+            };
           }
         } catch (error) {
-          apiKeyStatus = "❌ API Key de escritura inválida";
+          console.error('❌ [ALTERESTATE TEST] API key test failed:', error);
+          testResults.apiKey = {
+            status: "❌ Error al probar API Key de escritura",
+            details: error instanceof Error ? error.message : 'Error desconocido'
+          };
         }
+      } else {
+        testResults.apiKey = {
+          status: "⚠️ API Key no proporcionada",
+          details: "No se puede probar funcionalidad de escritura sin API Key"
+        };
       }
 
       res.json({
         success: true,
-        message: "Conexión exitosa con AlterEstate",
-        details: {
-          readToken: "✅ Token de lectura válido",
-          apiKey: apiKeyStatus,
-          propertiesFound: `✅ ${propertiesCount} propiedades disponibles`,
-          companyId: alterEstateCompanyId ? `✅ ID de empresa: ${alterEstateCompanyId}` : "⚠️ ID de empresa no configurado"
-        }
+        message: "Pruebas de conexión completadas",
+        testResults
       });
       
     } catch (error) {
       console.error("Error testing AlterEstate connection:", error);
       res.status(500).json({ 
         success: false, 
-        message: "Error al conectar con AlterEstate: " + (error instanceof Error ? error.message : 'Error desconocido')
+        message: "Error al ejecutar pruebas de conexión: " + (error instanceof Error ? error.message : 'Error desconocido')
       });
     }
   });

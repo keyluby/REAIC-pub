@@ -340,6 +340,32 @@ export class AlterEstateService {
   }
 
   /**
+   * Eliminar un lead de AlterEstate
+   */
+  async deleteLead(apiKey: string, leadId: string): Promise<boolean> {
+    try {
+      console.log('🗑️ [ALTERESTATE] Deleting lead:', leadId);
+      
+      const response = await axios.delete(
+        `${this.baseUrl}/leads/${leadId}/`,
+        {
+          headers: {
+            'Authorization': `Token ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log(`🗑️ [ALTERESTATE] Lead deleted successfully`);
+      return true;
+      
+    } catch (error) {
+      console.error('❌ [ALTERESTATE] Error deleting lead:', error);
+      return false;
+    }
+  }
+
+  /**
    * Buscar propiedades inteligentemente basado en consulta natural
    */
   async intelligentPropertySearch(

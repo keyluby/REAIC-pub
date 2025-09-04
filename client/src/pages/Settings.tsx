@@ -629,7 +629,74 @@ export default function SettingsPage() {
                                   {connectionTest.result.message}
                                 </p>
                                 
-                                {connectionTest.result.details && !connectionTest.hasError && (
+                                {/* Enhanced test results display */}
+                                {connectionTest.result.testResults && !connectionTest.hasError && (
+                                  <div className="mt-3 space-y-4">
+                                    {/* Read Token Test Results */}
+                                    <div className="border-l-4 border-blue-400 pl-3">
+                                      <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                        🔐 Token de Lectura
+                                      </h4>
+                                      <p className="text-sm mb-2">
+                                        {connectionTest.result.testResults.readToken?.status}
+                                      </p>
+                                      {connectionTest.result.testResults.readToken?.propertyInfo && (
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-xs space-y-1">
+                                          <p><strong>Propiedad de prueba:</strong> {connectionTest.result.testResults.readToken.propertyInfo.name}</p>
+                                          <p><strong>Ubicación:</strong> {connectionTest.result.testResults.readToken.propertyInfo.location}</p>
+                                          <p><strong>Precio:</strong> {connectionTest.result.testResults.readToken.propertyInfo.price}</p>
+                                          <p><strong>Tipo:</strong> {connectionTest.result.testResults.readToken.propertyInfo.type}</p>
+                                          <div className="grid grid-cols-2 gap-2 pt-1">
+                                            <span>🛏️ {connectionTest.result.testResults.readToken.propertyInfo.rooms} hab</span>
+                                            <span>🚿 {connectionTest.result.testResults.readToken.propertyInfo.bathrooms} baños</span>
+                                            <span>📐 {connectionTest.result.testResults.readToken.propertyInfo.area}</span>
+                                            <span>📸 {connectionTest.result.testResults.readToken.propertyInfo.images}</span>
+                                          </div>
+                                          <p className="pt-1"><strong>Total propiedades disponibles:</strong> {connectionTest.result.testResults.readToken.totalProperties}</p>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* API Key Test Results */}
+                                    <div className="border-l-4 border-purple-400 pl-3">
+                                      <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                        🔑 API Key de Escritura
+                                      </h4>
+                                      <p className="text-sm mb-2">
+                                        {connectionTest.result.testResults.apiKey?.status}
+                                      </p>
+                                      {connectionTest.result.testResults.apiKey?.operations && (
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-xs space-y-1">
+                                          <p>{connectionTest.result.testResults.apiKey.operations.create}</p>
+                                          <p>{connectionTest.result.testResults.apiKey.operations.delete}</p>
+                                          {connectionTest.result.testResults.apiKey.operations.warning && (
+                                            <p className="text-orange-600 dark:text-orange-400 font-medium">
+                                              ⚠️ {connectionTest.result.testResults.apiKey.operations.warning}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                      {connectionTest.result.testResults.apiKey?.details && !connectionTest.result.testResults.apiKey?.operations && (
+                                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                                          {connectionTest.result.testResults.apiKey.details}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Company ID */}
+                                    <div className="border-l-4 border-gray-400 pl-3">
+                                      <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                                        🏢 ID de Empresa
+                                      </h4>
+                                      <p className="text-sm">
+                                        {connectionTest.result.testResults.companyId}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Legacy support for old response format */}
+                                {connectionTest.result.details && !connectionTest.result.testResults && !connectionTest.hasError && (
                                   <div className="mt-2 space-y-1 text-sm text-green-700 dark:text-green-300">
                                     {Object.entries(connectionTest.result.details).map(([key, value]) => (
                                       <div key={key} className="flex items-center">
