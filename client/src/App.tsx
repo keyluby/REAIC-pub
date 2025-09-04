@@ -16,10 +16,21 @@ import Settings from "@/pages/Settings";
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Cargando...</div>
+      </div>
+    );
+  }
+
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+      {!isAuthenticated ? (
+        <>
+          <Route path="/" component={Landing} />
+          <Route component={Landing} />
+        </>
       ) : (
         <>
           <Route path="/" component={Home} />
@@ -28,9 +39,9 @@ function Router() {
           <Route path="/leads" component={Leads} />
           <Route path="/appointments" component={Appointments} />
           <Route path="/settings" component={Settings} />
+          <Route component={NotFound} />
         </>
       )}
-      <Route component={NotFound} />
     </Switch>
   );
 }

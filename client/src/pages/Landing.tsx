@@ -18,7 +18,7 @@ export default function Landing() {
             </div>
           </div>
           <Button 
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/api/auth/login'}
             data-testid="button-login"
           >
             Comenzar
@@ -41,7 +41,7 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
-              onClick={() => window.location.href = '/api/login'}
+              onClick={() => window.location.href = '/api/auth/login'}
               data-testid="button-start-free"
             >
               Prueba Gratuita
@@ -186,7 +186,7 @@ export default function Landing() {
           <Button 
             size="lg" 
             variant="secondary"
-            onClick={() => window.location.href = '/api/login'}
+            onClick={() => window.location.href = '/api/auth/login'}
             data-testid="button-get-started"
           >
             Comenzar Ahora
