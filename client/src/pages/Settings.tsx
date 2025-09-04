@@ -83,6 +83,26 @@ export default function SettingsPage() {
     hasError: false
   });
 
+  const [readTokenTest, setReadTokenTest] = useState<{
+    isLoading: boolean;
+    result: any;
+    hasError: boolean;
+  }>({
+    isLoading: false,
+    result: null,
+    hasError: false
+  });
+
+  const [apiKeyTest, setApiKeyTest] = useState<{
+    isLoading: boolean;
+    result: any;
+    hasError: boolean;
+  }>({
+    isLoading: false,
+    result: null,
+    hasError: false
+  });
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       toast({
@@ -196,7 +216,99 @@ export default function SettingsPage() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Test AlterEstate connection
+  // Test AlterEstate read token only
+  const testReadToken = async () => {
+    if (!formData.alterEstateToken.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa el Token de API antes de probar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setReadTokenTest({ isLoading: true, result: null, hasError: false });
+
+    try {
+      const response = await apiRequest('POST', '/api/test-alterestate-read-token', {
+        alterEstateToken: formData.alterEstateToken
+      });
+
+      setReadTokenTest({ 
+        isLoading: false, 
+        result: response, 
+        hasError: false 
+      });
+
+      toast({
+        title: "Prueba de Lectura Exitosa",
+        description: "El token funciona correctamente",
+      });
+
+    } catch (error: any) {
+      console.error('Error testing read token:', error);
+      
+      setReadTokenTest({ 
+        isLoading: false, 
+        result: error.response?.data || { message: 'Error de conexión' }, 
+        hasError: true 
+      });
+
+      toast({
+        title: "Error en Token de Lectura",
+        description: error.response?.data?.message || "El token no es válido",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Test AlterEstate API key only
+  const testApiKey = async () => {
+    if (!formData.alterEstateApiKey.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa la API Key antes de probar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setApiKeyTest({ isLoading: true, result: null, hasError: false });
+
+    try {
+      const response = await apiRequest('POST', '/api/test-alterestate-api-key', {
+        alterEstateApiKey: formData.alterEstateApiKey
+      });
+
+      setApiKeyTest({ 
+        isLoading: false, 
+        result: response, 
+        hasError: false 
+      });
+
+      toast({
+        title: "Prueba de API Key Exitosa",
+        description: "La API Key funciona correctamente",
+      });
+
+    } catch (error: any) {
+      console.error('Error testing API key:', error);
+      
+      setApiKeyTest({ 
+        isLoading: false, 
+        result: error.response?.data || { message: 'Error de conexión' }, 
+        hasError: true 
+      });
+
+      toast({
+        title: "Error en API Key",
+        description: error.response?.data?.message || "La API Key no es válida",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Test AlterEstate connection (legacy)
   const testAlterEstateConnection = async () => {
     if (!formData.alterEstateToken.trim()) {
       toast({
@@ -267,14 +379,16 @@ export default function SettingsPage() {
 
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-2 text-foreground">Configuración</h2>
-          <p className="text-muted-foreground">
-            Configura tu asistente de IA, integraciones y preferencias
-          </p>
-        </div>
+      <div className="flex h-full">
+        {/* Main Content */}
+        <div className="flex-1 p-6 space-y-6">
+          {/* Header */}
+          <div>
+            <h2 className="text-2xl font-semibold mb-2 text-foreground">Configuración</h2>
+            <p className="text-muted-foreground">
+              Configura tu asistente de IA, integraciones y preferencias
+            </p>
+          </div>
 
         <Tabs defaultValue="assistant" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
@@ -534,14 +648,37 @@ export default function SettingsPage() {
                     <>
                       <div>
                         <Label htmlFor="alterEstateToken">Token de API (Lectura)</Label>
-                        <Input
-                          id="alterEstateToken"
-                          type="password"
-                          value={formData.alterEstateToken}
-                          onChange={(e) => handleInputChange('alterEstateToken', e.target.value)}
-                          placeholder="Ingresa tu token de lectura de AlterEstate"
-                          data-testid="input-alterestate-token"
-                        />
+                        <div className="flex space-x-2">
+                          <Input
+                            id="alterEstateToken"
+                            type="password"
+                            value={formData.alterEstateToken}
+                            onChange={(e) => handleInputChange('alterEstateToken', e.target.value)}
+                            placeholder="Ingresa tu token de lectura de AlterEstate"
+                            data-testid="input-alterestate-token"
+                            className="flex-1"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => testReadToken()}
+                            disabled={readTokenTest.isLoading || !formData.alterEstateToken.trim()}
+                            data-testid="button-test-read-token"
+                            className="shrink-0"
+                          >
+                            {readTokenTest.isLoading ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+                                Probando...
+                              </>
+                            ) : (
+                              <>
+                                <span className="mr-1">🔍</span>
+                                Probar
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         <p className="text-sm text-muted-foreground mt-1">
                           Token para consultar propiedades. Obtener en: <a href="https://dev.alterestate.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">dev.alterestate.com</a>
                         </p>
@@ -549,14 +686,37 @@ export default function SettingsPage() {
                       
                       <div>
                         <Label htmlFor="alterEstateApiKey">API Key (Escritura)</Label>
-                        <Input
-                          id="alterEstateApiKey"
-                          type="password"
-                          value={formData.alterEstateApiKey}
-                          onChange={(e) => handleInputChange('alterEstateApiKey', e.target.value)}
-                          placeholder="Ingresa tu API Key de escritura"
-                          data-testid="input-alterestate-apikey"
-                        />
+                        <div className="flex space-x-2">
+                          <Input
+                            id="alterEstateApiKey"
+                            type="password"
+                            value={formData.alterEstateApiKey}
+                            onChange={(e) => handleInputChange('alterEstateApiKey', e.target.value)}
+                            placeholder="Ingresa tu API Key de escritura"
+                            data-testid="input-alterestate-apikey"
+                            className="flex-1"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => testApiKey()}
+                            disabled={apiKeyTest.isLoading || !formData.alterEstateApiKey.trim()}
+                            data-testid="button-test-api-key"
+                            className="shrink-0"
+                          >
+                            {apiKeyTest.isLoading ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+                                Probando...
+                              </>
+                            ) : (
+                              <>
+                                <span className="mr-1">🔑</span>
+                                Probar
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         <p className="text-sm text-muted-foreground mt-1">
                           API Key para crear leads automáticamente. Contactar: <a href="mailto:engineering@alterestate.com" className="text-blue-600 hover:underline">engineering@alterestate.com</a>
                         </p>
@@ -589,38 +749,6 @@ export default function SettingsPage() {
                           <span className="font-medium text-amber-600">📋 Importante:</span> URL base donde tienes publicadas las propiedades. Se usa para generar enlaces directos usando el slug de AlterEstate.
                           <br />Ejemplo: <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">https://tuinmobiliaria.com</span>
                         </p>
-                      </div>
-                      
-                      {/* Test Connection Button - Always visible when API fields are filled */}
-                      <div className="flex flex-col space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              Prueba de Conexión
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Valida tus credenciales con pruebas detalladas
-                            </p>
-                          </div>
-                          <Button 
-                            onClick={testAlterEstateConnection}
-                            disabled={connectionTest.isLoading || !formData.alterEstateToken.trim()}
-                            data-testid="button-test-crm-connection"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            {connectionTest.isLoading ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
-                                Probando...
-                              </>
-                            ) : (
-                              <>
-                                <span className="mr-2">🔍</span>
-                                Probar Conexión
-                              </>
-                            )}
-                          </Button>
-                        </div>
                       </div>
                     </>
                   )}
@@ -882,6 +1010,109 @@ export default function SettingsPage() {
             </div>
           </form>
         </Tabs>
+        </div>
+
+        {/* Right Sidebar for Test Results */}
+        <div className="w-80 border-l border-border bg-muted/20">
+          <div className="p-4 h-full">
+            <h3 className="text-lg font-semibold mb-4 text-foreground">Resultados de Pruebas</h3>
+            
+            {/* Read Token Test Results */}
+            {readTokenTest.result && (
+              <div className={`mb-6 p-4 rounded-lg border ${
+                readTokenTest.hasError 
+                  ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' 
+                  : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-sm">🔐 Prueba de Token de Lectura</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setReadTokenTest({ isLoading: false, result: null, hasError: false })}
+                    className="h-6 w-6 p-0"
+                  >
+                    ×
+                  </Button>
+                </div>
+                
+                <div className={`text-sm ${
+                  readTokenTest.hasError ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
+                }`}>
+                  <p className="font-medium mb-2">{readTokenTest.result.testResult?.status || readTokenTest.result.message}</p>
+                  
+                  {readTokenTest.result.testResult?.propertyInfo && (
+                    <div className="bg-white dark:bg-gray-800 rounded p-3 text-xs space-y-2">
+                      <div><strong>Propiedad:</strong> {readTokenTest.result.testResult.propertyInfo.name}</div>
+                      <div><strong>Ubicación:</strong> {readTokenTest.result.testResult.propertyInfo.location}</div>
+                      <div><strong>Precio:</strong> {readTokenTest.result.testResult.propertyInfo.price}</div>
+                      <div><strong>Tipo:</strong> {readTokenTest.result.testResult.propertyInfo.type}</div>
+                      <div className="grid grid-cols-2 gap-1 pt-1">
+                        <span>🛏️ {readTokenTest.result.testResult.propertyInfo.rooms}</span>
+                        <span>🚿 {readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
+                        <span>📐 {readTokenTest.result.testResult.propertyInfo.area}</span>
+                        <span>📸 {readTokenTest.result.testResult.propertyInfo.images}</span>
+                      </div>
+                      <div className="pt-1"><strong>Total propiedades:</strong> {readTokenTest.result.testResult.totalProperties}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* API Key Test Results */}
+            {apiKeyTest.result && (
+              <div className={`mb-6 p-4 rounded-lg border ${
+                apiKeyTest.hasError 
+                  ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' 
+                  : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-sm">🔑 Prueba de API Key de Escritura</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setApiKeyTest({ isLoading: false, result: null, hasError: false })}
+                    className="h-6 w-6 p-0"
+                  >
+                    ×
+                  </Button>
+                </div>
+                
+                <div className={`text-sm ${
+                  apiKeyTest.hasError ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
+                }`}>
+                  <p className="font-medium mb-2">{apiKeyTest.result.testResult?.status || apiKeyTest.result.message}</p>
+                  
+                  {apiKeyTest.result.testResult?.leadInfo && (
+                    <div className="bg-white dark:bg-gray-800 rounded p-3 text-xs space-y-2">
+                      <div><strong>ID del Lead:</strong> {apiKeyTest.result.testResult.leadInfo.id}</div>
+                      <div><strong>Nombre:</strong> {apiKeyTest.result.testResult.leadInfo.name}</div>
+                      <div><strong>Teléfono:</strong> {apiKeyTest.result.testResult.leadInfo.phone}</div>
+                      <div><strong>Email:</strong> {apiKeyTest.result.testResult.leadInfo.email}</div>
+                      <div className="pt-1">
+                        <div><strong>Creación:</strong> {apiKeyTest.result.testResult.leadInfo.created}</div>
+                        <div><strong>Eliminación:</strong> {apiKeyTest.result.testResult.leadInfo.deleted}</div>
+                      </div>
+                      {apiKeyTest.result.testResult.leadInfo.warning && (
+                        <div className="text-amber-600 font-medium">⚠️ {apiKeyTest.result.testResult.leadInfo.warning}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* No Results State */}
+            {!readTokenTest.result && !apiKeyTest.result && (
+              <div className="text-center text-muted-foreground py-8">
+                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">Los resultados de las pruebas aparecerán aquí</p>
+                <p className="text-xs mt-1">Utiliza los botones "Probar" junto a cada API</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </MainLayout>
   );

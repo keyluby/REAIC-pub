@@ -86,7 +86,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test AlterEstate connection with detailed validation
+  // Test AlterEstate read token only
+  app.post('/api/test-alterestate-read-token', isAuthenticated, async (req: any, res) => {
+    try {
+      const { alterEstateToken } = req.body;
+      
+      if (!alterEstateToken) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Token de lectura es requerido" 
+        });
+      }
+
+      const { alterEstateService } = await import('./services/alterEstateService');
+      
+      try {
+        console.log('🔐 [ALTERESTATE READ TEST] Testing read token...');
+        
+        const isTokenValid = await alterEstateService.validateToken(alterEstateToken);
+        if (!isTokenValid) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Token de lectura inválido" 
+          });
+        }
+
+        const properties = await alterEstateService.searchProperties(alterEstateToken, {}, 1);
+        if (properties.results.length === 0) {
+          return res.json({
+            success: true,
+            message: "Token válido pero no hay propiedades disponibles",
+            testResult: {
+              status: "⚠️ Token válido pero no hay propiedades disponibles",
+              details: "El token funciona correctamente, pero no se encontraron propiedades en el CRM.",
+              totalProperties: 0
+            }
+          });
+        }
+
+        const randomProperty = properties.results[Math.floor(Math.random() * Math.min(properties.results.length, 5))];
+        const propertyDetail = await alterEstateService.getPropertyDetail(alterEstateToken, randomProperty.slug);
+        
+        const images = propertyDetail.gallery_image?.length || 0;
+        const hasVirtualTour = !!propertyDetail.virtual_tour;
+        
+        res.json({
+          success: true,
+          message: "Prueba de lectura completada exitosamente",
+          testResult: {
+            status: "✅ Token de lectura funcionando perfectamente",
+            details: `Probado con propiedad: "${propertyDetail.name}"`,
+            propertyInfo: {
+              name: propertyDetail.name,
+              location: `${propertyDetail.sector}, ${propertyDetail.city}`,
+              price: propertyDetail.sale_price ? `${propertyDetail.currency_sale} ${propertyDetail.sale_price.toLocaleString()}` : 'Precio a consultar',
+              type: propertyDetail.category.name,
+              rooms: propertyDetail.room || 'N/A',
+              bathrooms: propertyDetail.bathroom || 'N/A',
+              area: propertyDetail.property_area ? `${propertyDetail.property_area} m²` : 'N/A',
+              images: `${images} foto${images !== 1 ? 's' : ''}`,
+              virtualTour: hasVirtualTour ? 'Sí' : 'No',
+              agents: propertyDetail.agents?.length || 0
+            },
+            totalProperties: properties.count
+          }
+        });
+      } catch (error) {
+        console.error('❌ [ALTERESTATE READ TEST] Failed:', error);
+        res.status(500).json({
+          success: false,
+          message: "Error al probar token de lectura: " + (error instanceof Error ? error.message : 'Error desconocido')
+        });
+      }
+    } catch (error) {
+      console.error("Error testing read token:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error al ejecutar prueba de lectura: " + (error instanceof Error ? error.message : 'Error desconocido')
+      });
+    }
+  });
+
+  // Test AlterEstate API key only
+  app.post('/api/test-alterestate-api-key', isAuthenticated, async (req: any, res) => {
+    try {
+      const { alterEstateApiKey } = req.body;
+      
+      if (!alterEstateApiKey) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "API Key de escritura es requerida" 
+        });
+      }
+
+      const { alterEstateService } = await import('./services/alterEstateService');
+      
+      try {
+        console.log('🔑 [ALTERESTATE API KEY TEST] Testing API key with lead creation/deletion...');
+        
+        const testLeadData = {
+          full_name: "PRUEBA - Test Connection",
+          phone: "+1809123456789",
+          email: "test.connection@alterestate.test",
+          notes: "Lead de prueba creado automáticamente para validar API Key - ELIMINAR",
+          via: "WhatsApp AI Test"
+        };
+
+        const createResult = await alterEstateService.createLead(alterEstateApiKey, testLeadData);
+        
+        if (createResult.status === 200 && createResult.data?.uid) {
+          const leadId = createResult.data.uid;
+          console.log(`✅ [ALTERESTATE API KEY TEST] Test lead created: ${leadId}`);
+          
+          const deleteSuccess = await alterEstateService.deleteLead(alterEstateApiKey, leadId);
+          
+          if (deleteSuccess) {
+            res.json({
+              success: true,
+              message: "Prueba de API Key completada exitosamente",
+              testResult: {
+                status: "✅ API Key de escritura funcionando perfectamente",
+                details: "Lead de prueba creado y eliminado exitosamente",
+                leadInfo: {
+                  id: leadId,
+                  name: testLeadData.full_name,
+                  phone: testLeadData.phone,
+                  email: testLeadData.email,
+                  created: "✅ Creado exitosamente",
+                  deleted: "✅ Eliminado exitosamente"
+                }
+              }
+            });
+          } else {
+            res.json({
+              success: false,
+              message: "API Key funciona parcialmente",
+              testResult: {
+                status: "⚠️ API Key funciona parcialmente",
+                details: "Se pudo crear el lead pero no eliminarlo automáticamente",
+                leadInfo: {
+                  id: leadId,
+                  name: testLeadData.full_name,
+                  phone: testLeadData.phone,
+                  email: testLeadData.email,
+                  created: "✅ Creado exitosamente",
+                  deleted: "❌ Eliminación falló - eliminar manualmente",
+                  warning: `Por favor elimina manualmente el lead: ${leadId}`
+                }
+              }
+            });
+          }
+        } else {
+          res.status(400).json({
+            success: false,
+            message: "API Key de escritura inválida",
+            testResult: {
+              status: "❌ API Key de escritura inválida",
+              details: "No se pudo crear el lead de prueba",
+              error: createResult.message || 'Error desconocido en la creación'
+            }
+          });
+        }
+      } catch (error) {
+        console.error('❌ [ALTERESTATE API KEY TEST] Failed:', error);
+        res.status(500).json({
+          success: false,
+          message: "Error al probar API Key de escritura: " + (error instanceof Error ? error.message : 'Error desconocido')
+        });
+      }
+    } catch (error) {
+      console.error("Error testing API key:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error al ejecutar prueba de API Key: " + (error instanceof Error ? error.message : 'Error desconocido')
+      });
+    }
+  });
+
+  // Test AlterEstate connection with detailed validation (legacy)
   app.post('/api/test-alterestate-connection', isAuthenticated, async (req: any, res) => {
     try {
       const { alterEstateToken, alterEstateApiKey, alterEstateCompanyId } = req.body;
