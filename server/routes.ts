@@ -194,8 +194,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const createResult = await alterEstateService.createLead(alterEstateApiKey, testLeadData);
         
-        if (createResult.status === 200 || createResult.status === 201) {
-          const leadId = createResult.data?.uid || createResult.data?.id || createResult.data?.data?.uid;
+        // Handle successful lead creation (status 201) or duplicate (status 200)
+        if (createResult.status === 201 || createResult.status === 200) {
+          const leadId = createResult.data?.data?.uid || createResult.data?.uid || createResult.data?.id;
           console.log(`✅ [ALTERESTATE API KEY TEST] Test lead created: ${leadId}`);
           
           const deleteSuccess = await alterEstateService.deleteLead(alterEstateApiKey, leadId);

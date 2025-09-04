@@ -319,35 +319,64 @@ export class AlterEstateService {
     try {
       console.log('📝 [ALTERESTATE] Creating new lead:', leadData.full_name);
       
-      // Enhanced lead data with additional required fields
-      const enhancedLeadData = {
-        ...leadData,
-        // Add common required fields for AlterEstate
-        source: leadData.via || 'WhatsApp AI Test',
-        status: 'pending',
-        priority: 'medium'
+      // Prepare lead data according to official AlterEstate API documentation
+      // Only required fields: full_name, phone, email
+      // Optional fields: notes, via, utm_*, property_uid, related, etc.
+      const apiLeadData = {
+        full_name: leadData.full_name,
+        phone: leadData.phone,
+        email: leadData.email,
+        notes: leadData.notes || 'Lead de prueba creado automáticamente para validar API Key',
+        via: leadData.via || 'WhatsApp AI Test'
       };
       
-      console.log('📝 [ALTERESTATE] Enhanced lead data:', enhancedLeadData);
+      console.log('📝 [ALTERESTATE] API-compliant lead data:', apiLeadData);
       
       const response = await axios.post(
         `${this.baseUrl}/leads/`,
-        enhancedLeadData,
+        apiLeadData,
         {
           headers: {
             'Authorization': `Token ${apiKey}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          timeout: 10000
+          timeout: 15000,
+          validateStatus: (status) => status < 500 // Accept 4xx responses for better error handling
         }
       );
       
-      console.log(`✅ [ALTERESTATE] Lead created successfully:`, response.data);
+      console.log(`✅ [ALTERESTATE] Lead API response:`, {
+        status: response.status,
+        data: response.data
+      });
+      
+      // Handle success responses (201 is the expected success status)
+      if (response.status === 201) {
+        return {
+          status: response.status,
+          data: response.data,
+          message: 'Lead creado exitosamente',
+          log_id: response.data.log_id,
+          deal_id: response.data.deal_id
+        };
+      }
+      
+      // Handle duplicate lead response (200 status)
+      if (response.status === 200 && response.data.message?.includes('already exists')) {
+        return {
+          status: response.status,
+          data: response.data,
+          message: 'Lead ya existía en el sistema',
+          log_id: response.data.log_id
+        };
+      }
+      
+      // Unexpected success status
       return {
         status: response.status,
         data: response.data,
-        message: 'Lead creado exitosamente'
+        message: `Respuesta inesperada: ${response.status}`
       };
       
     } catch (error: any) {
@@ -355,22 +384,33 @@ export class AlterEstateService {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
-        headers: error.response?.headers,
-        message: error.message
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+          data: error.config?.data
+        }
       });
       
-      // More specific error handling
+      // Enhanced error handling based on official API documentation
       if (error.response?.status === 400) {
-        throw new Error(`Error de validación: ${error.response?.data?.message || 'Datos del lead inválidos'}`);
+        const errorMsg = error.response?.data?.message || 'Datos del lead inválidos';
+        throw new Error(`Validación falló: ${errorMsg}`);
       } else if (error.response?.status === 401) {
-        throw new Error('API Key de escritura inválida o sin permisos');
+        throw new Error('API Key inválida - verificar token en configuración AlterEstate');
       } else if (error.response?.status === 403) {
-        throw new Error('Sin permisos para crear leads - verificar API Key');
-      } else if (error.response?.status === 500) {
-        throw new Error('Error interno del servidor AlterEstate - contactar soporte');
+        throw new Error('Sin permisos para crear leads - contactar administrador AlterEstate');
+      } else if (error.response?.status === 422) {
+        throw new Error('Datos mal formateados - verificar campos requeridos');
+      } else if (error.response?.status >= 500) {
+        throw new Error('Error del servidor AlterEstate - intentar más tarde');
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('Timeout de conexión - red lenta o servidor ocupado');
+      } else if (!error.response) {
+        throw new Error('Sin respuesta del servidor - verificar conectividad');
       }
       
-      throw new Error(`Error al crear lead: ${error.response?.status || 'conexión'}`);
+      throw new Error(`Error inesperado: ${error.response?.status || error.message}`);
     }
   }
 
