@@ -95,7 +95,7 @@ export async function setupAuth(app: Express) {
         name: `replitauth:${domain}`,
         config,
         scope: "openid email profile offline_access",
-        callbackURL: `https://${domain}/api/callback`,
+        callbackURL: `https://${domain}/api/auth/callback`,
       },
       verify,
     );
@@ -105,21 +105,36 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+  app.get("/api/auth/login", (req, res, next) => {
+    console.log('🔐 [AUTH] Login request for hostname:', req.hostname);
+    console.log('🔐 [AUTH] Available domains:', replitDomains);
+    
+    const hostname = req.hostname;
+    const strategyName = `replitauth:${hostname}`;
+    
+    // For development, use the first domain if hostname doesn't match
+    const fallbackDomain = replitDomains.split(",")[0];
+    const finalStrategy = `replitauth:${fallbackDomain}`;
+    
+    console.log('🔐 [AUTH] Using strategy:', finalStrategy);
+    
+    passport.authenticate(finalStrategy, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
-  app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+  app.get("/api/auth/callback", (req, res, next) => {
+    const fallbackDomain = replitDomains.split(",")[0];
+    const finalStrategy = `replitauth:${fallbackDomain}`;
+    
+    passport.authenticate(finalStrategy, {
       successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+      failureRedirect: "/api/auth/login",
     })(req, res, next);
   });
 
-  app.get("/api/logout", (req, res) => {
+  app.get("/api/auth/logout", (req, res) => {
     req.logout(() => {
       res.redirect(
         client.buildEndSessionUrl(config, {
