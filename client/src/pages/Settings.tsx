@@ -591,38 +591,56 @@ export default function SettingsPage() {
                         </p>
                       </div>
                       
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={testAlterEstateConnection}
-                        disabled={connectionTest.isLoading || !formData.alterEstateToken.trim()}
-                        data-testid="button-test-crm-connection"
-                      >
-                        {connectionTest.isLoading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Probando...
-                          </>
-                        ) : (
-                          "Probar Conexión con AlterEstate"
-                        )}
-                      </Button>
+                      {/* Test Connection Button - Always visible when API fields are filled */}
+                      <div className="flex flex-col space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              Prueba de Conexión
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Valida tus credenciales con pruebas detalladas
+                            </p>
+                          </div>
+                          <Button 
+                            onClick={testAlterEstateConnection}
+                            disabled={connectionTest.isLoading || !formData.alterEstateToken.trim()}
+                            data-testid="button-test-crm-connection"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            {connectionTest.isLoading ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                                Probando...
+                              </>
+                            ) : (
+                              <>
+                                <span className="mr-2">🔍</span>
+                                Probar Conexión
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                      {/* Connection Test Results */}
-                      {connectionTest.result && (
-                        <div className={`mt-4 p-4 border rounded-lg ${
-                          connectionTest.hasError 
-                            ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' 
-                            : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
-                        }`}>
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start space-x-3 flex-1">
-                              <div className={`w-5 h-5 mt-1 ${
-                                connectionTest.hasError ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {connectionTest.hasError ? '❌' : '✅'}
-                              </div>
-                              <div className="flex-1">
+                  {/* Connection Test Results - Always visible when there are results */}
+                  {connectionTest.result && (
+                    <div className={`mt-6 border rounded-lg ${
+                      connectionTest.hasError 
+                        ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' 
+                        : 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950'
+                    }`}>
+                      <div className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3 flex-1">
+                            <div className={`w-5 h-5 mt-1 ${
+                              connectionTest.hasError ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {connectionTest.hasError ? '❌' : '✅'}
+                            </div>
+                            <div className="flex-1">
                                 <p className={`font-medium ${
                                   connectionTest.hasError ? 'text-red-800 dark:text-red-200' : 'text-green-800 dark:text-green-200'
                                 }`}>
@@ -707,19 +725,18 @@ export default function SettingsPage() {
                                 )}
                               </div>
                             </div>
-                            <Button
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => setConnectionTest({ isLoading: false, result: null, hasError: false })}
-                              className="text-xs p-1 h-6 w-6"
-                            >
-                              ×
-                            </Button>
                           </div>
+                          <Button
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setConnectionTest({ isLoading: false, result: null, hasError: false })}
+                            className="text-xs p-1 h-6 w-6"
+                          >
+                            ×
+                          </Button>
                         </div>
-                      )}
-                    </>
-                  )}
+                      </div>
+                    )}
                 </CardContent>
               </Card>
 
