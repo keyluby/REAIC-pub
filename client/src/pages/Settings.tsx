@@ -1010,6 +1010,7 @@ export default function SettingsPage() {
           </form>
         </Tabs>
         </div>
+        </div>
 
         {/* Right Status Panel */}
         <div className="w-80 border-l border-border bg-muted/10">
@@ -1069,7 +1070,7 @@ export default function SettingsPage() {
                       </div>
                       
                       {/* Propiedad extraída automáticamente */}
-                      {readTokenTest.result.testResult.propertyInfo ? (
+                      {readTokenTest.result.testResult.propertyInfo && (
                         <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
                           {/* Header de la propiedad */}
                           <div className="p-4 border-b border-gray-200 dark:border-gray-600">
@@ -1197,19 +1198,6 @@ export default function SettingsPage() {
                               </div>
                             </div>
                           </div>
-                        ) : (
-                          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                            <div className="flex items-center text-yellow-800 dark:text-yellow-200">
-                              <span className="mr-2">⚠️</span>
-                              <div className="text-sm font-medium">Extracción parcial</div>
-                            </div>
-                            <div className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">
-                              La conexión API funciona pero no se pudo extraer información completa de propiedades.
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                              Total de propiedades en CRM: {readTokenTest.result.testResult.totalProperties || 0}
-                            </div>
-                          </div>
                         )}
                       </div>
                     )}
@@ -1218,9 +1206,8 @@ export default function SettingsPage() {
                         {readTokenTest.result.message}
                       </div>
                     )}
-                </div>
-              </div>
-            )}
+                    </div>
+                  )}
 
             {/* API Key Status */}
             {apiKeyTest.result && (
@@ -1309,6 +1296,7 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </MainLayout>
