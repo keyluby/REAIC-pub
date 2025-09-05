@@ -234,11 +234,12 @@ export default function SettingsPage() {
         alterEstateToken: formData.alterEstateToken
       });
 
-      console.log('Read token test response:', response);
+      const responseData = await response.json();
+      console.log('Read token test response:', responseData);
       
       setReadTokenTest({ 
         isLoading: false, 
-        result: response, 
+        result: responseData, 
         hasError: false 
       });
 
