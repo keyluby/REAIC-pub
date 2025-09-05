@@ -277,6 +277,25 @@ export class AlterEstateService {
       
       console.log(`🏠 [ALTERESTATE] Complete property detail retrieved: ${enrichedProperty.basicInfo.title}`);
       console.log(`📸 [ALTERESTATE] Found ${enrichedProperty.multimedia.images.length} images`);
+      console.log(`🔍 [ALTERESTATE DEBUG] Property object keys:`, Object.keys(property));
+      console.log(`🔍 [ALTERESTATE DEBUG] Property images field:`, property.images ? 'exists' : 'missing');
+      console.log(`🔍 [ALTERESTATE DEBUG] Property photos field:`, property.photos ? 'exists' : 'missing');
+      console.log(`🔍 [ALTERESTATE DEBUG] Property gallery_image field:`, property.gallery_image ? 'exists' : 'missing');
+      
+      // Intentar con diferentes campos de imágenes si no encontramos nada
+      if (enrichedProperty.multimedia.images.length === 0) {
+        console.log(`🔄 [ALTERESTATE DEBUG] Trying alternative image fields...`);
+        const alternativeImages = this.organizePropertyImages(
+          property.gallery_image || 
+          property.property_images ||
+          property.picture ||
+          property.photo ||
+          []
+        );
+        enrichedProperty.multimedia.images = alternativeImages;
+        console.log(`📸 [ALTERESTATE DEBUG] After alternative search: ${alternativeImages.length} images`);
+      }
+      
       this.setCache(cacheKey, enrichedProperty, 60); // 1 hour cache
       return enrichedProperty;
       
