@@ -389,32 +389,32 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <Tabs defaultValue="assistant" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="assistant" data-testid="tab-assistant">
+        <Tabs defaultValue="assistant" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="assistant" data-testid="tab-assistant">
               <Bot className="w-4 h-4 mr-2" />
               Asistente IA
-              </TabsTrigger>
-              <TabsTrigger value="messaging" data-testid="tab-messaging">
+            </TabsTrigger>
+            <TabsTrigger value="messaging" data-testid="tab-messaging">
               <MessageCircle className="w-4 h-4 mr-2" />
               Mensajería
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
               <Smartphone className="w-4 h-4 mr-2" />
               WhatsApp
-              </TabsTrigger>
-              <TabsTrigger value="integrations" data-testid="tab-integrations">
+            </TabsTrigger>
+            <TabsTrigger value="integrations" data-testid="tab-integrations">
               <Building className="w-4 h-4 mr-2" />
               Integraciones
-              </TabsTrigger>
-              <TabsTrigger value="escalation" data-testid="tab-escalation">
+            </TabsTrigger>
+            <TabsTrigger value="escalation" data-testid="tab-escalation">
               <Bell className="w-4 h-4 mr-2" />
               Escalación
-              </TabsTrigger>
-            </TabsList>
+            </TabsTrigger>
+          </TabsList>
 
-            <form onSubmit={handleSubmit}>
-              <TabsContent value="assistant" className="space-y-6">
+          <form onSubmit={handleSubmit}>
+            <TabsContent value="assistant" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Configuración del Asistente IA</CardTitle>
@@ -487,9 +487,9 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="messaging" className="space-y-6">
+            <TabsContent value="messaging" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>▟️ Mensajería</CardTitle>
@@ -590,13 +590,13 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="whatsapp" className="space-y-6">
+            <TabsContent value="whatsapp" className="space-y-6">
               <WhatsAppConnection />
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="integrations" className="space-y-6">
+            <TabsContent value="integrations" className="space-y-6">
               {/* AlterEstate CRM Section */}
               <Card>
                 <CardHeader>
@@ -898,9 +898,9 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-              </TabsContent>
+            </TabsContent>
 
-              <TabsContent value="escalation" className="space-y-6">
+            <TabsContent value="escalation" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>👥 Escalación Humana</CardTitle>
@@ -985,7 +985,7 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-              </TabsContent>
+            </TabsContent>
 
             {/* Save Button */}
             <div className="flex justify-end">
@@ -1007,8 +1007,8 @@ export default function SettingsPage() {
                 )}
               </Button>
             </div>
-            </form>
-          </Tabs>
+          </form>
+        </Tabs>
         </div>
 
         {/* Right Status Panel */}
@@ -1053,160 +1053,128 @@ export default function SettingsPage() {
                   
                   <h4 className="font-medium text-sm mb-2">🔐 API de Lectura</h4>
                   
-                  {!readTokenTest.hasError && readTokenTest.result?.testResult && (
+                  {!readTokenTest.hasError && readTokenTest.result.testResult?.propertyInfo && (
                     <div className="space-y-4">
-                      {/* Estado de extracción automática */}
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <div className="flex items-center text-blue-800 dark:text-blue-200">
-                          <span className="mr-2">✨</span>
-                          <div className="text-sm font-medium">{readTokenTest.result.testResult.status || 'Extracción automática completada'}</div>
-                        </div>
-                        {readTokenTest.result.testResult.details && (
-                          <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                            {readTokenTest.result.testResult.details}
-                          </div>
-                        )}
-                      </div>
-                      
                       {/* Propiedad extraída automáticamente */}
-                      {readTokenTest.result.testResult.propertyInfo && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
-                          {/* Header de la propiedad */}
-                          <div className="p-4 border-b border-gray-200 dark:border-gray-600">
-                            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                              {readTokenTest.result.testResult.propertyInfo.name || 'Propiedad Extraída'}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {readTokenTest.result.testResult.propertyInfo.operation || 'N/A'} • {readTokenTest.result.testResult.propertyInfo.type || 'N/A'}
-                            </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
+                        {/* Header de la propiedad */}
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-600">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                            {readTokenTest.result.testResult.propertyInfo.name}
                           </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {readTokenTest.result.testResult.propertyInfo.operation} • {readTokenTest.result.testResult.propertyInfo.type}
+                          </div>
+                        </div>
                         
-                          {/* Galería de imágenes */}
+                        {/* Galería de imágenes */}
+                        {readTokenTest.result.testResult.propertyInfo.images && readTokenTest.result.testResult.propertyInfo.images.length > 0 && (
                           <div className="p-3">
                             <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                               <span className="mr-2">📸</span>
-                              Galería ({readTokenTest.result.testResult.propertyInfo.totalImages || '0'} imágenes)
+                              Galería ({readTokenTest.result.testResult.propertyInfo.totalImages} imágenes)
                             </div>
-                          
-                            {readTokenTest.result.testResult.propertyInfo.images && Array.isArray(readTokenTest.result.testResult.propertyInfo.images) && readTokenTest.result.testResult.propertyInfo.images.length > 0 ? (
-                              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                                {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
-                                  <div key={index} className="relative aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
-                                    <img
-                                      src={image.thumbnail || image.url}
-                                      alt={image.title || `Imagen ${index + 1}`}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        const target = e.target as HTMLImageElement;
-                                        const nextElement = target.nextElementSibling as HTMLElement;
-                                        target.style.display = 'none';
-                                        if (nextElement) nextElement.style.display = 'flex';
-                                      }}
-                                    />
-                                    <div className="hidden w-full h-full items-center justify-center text-xs text-gray-500">
-                                      📷
+                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                              {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
+                                <div key={index} className="relative aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                  <img
+                                    src={image.thumbnail || image.url}
+                                    alt={image.title || `Imagen ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      const nextElement = target.nextElementSibling as HTMLElement;
+                                      target.style.display = 'none';
+                                      if (nextElement) nextElement.style.display = 'flex';
+                                    }}
+                                  />
+                                  <div className="hidden w-full h-full items-center justify-center text-xs text-gray-500">
+                                    📷
+                                  </div>
+                                  {image.isPrimary && (
+                                    <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                      Principal
                                     </div>
-                                    {image.isPrimary && (
-                                      <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
-                                        Principal
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                                {readTokenTest.result.testResult.propertyInfo.images.length > 6 && (
-                                  <div className="aspect-square rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
-                                    +{readTokenTest.result.testResult.propertyInfo.images.length - 6} más
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
-                                <div className="text-2xl mb-2">🏠</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                  Sin imágenes disponibles
+                                  )}
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Información básica */}
-                          <div className="p-3 space-y-3">
-                            {/* Precio y ubicación */}
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-center text-green-600 font-semibold">
-                                <span className="w-4 mr-1">💰</span>
-                                <span className="text-sm">{readTokenTest.result.testResult.propertyInfo.price || 'Precio a consultar'}</span>
-                              </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
-                                <div>📍 {readTokenTest.result.testResult.propertyInfo.location || 'Ubicación no disponible'}</div>
-                                {readTokenTest.result.testResult.propertyInfo.fullAddress && (
-                                  <div className="mt-1">{readTokenTest.result.testResult.propertyInfo.fullAddress}</div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Descripción si está disponible */}
-                            {readTokenTest.result.testResult.propertyInfo.description && (
-                              <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
-                                <div className="font-medium mb-1">📝 Descripción:</div>
-                                <div className="line-clamp-3">{readTokenTest.result.testResult.propertyInfo.description}</div>
-                              </div>
-                            )}
-                            
-                            {/* Características técnicas */}
-                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
-                              <div className="flex items-center">
-                                <span className="w-4">🛏️</span>
-                                <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="w-4">🚿</span>
-                                <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="w-4">📐</span>
-                                <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
-                              </div>
-                              <div className="flex items-center">
-                                <span className="w-4">🚗</span>
-                                <span>{readTokenTest.result.testResult.propertyInfo.parking}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Enlaces */}
-                            <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
-                              {readTokenTest.result.testResult.propertyInfo.propertyUrl && (
-                                <a
-                                  href={readTokenTest.result.testResult.propertyInfo.propertyUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                >
-                                  <span className="mr-1">🔗</span>
-                                  Ver propiedad completa
-                                </a>
+                              ))}
+                              {readTokenTest.result.testResult.propertyInfo.images.length > 6 && (
+                                <div className="aspect-square rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
+                                  +{readTokenTest.result.testResult.propertyInfo.images.length - 6} más
+                                </div>
                               )}
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
-                                <div>ID: {readTokenTest.result.testResult.propertyInfo.id || 'N/A'}</div>
-                                <div>Vistas: {readTokenTest.result.testResult.propertyInfo.views || 0}</div>
-                                <div>Estado: {readTokenTest.result.testResult.propertyInfo.status || 'Disponible'}</div>
-                                <div>Total en CRM: {readTokenTest.result.testResult.totalProperties} propiedades</div>
-                                {readTokenTest.result.testResult.propertyInfo.agent && readTokenTest.result.testResult.propertyInfo.agent.name && (
-                                  <div>👤 Agente: {readTokenTest.result.testResult.propertyInfo.agent.name}</div>
-                                )}
-                              </div>
                             </div>
                           </div>
                         )}
+                        
+                        {/* Información básica */}
+                        <div className="p-3 space-y-3">
+                          {/* Precio y ubicación */}
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center text-green-600 font-semibold">
+                              <span className="w-4 mr-1">💰</span>
+                              <span className="text-sm">{readTokenTest.result.testResult.propertyInfo.price}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                              <div>📍 {readTokenTest.result.testResult.propertyInfo.location}</div>
+                              {readTokenTest.result.testResult.propertyInfo.fullAddress && (
+                                <div className="mt-1">{readTokenTest.result.testResult.propertyInfo.fullAddress}</div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Características técnicas */}
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center">
+                              <span className="w-4">🛏️</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">🚿</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">📐</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">🚗</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.parking}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Enlaces */}
+                          <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                            {readTokenTest.result.testResult.propertyInfo.propertyUrl && (
+                              <a
+                                href={readTokenTest.result.testResult.propertyInfo.propertyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                <span className="mr-1">🔗</span>
+                                Ver propiedad completa
+                              </a>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              ID: {readTokenTest.result.testResult.propertyInfo.id} • 
+                              Vistas: {readTokenTest.result.testResult.propertyInfo.views} • 
+                              Total: {readTokenTest.result.testResult.totalProperties} propiedades
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {readTokenTest.hasError && (
-                      <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
-                        {readTokenTest.result.message}
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                  
+                  {readTokenTest.hasError && (
+                    <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
+                      {readTokenTest.result.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* API Key Status */}
             {apiKeyTest.result && (
