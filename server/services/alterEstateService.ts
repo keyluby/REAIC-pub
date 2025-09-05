@@ -319,27 +319,19 @@ export class AlterEstateService {
     try {
       console.log('📝 [ALTERESTATE] Creating new lead:', leadData.full_name);
       
-      // Use minimal data structure that worked in curl test
+      // Use exactly the minimal data that works in curl, no optional fields
       const apiLeadData = {
         full_name: leadData.full_name,
         phone: leadData.phone,
         email: leadData.email
       };
       
-      // Only add optional fields if provided
-      if (leadData.notes) {
-        apiLeadData.notes = leadData.notes;
-      }
-      if (leadData.via) {
-        apiLeadData.via = leadData.via;
-      }
-      
       console.log('📝 [ALTERESTATE] API-compliant lead data:', apiLeadData);
       
       console.log('🔧 [ALTERESTATE] Exact curl replication - URL:', `${this.baseUrl}/leads/`);
       console.log('🔧 [ALTERESTATE] Exact curl replication - Data:', apiLeadData);
       
-      // Replicate exact curl command that worked
+      // Simplified approach: use axios with minimal configuration to match curl exactly
       const response = await axios({
         method: 'POST',
         url: `${this.baseUrl}/leads/`,
@@ -350,7 +342,8 @@ export class AlterEstateService {
           'Accept': 'application/json'
         },
         timeout: 30000,
-        validateStatus: (status) => status >= 200 && status < 300
+        validateStatus: () => true, // Accept all status codes, we'll handle them manually
+        maxRedirects: 0 // Disable redirects like curl
       });
       
       console.log(`✅ [ALTERESTATE] Lead API response:`, {
