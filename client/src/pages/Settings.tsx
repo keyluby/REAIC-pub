@@ -1206,8 +1206,8 @@ export default function SettingsPage() {
                         {readTokenTest.result.message}
                       </div>
                     )}
-                    </div>
-                  )}
+                  </div>
+                )}
 
             {/* API Key Status */}
             {apiKeyTest.result && (
