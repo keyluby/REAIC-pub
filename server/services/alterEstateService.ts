@@ -183,7 +183,7 @@ export class AlterEstateService {
   }
 
   /**
-   * Obtener detalles completos de una propiedad
+   * Obtener detalles completos y estructurados de una propiedad
    */
   async getPropertyDetail(aeToken: string, propertySlug: string): Promise<AlterEstatePropertyDetail> {
     try {
@@ -191,7 +191,7 @@ export class AlterEstateService {
       const cached = this.getCache(cacheKey);
       if (cached) return cached;
 
-      console.log(`🏠 [ALTERESTATE] Getting property detail for: ${propertySlug}`);
+      console.log(`🏠 [ALTERESTATE] Getting complete property detail for: ${propertySlug}`);
       
       const response = await axios.get(
         `${this.baseUrl}/properties/view/${propertySlug}/`,
@@ -203,13 +203,137 @@ export class AlterEstateService {
         }
       );
       
-      console.log(`🏠 [ALTERESTATE] Property detail retrieved: ${response.data.name}`);
-      this.setCache(cacheKey, response.data, 60); // 1 hour cache
-      return response.data;
+      const property = response.data;
+      
+      // Enriquecer con información estructurada
+      const enrichedProperty = {
+        ...property,
+        // Información básica estructurada
+        basicInfo: {
+          title: property.name || property.title || 'Sin título',
+          description: property.description || property.short_description || '',
+          type: property.property_type?.name || property.ctype || 'No especificado',
+          operation: property.operation || 'No especificado'
+        },
+        // Detalles técnicos
+        technicalDetails: {
+          area: property.area || property.area_private || property.area_total || 'No especificado',
+          rooms: property.rooms || property.bedrooms || 0,
+          bathrooms: property.bathrooms || 0,
+          parking: property.parking || property.garages || 0,
+          features: Array.isArray(property.features) ? property.features : [],
+          amenities: Array.isArray(property.amenities) ? property.amenities : []
+        },
+        // Información comercial
+        commercialInfo: {
+          price: property.price_formatted || property.price || 'Consultar precio',
+          currency: property.currency || 'RD$',
+          priceType: property.price_type || '',
+          publishedDate: property.created_at || property.publication_date || '',
+          status: property.status || property.operation || 'Disponible'
+        },
+        // Ubicación completa
+        locationInfo: {
+          address: property.address || property.full_address || '',
+          neighborhood: property.neighborhood || property.sector?.name || '',
+          city: property.city || property.sector?.city?.name || '',
+          province: property.province || property.sector?.city?.state?.name || '',
+          coordinates: {
+            lat: property.latitude || property.lat || null,
+            lng: property.longitude || property.lng || null
+          },
+          references: property.references || ''
+        },
+        // Enlaces y referencias
+        links: {
+          propertyUrl: `https://alterestate.com/properties/${propertySlug}/`,
+          directUrl: property.url || '',
+          shareUrl: property.share_url || ''
+        },
+        // Contenido multimedia organizado
+        multimedia: {
+          images: this.organizePropertyImages(property.images || property.photos || []),
+          videos: Array.isArray(property.videos) ? property.videos : [],
+          virtualTour: property.virtual_tour_url || property.tour_360 || '',
+          floorPlan: property.floor_plan || ''
+        },
+        // Información del agente
+        agent: {
+          name: property.agent?.name || property.contact_name || '',
+          phone: property.agent?.phone || property.contact_phone || '',
+          email: property.agent?.email || property.contact_email || '',
+          company: property.agent?.company || ''
+        },
+        // Metadata
+        metadata: {
+          id: property.id,
+          uid: property.uid,
+          slug: propertySlug,
+          views: property.views || 0,
+          favorites: property.favorites || 0,
+          lastUpdated: property.updated_at || property.modified_at || ''
+        }
+      };
+      
+      console.log(`🏠 [ALTERESTATE] Complete property detail retrieved: ${enrichedProperty.basicInfo.title}`);
+      console.log(`📸 [ALTERESTATE] Found ${enrichedProperty.multimedia.images.length} images`);
+      this.setCache(cacheKey, enrichedProperty, 60); // 1 hour cache
+      return enrichedProperty;
       
     } catch (error) {
       console.error(`❌ [ALTERESTATE] Error getting property detail:`, error);
       throw new Error('Error al obtener detalles de la propiedad');
+    }
+  }
+
+  /**
+   * Organizar y procesar las imágenes de la propiedad
+   */
+  private organizePropertyImages(images: any[]): any[] {
+    if (!Array.isArray(images)) return [];
+    
+    return images.map((image, index) => ({
+      id: image.id || index,
+      url: image.image || image.url || image,
+      thumbnail: image.thumbnail || image.image || image.url || image,
+      title: image.title || image.alt || `Imagen ${index + 1}`,
+      description: image.description || '',
+      isPrimary: image.is_primary || index === 0,
+      order: image.order || index
+    })).sort((a, b) => {
+      if (a.isPrimary) return -1;
+      if (b.isPrimary) return 1;
+      return a.order - b.order;
+    });
+  }
+
+  /**
+   * Obtener una propiedad aleatoria completa para extracción automática
+   */
+  async getRandomPropertyComplete(aeToken: string): Promise<AlterEstatePropertyDetail | null> {
+    try {
+      console.log('🎲 [ALTERESTATE] Getting random property for automatic extraction...');
+      
+      // Primero obtener la lista de propiedades
+      const searchResult = await this.searchProperties(aeToken, {}, 1);
+      
+      if (!searchResult.results || searchResult.results.length === 0) {
+        console.log('🚫 [ALTERESTATE] No properties found for random selection');
+        return null;
+      }
+      
+      // Seleccionar una propiedad aleatoria
+      const randomIndex = Math.floor(Math.random() * Math.min(searchResult.results.length, 20));
+      const selectedProperty = searchResult.results[randomIndex];
+      
+      console.log(`🎲 [ALTERESTATE] Selected random property: ${selectedProperty.slug}`);
+      
+      // Obtener el detalle completo de la propiedad seleccionada
+      return await this.getPropertyDetail(aeToken, selectedProperty.slug);
+      
+    } catch (error) {
+      console.error('❌ [ALTERESTATE] Error getting random property:', error);
+      return null;
     }
   }
 

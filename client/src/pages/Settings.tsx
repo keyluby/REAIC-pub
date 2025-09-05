@@ -1054,45 +1054,113 @@ export default function SettingsPage() {
                   <h4 className="font-medium text-sm mb-2">🔐 API de Lectura</h4>
                   
                   {!readTokenTest.hasError && readTokenTest.result.testResult?.propertyInfo && (
-                    <div className="space-y-3">
-                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                          {readTokenTest.result.testResult.propertyInfo.name}
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
-                          <div className="flex items-center">
-                            <span className="w-4">📍</span>
-                            <span className="truncate">{readTokenTest.result.testResult.propertyInfo.location}</span>
+                    <div className="space-y-4">
+                      {/* Propiedad extraída automáticamente */}
+                      <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
+                        {/* Header de la propiedad */}
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-600">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                            {readTokenTest.result.testResult.propertyInfo.name}
                           </div>
-                          <div className="flex items-center">
-                            <span className="w-4">💰</span>
-                            <span className="font-semibold text-green-600">{readTokenTest.result.testResult.propertyInfo.price}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="w-4">🏠</span>
-                            <span>{readTokenTest.result.testResult.propertyInfo.type}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="w-4">🛏️</span>
-                            <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="w-4">🚿</span>
-                            <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="w-4">📐</span>
-                            <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {readTokenTest.result.testResult.propertyInfo.operation} • {readTokenTest.result.testResult.propertyInfo.type}
                           </div>
                         </div>
                         
-                        <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                            📸 {readTokenTest.result.testResult.propertyInfo.images} fotos disponibles
+                        {/* Galería de imágenes */}
+                        {readTokenTest.result.testResult.propertyInfo.images && readTokenTest.result.testResult.propertyInfo.images.length > 0 && (
+                          <div className="p-3">
+                            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                              <span className="mr-2">📸</span>
+                              Galería ({readTokenTest.result.testResult.propertyInfo.totalImages} imágenes)
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                              {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
+                                <div key={index} className="relative aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                  <img
+                                    src={image.thumbnail || image.url}
+                                    alt={image.title || `Imagen ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      const nextElement = target.nextElementSibling as HTMLElement;
+                                      target.style.display = 'none';
+                                      if (nextElement) nextElement.style.display = 'flex';
+                                    }}
+                                  />
+                                  <div className="hidden w-full h-full items-center justify-center text-xs text-gray-500">
+                                    📷
+                                  </div>
+                                  {image.isPrimary && (
+                                    <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                      Principal
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {readTokenTest.result.testResult.propertyInfo.images.length > 6 && (
+                                <div className="aspect-square rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
+                                  +{readTokenTest.result.testResult.propertyInfo.images.length - 6} más
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                            Total: {readTokenTest.result.testResult.totalProperties} propiedades en la base de datos
+                        )}
+                        
+                        {/* Información básica */}
+                        <div className="p-3 space-y-3">
+                          {/* Precio y ubicación */}
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center text-green-600 font-semibold">
+                              <span className="w-4 mr-1">💰</span>
+                              <span className="text-sm">{readTokenTest.result.testResult.propertyInfo.price}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                              <div>📍 {readTokenTest.result.testResult.propertyInfo.location}</div>
+                              {readTokenTest.result.testResult.propertyInfo.fullAddress && (
+                                <div className="mt-1">{readTokenTest.result.testResult.propertyInfo.fullAddress}</div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Características técnicas */}
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center">
+                              <span className="w-4">🛏️</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">🚿</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">📐</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-4">🚗</span>
+                              <span>{readTokenTest.result.testResult.propertyInfo.parking}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Enlaces */}
+                          <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                            {readTokenTest.result.testResult.propertyInfo.propertyUrl && (
+                              <a
+                                href={readTokenTest.result.testResult.propertyInfo.propertyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                <span className="mr-1">🔗</span>
+                                Ver propiedad completa
+                              </a>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              ID: {readTokenTest.result.testResult.propertyInfo.id} • 
+                              Vistas: {readTokenTest.result.testResult.propertyInfo.views} • 
+                              Total: {readTokenTest.result.testResult.totalProperties} propiedades
+                            </div>
                           </div>
                         </div>
                       </div>

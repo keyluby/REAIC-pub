@@ -124,31 +124,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        const randomProperty = properties.results[Math.floor(Math.random() * Math.min(properties.results.length, 5))];
-        const propertyDetail = await alterEstateService.getPropertyDetail(alterEstateToken, randomProperty.slug);
+        // Usar extracción automática completa
+        const completeProperty = await alterEstateService.getRandomPropertyComplete(alterEstateToken);
         
-        const images = propertyDetail.gallery_image?.length || 0;
-        const hasVirtualTour = !!propertyDetail.virtual_tour;
+        if (!completeProperty) {
+          return res.json({
+            success: true,
+            message: "Token válido pero no se encontraron propiedades completas",
+            testResult: {
+              status: "⚠️ Token válido - Sin propiedades detalladas disponibles",
+              totalProperties: properties.count || 0
+            }
+          });
+        }
         
         res.json({
           success: true,
-          message: "Prueba de lectura completada exitosamente",
+          message: "Extracción automática completada exitosamente",
           testResult: {
-            status: "✅ Token de lectura funcionando perfectamente",
-            details: `Probado con propiedad: "${propertyDetail.name}"`,
+            status: "✅ Propiedad extraída automáticamente",
+            details: `Propiedad completa extraída: "${completeProperty.basicInfo.title}"`,
             propertyInfo: {
-              name: propertyDetail.name,
-              location: `${propertyDetail.sector}, ${propertyDetail.city}`,
-              price: propertyDetail.sale_price ? `${propertyDetail.currency_sale} ${propertyDetail.sale_price.toLocaleString()}` : 'Precio a consultar',
-              type: propertyDetail.category.name,
-              rooms: propertyDetail.room || 'N/A',
-              bathrooms: propertyDetail.bathroom || 'N/A',
-              area: propertyDetail.property_area ? `${propertyDetail.property_area} m²` : 'N/A',
-              images: `${images} foto${images !== 1 ? 's' : ''}`,
-              virtualTour: hasVirtualTour ? 'Sí' : 'No',
-              agents: propertyDetail.agents?.length || 0
+              // Información básica
+              name: completeProperty.basicInfo.title,
+              description: completeProperty.basicInfo.description,
+              type: completeProperty.basicInfo.type,
+              operation: completeProperty.basicInfo.operation,
+              
+              // Ubicación completa
+              location: `${completeProperty.locationInfo.neighborhood} ${completeProperty.locationInfo.city}`.trim(),
+              fullAddress: completeProperty.locationInfo.address,
+              province: completeProperty.locationInfo.province,
+              coordinates: completeProperty.locationInfo.coordinates,
+              
+              // Información comercial
+              price: completeProperty.commercialInfo.price,
+              currency: completeProperty.commercialInfo.currency,
+              status: completeProperty.commercialInfo.status,
+              publishedDate: completeProperty.commercialInfo.publishedDate,
+              
+              // Detalles técnicos
+              area: completeProperty.technicalDetails.area,
+              rooms: `${completeProperty.technicalDetails.rooms} habitaciones`,
+              bathrooms: `${completeProperty.technicalDetails.bathrooms} baños`,
+              parking: `${completeProperty.technicalDetails.parking} estacionamientos`,
+              features: completeProperty.technicalDetails.features,
+              amenities: completeProperty.technicalDetails.amenities,
+              
+              // Contenido multimedia
+              images: completeProperty.multimedia.images,
+              totalImages: completeProperty.multimedia.images.length.toString(),
+              videos: completeProperty.multimedia.videos,
+              virtualTour: completeProperty.multimedia.virtualTour,
+              
+              // Enlaces
+              propertyUrl: completeProperty.links.propertyUrl,
+              directUrl: completeProperty.links.directUrl,
+              
+              // Información del agente
+              agent: completeProperty.agent,
+              
+              // Metadata
+              id: completeProperty.metadata.id,
+              uid: completeProperty.metadata.uid,
+              slug: completeProperty.metadata.slug,
+              views: completeProperty.metadata.views,
+              lastUpdated: completeProperty.metadata.lastUpdated
             },
-            totalProperties: properties.count
+            totalProperties: properties.count || 0
           }
         });
       } catch (error) {
