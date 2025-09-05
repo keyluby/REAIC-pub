@@ -1010,7 +1010,6 @@ export default function SettingsPage() {
           </form>
         </Tabs>
         </div>
-        </div>
 
         {/* Right Status Panel */}
         <div className="w-80 border-l border-border bg-muted/10">
@@ -1296,7 +1295,6 @@ export default function SettingsPage() {
               </div>
             )}
           </div>
-        </div>
         </div>
       </div>
     </MainLayout>
