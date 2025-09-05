@@ -1053,7 +1053,17 @@ export default function SettingsPage() {
                   
                   <h4 className="font-medium text-sm mb-2">🔐 API de Lectura</h4>
                   
-                  {!readTokenTest.hasError && readTokenTest.result.testResult?.propertyInfo && (
+                  {/* DEBUG: Mostrar estructura de datos */}
+                  {!readTokenTest.hasError && readTokenTest.result && (
+                    <div className="mb-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                      <details>
+                        <summary>Debug - Estructura de respuesta</summary>
+                        <pre>{JSON.stringify(readTokenTest.result, null, 2)}</pre>
+                      </details>
+                    </div>
+                  )}
+                  
+                  {!readTokenTest.hasError && readTokenTest.result?.testResult?.propertyInfo && (
                     <div className="space-y-4">
                       {/* Propiedad extraída automáticamente */}
                       <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
