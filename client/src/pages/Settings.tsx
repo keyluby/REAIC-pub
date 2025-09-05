@@ -1081,143 +1081,143 @@ export default function SettingsPage() {
                             </div>
                           </div>
                         
-                        {/* Galería de imágenes */}
-                        <div className="p-3">
-                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                            <span className="mr-2">📸</span>
-                            Galería ({readTokenTest.result.testResult.propertyInfo.totalImages || '0'} imágenes)
+                          {/* Galería de imágenes */}
+                          <div className="p-3">
+                            <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                              <span className="mr-2">📸</span>
+                              Galería ({readTokenTest.result.testResult.propertyInfo.totalImages || '0'} imágenes)
+                            </div>
+                          
+                            {readTokenTest.result.testResult.propertyInfo.images && Array.isArray(readTokenTest.result.testResult.propertyInfo.images) && readTokenTest.result.testResult.propertyInfo.images.length > 0 ? (
+                              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                                {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
+                                  <div key={index} className="relative aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
+                                    <img
+                                      src={image.thumbnail || image.url}
+                                      alt={image.title || `Imagen ${index + 1}`}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        const nextElement = target.nextElementSibling as HTMLElement;
+                                        target.style.display = 'none';
+                                        if (nextElement) nextElement.style.display = 'flex';
+                                      }}
+                                    />
+                                    <div className="hidden w-full h-full items-center justify-center text-xs text-gray-500">
+                                      📷
+                                    </div>
+                                    {image.isPrimary && (
+                                      <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                        Principal
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {readTokenTest.result.testResult.propertyInfo.images.length > 6 && (
+                                  <div className="aspect-square rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
+                                    +{readTokenTest.result.testResult.propertyInfo.images.length - 6} más
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
+                                <div className="text-2xl mb-2">🏠</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  Sin imágenes disponibles
+                                </div>
+                              </div>
+                            )}
                           </div>
                           
-                          {readTokenTest.result.testResult.propertyInfo.images && Array.isArray(readTokenTest.result.testResult.propertyInfo.images) && readTokenTest.result.testResult.propertyInfo.images.length > 0 ? (
-                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-                              {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
-                                <div key={index} className="relative aspect-square rounded overflow-hidden bg-gray-100 dark:bg-gray-700">
-                                  <img
-                                    src={image.thumbnail || image.url}
-                                    alt={image.title || `Imagen ${index + 1}`}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      const nextElement = target.nextElementSibling as HTMLElement;
-                                      target.style.display = 'none';
-                                      if (nextElement) nextElement.style.display = 'flex';
-                                    }}
-                                  />
-                                  <div className="hidden w-full h-full items-center justify-center text-xs text-gray-500">
-                                    📷
-                                  </div>
-                                  {image.isPrimary && (
-                                    <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
-                                      Principal
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {readTokenTest.result.testResult.propertyInfo.images.length > 6 && (
-                                <div className="aspect-square rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
-                                  +{readTokenTest.result.testResult.propertyInfo.images.length - 6} más
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
-                              <div className="text-2xl mb-2">🏠</div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Sin imágenes disponibles
+                          {/* Información básica */}
+                          <div className="p-3 space-y-3">
+                            {/* Precio y ubicación */}
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center text-green-600 font-semibold">
+                                <span className="w-4 mr-1">💰</span>
+                                <span className="text-sm">{readTokenTest.result.testResult.propertyInfo.price || 'Precio a consultar'}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                                <div>📍 {readTokenTest.result.testResult.propertyInfo.location || 'Ubicación no disponible'}</div>
+                                {readTokenTest.result.testResult.propertyInfo.fullAddress && (
+                                  <div className="mt-1">{readTokenTest.result.testResult.propertyInfo.fullAddress}</div>
+                                )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                        
-                        {/* Información básica */}
-                        <div className="p-3 space-y-3">
-                          {/* Precio y ubicación */}
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center text-green-600 font-semibold">
-                              <span className="w-4 mr-1">💰</span>
-                              <span className="text-sm">{readTokenTest.result.testResult.propertyInfo.price || 'Precio a consultar'}</span>
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
-                              <div>📍 {readTokenTest.result.testResult.propertyInfo.location || 'Ubicación no disponible'}</div>
-                              {readTokenTest.result.testResult.propertyInfo.fullAddress && (
-                                <div className="mt-1">{readTokenTest.result.testResult.propertyInfo.fullAddress}</div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Descripción si está disponible */}
-                          {readTokenTest.result.testResult.propertyInfo.description && (
-                            <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
-                              <div className="font-medium mb-1">📝 Descripción:</div>
-                              <div className="line-clamp-3">{readTokenTest.result.testResult.propertyInfo.description}</div>
-                            </div>
-                          )}
-                          
-                          {/* Características técnicas */}
-                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
-                            <div className="flex items-center">
-                              <span className="w-4">🛏️</span>
-                              <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="w-4">🚿</span>
-                              <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="w-4">📐</span>
-                              <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="w-4">🚗</span>
-                              <span>{readTokenTest.result.testResult.propertyInfo.parking}</span>
-                            </div>
-                          </div>
-                          
-                          {/* Enlaces */}
-                          <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
-                            {readTokenTest.result.testResult.propertyInfo.propertyUrl && (
-                              <a
-                                href={readTokenTest.result.testResult.propertyInfo.propertyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                              >
-                                <span className="mr-1">🔗</span>
-                                Ver propiedad completa
-                              </a>
+                            
+                            {/* Descripción si está disponible */}
+                            {readTokenTest.result.testResult.propertyInfo.description && (
+                              <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-300">
+                                <div className="font-medium mb-1">📝 Descripción:</div>
+                                <div className="line-clamp-3">{readTokenTest.result.testResult.propertyInfo.description}</div>
+                              </div>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
-                              <div>ID: {readTokenTest.result.testResult.propertyInfo.id || 'N/A'}</div>
-                              <div>Vistas: {readTokenTest.result.testResult.propertyInfo.views || 0}</div>
-                              <div>Estado: {readTokenTest.result.testResult.propertyInfo.status || 'Disponible'}</div>
-                              <div>Total en CRM: {readTokenTest.result.testResult.totalProperties} propiedades</div>
-                              {readTokenTest.result.testResult.propertyInfo.agent && readTokenTest.result.testResult.propertyInfo.agent.name && (
-                                <div>👤 Agente: {readTokenTest.result.testResult.propertyInfo.agent.name}</div>
+                            
+                            {/* Características técnicas */}
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                              <div className="flex items-center">
+                                <span className="w-4">🛏️</span>
+                                <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="w-4">🚿</span>
+                                <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="w-4">📐</span>
+                                <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="w-4">🚗</span>
+                                <span>{readTokenTest.result.testResult.propertyInfo.parking}</span>
+                              </div>
+                            </div>
+                            
+                            {/* Enlaces */}
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                              {readTokenTest.result.testResult.propertyInfo.propertyUrl && (
+                                <a
+                                  href={readTokenTest.result.testResult.propertyInfo.propertyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                >
+                                  <span className="mr-1">🔗</span>
+                                  Ver propiedad completa
+                                </a>
                               )}
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
+                                <div>ID: {readTokenTest.result.testResult.propertyInfo.id || 'N/A'}</div>
+                                <div>Vistas: {readTokenTest.result.testResult.propertyInfo.views || 0}</div>
+                                <div>Estado: {readTokenTest.result.testResult.propertyInfo.status || 'Disponible'}</div>
+                                <div>Total en CRM: {readTokenTest.result.testResult.totalProperties} propiedades</div>
+                                {readTokenTest.result.testResult.propertyInfo.agent && readTokenTest.result.testResult.propertyInfo.agent.name && (
+                                  <div>👤 Agente: {readTokenTest.result.testResult.propertyInfo.agent.name}</div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                          <div className="flex items-center text-yellow-800 dark:text-yellow-200">
-                            <span className="mr-2">⚠️</span>
-                            <div className="text-sm font-medium">Extracción parcial</div>
+                        ) : (
+                          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                            <div className="flex items-center text-yellow-800 dark:text-yellow-200">
+                              <span className="mr-2">⚠️</span>
+                              <div className="text-sm font-medium">Extracción parcial</div>
+                            </div>
+                            <div className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">
+                              La conexión API funciona pero no se pudo extraer información completa de propiedades.
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                              Total de propiedades en CRM: {readTokenTest.result.testResult.totalProperties || 0}
+                            </div>
                           </div>
-                          <div className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">
-                            La conexión API funciona pero no se pudo extraer información completa de propiedades.
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                            Total de propiedades en CRM: {readTokenTest.result.testResult.totalProperties || 0}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {readTokenTest.hasError && (
-                    <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
-                      {readTokenTest.result.message}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    )}
+                    {readTokenTest.hasError && (
+                      <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
+                        {readTokenTest.result.message}
+                      </div>
+                    )}
                 </div>
               </div>
             )}
