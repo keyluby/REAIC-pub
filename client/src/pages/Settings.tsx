@@ -389,32 +389,32 @@ export default function SettingsPage() {
             </p>
           </div>
 
-        <Tabs defaultValue="assistant" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="assistant" data-testid="tab-assistant">
+          <Tabs defaultValue="assistant" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="assistant" data-testid="tab-assistant">
               <Bot className="w-4 h-4 mr-2" />
               Asistente IA
-            </TabsTrigger>
-            <TabsTrigger value="messaging" data-testid="tab-messaging">
+              </TabsTrigger>
+              <TabsTrigger value="messaging" data-testid="tab-messaging">
               <MessageCircle className="w-4 h-4 mr-2" />
               Mensajería
-            </TabsTrigger>
-            <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp" data-testid="tab-whatsapp">
               <Smartphone className="w-4 h-4 mr-2" />
               WhatsApp
-            </TabsTrigger>
-            <TabsTrigger value="integrations" data-testid="tab-integrations">
+              </TabsTrigger>
+              <TabsTrigger value="integrations" data-testid="tab-integrations">
               <Building className="w-4 h-4 mr-2" />
               Integraciones
-            </TabsTrigger>
-            <TabsTrigger value="escalation" data-testid="tab-escalation">
+              </TabsTrigger>
+              <TabsTrigger value="escalation" data-testid="tab-escalation">
               <Bell className="w-4 h-4 mr-2" />
               Escalación
-            </TabsTrigger>
-          </TabsList>
+              </TabsTrigger>
+            </TabsList>
 
-          <form onSubmit={handleSubmit}>
-            <TabsContent value="assistant" className="space-y-6">
+            <form onSubmit={handleSubmit}>
+              <TabsContent value="assistant" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Configuración del Asistente IA</CardTitle>
@@ -487,9 +487,9 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="messaging" className="space-y-6">
+              <TabsContent value="messaging" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>▟️ Mensajería</CardTitle>
@@ -590,13 +590,13 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="whatsapp" className="space-y-6">
+              <TabsContent value="whatsapp" className="space-y-6">
               <WhatsAppConnection />
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="integrations" className="space-y-6">
+              <TabsContent value="integrations" className="space-y-6">
               {/* AlterEstate CRM Section */}
               <Card>
                 <CardHeader>
@@ -898,9 +898,9 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="escalation" className="space-y-6">
+              <TabsContent value="escalation" className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle>👥 Escalación Humana</CardTitle>
@@ -985,7 +985,7 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
             {/* Save Button */}
             <div className="flex justify-end">
@@ -1007,8 +1007,8 @@ export default function SettingsPage() {
                 )}
               </Button>
             </div>
-          </form>
-        </Tabs>
+            </form>
+          </Tabs>
         </div>
 
         {/* Right Status Panel */}
