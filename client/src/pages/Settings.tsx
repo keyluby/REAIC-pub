@@ -379,7 +379,8 @@ export default function SettingsPage() {
 
   return (
     <MainLayout>
-      <div className="p-6 space-y-6">
+      <div className="flex h-full bg-background">
+        <div className="flex-1 overflow-auto p-6 space-y-6">
           {/* Header */}
           <div>
             <h2 className="text-2xl font-semibold mb-2 text-foreground">Configuración</h2>
@@ -1008,6 +1009,193 @@ export default function SettingsPage() {
             </div>
           </form>
         </Tabs>
+        </div>
+
+        {/* Right Status Panel */}
+        <div className="w-80 border-l border-border bg-muted/10">
+          <div className="p-4 h-full overflow-auto">
+            <h3 className="text-lg font-semibold mb-4 text-foreground flex items-center">
+              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></div>
+              Estado de Conexión
+            </h3>
+            
+            {/* Read Token Status */}
+            {readTokenTest.result && (
+              <div className="mb-6">
+                <div className={`p-4 rounded-lg border-2 ${
+                  readTokenTest.hasError 
+                    ? 'border-red-500 bg-red-50 dark:bg-red-950/20' 
+                    : 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      {readTokenTest.hasError ? (
+                        <div className="flex items-center text-red-700 dark:text-red-300">
+                          <span className="text-2xl mr-2">❌</span>
+                          <span className="font-bold">No funciona</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-green-700 dark:text-green-300">
+                          <span className="text-2xl mr-2">✅</span>
+                          <span className="font-bold">Funciona</span>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setReadTokenTest({ isLoading: false, result: null, hasError: false })}
+                      className="h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  
+                  <h4 className="font-medium text-sm mb-2">🔐 API de Lectura</h4>
+                  
+                  {!readTokenTest.hasError && readTokenTest.result.testResult?.propertyInfo && (
+                    <div className="space-y-3">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                          {readTokenTest.result.testResult.propertyInfo.name}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+                          <div className="flex items-center">
+                            <span className="w-4">📍</span>
+                            <span className="truncate">{readTokenTest.result.testResult.propertyInfo.location}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-4">💰</span>
+                            <span className="font-semibold text-green-600">{readTokenTest.result.testResult.propertyInfo.price}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-4">🏠</span>
+                            <span>{readTokenTest.result.testResult.propertyInfo.type}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-4">🛏️</span>
+                            <span>{readTokenTest.result.testResult.propertyInfo.rooms}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-4">🚿</span>
+                            <span>{readTokenTest.result.testResult.propertyInfo.bathrooms}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-4">📐</span>
+                            <span>{readTokenTest.result.testResult.propertyInfo.area}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            📸 {readTokenTest.result.testResult.propertyInfo.images} fotos disponibles
+                          </div>
+                          <div className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                            Total: {readTokenTest.result.testResult.totalProperties} propiedades en la base de datos
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {readTokenTest.hasError && (
+                    <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
+                      {readTokenTest.result.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* API Key Status */}
+            {apiKeyTest.result && (
+              <div className="mb-6">
+                <div className={`p-4 rounded-lg border-2 ${
+                  apiKeyTest.hasError 
+                    ? 'border-red-500 bg-red-50 dark:bg-red-950/20' 
+                    : 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                }`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      {apiKeyTest.hasError ? (
+                        <div className="flex items-center text-red-700 dark:text-red-300">
+                          <span className="text-2xl mr-2">❌</span>
+                          <span className="font-bold">No funciona</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-green-700 dark:text-green-300">
+                          <span className="text-2xl mr-2">✅</span>
+                          <span className="font-bold">Funciona</span>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setApiKeyTest({ isLoading: false, result: null, hasError: false })}
+                      className="h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  
+                  <h4 className="font-medium text-sm mb-2">🔑 API de Escritura</h4>
+                  
+                  {!apiKeyTest.hasError && apiKeyTest.result.testResult?.leadInfo && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
+                      <div className="space-y-2 text-xs">
+                        <div><strong>Lead ID:</strong> {apiKeyTest.result.testResult.leadInfo.id}</div>
+                        <div><strong>Nombre:</strong> {apiKeyTest.result.testResult.leadInfo.name}</div>
+                        <div><strong>Teléfono:</strong> {apiKeyTest.result.testResult.leadInfo.phone}</div>
+                        <div><strong>Email:</strong> {apiKeyTest.result.testResult.leadInfo.email}</div>
+                        <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                          <div className="text-green-600 font-medium">✓ {apiKeyTest.result.testResult.leadInfo.created}</div>
+                          <div className="text-orange-600 font-medium">🗑️ {apiKeyTest.result.testResult.leadInfo.deleted}</div>
+                        </div>
+                        {apiKeyTest.result.testResult.leadInfo.warning && (
+                          <div className="text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                            ⚠️ {apiKeyTest.result.testResult.leadInfo.warning}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {apiKeyTest.hasError && (
+                    <div className="text-sm text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 p-3 rounded">
+                      {apiKeyTest.result.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Loading States */}
+            {(readTokenTest.isLoading || apiKeyTest.isLoading) && (
+              <div className="mb-6 p-4 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-blue-700 dark:text-blue-300 font-medium">
+                    {readTokenTest.isLoading && "Probando conexión de lectura..."}
+                    {apiKeyTest.isLoading && "Probando API Key de escritura..."}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* No Results State */}
+            {!readTokenTest.result && !apiKeyTest.result && !readTokenTest.isLoading && !apiKeyTest.isLoading && (
+              <div className="text-center text-muted-foreground py-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <span className="text-2xl">🔗</span>
+                </div>
+                <p className="text-sm font-medium mb-1">Estado de Conexión</p>
+                <p className="text-xs">Los resultados aparecerán aquí después de probar las APIs</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </MainLayout>
   );
