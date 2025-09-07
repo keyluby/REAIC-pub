@@ -1182,6 +1182,45 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Sección de Debug - Datos Crudos */}
+                      {readTokenTest.result.testResult?.debugInfo && (
+                        <div className="mt-4">
+                          <details className="bg-gray-50 dark:bg-gray-900 rounded-lg border">
+                            <summary className="p-3 cursor-pointer text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+                              🔍 Ver Datos Crudos de la API (Debug)
+                            </summary>
+                            <div className="p-3 border-t space-y-3">
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Slug de Propiedad:</div>
+                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border">
+                                  {readTokenTest.result.testResult.debugInfo.slug}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total de Campos: {readTokenTest.result.testResult.debugInfo.totalFields}</div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Muestra de Campos (primeros 20):</div>
+                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border max-h-32 overflow-y-auto">
+                                  {readTokenTest.result.testResult.debugInfo.rawFieldsSample?.map((field: string, index: number) => (
+                                    <div key={index} className="py-0.5">{field}</div>
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Detalles Técnicos Extraídos:</div>
+                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border">
+                                  <div>Área: {readTokenTest.result.testResult.debugInfo.technicalDetailsExtracted.area || 'null'}</div>
+                                  <div>Habitaciones: {readTokenTest.result.testResult.debugInfo.technicalDetailsExtracted.rooms || 'null'}</div>
+                                  <div>Baños: {readTokenTest.result.testResult.debugInfo.technicalDetailsExtracted.bathrooms || 'null'}</div>
+                                  <div>Estacionamientos: {readTokenTest.result.testResult.debugInfo.technicalDetailsExtracted.parking || 'null'}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </details>
+                        </div>
+                      )}
                     </div>
                   )}
                   
