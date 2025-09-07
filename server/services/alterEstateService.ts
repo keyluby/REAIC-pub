@@ -205,7 +205,47 @@ export class AlterEstateService {
       
       const property = response.data;
       
-      // 🔍 Detectar si es un proyecto inmobiliario y obtener información adicional
+      // 🔍 DEBUG: Vamos a encontrar exactamente qué campos contienen la info técnica
+      console.log(`🔍 [ALTERESTATE DEBUG] BÚSQUEDA DE CAMPOS TÉCNICOS para ${propertySlug}:`);
+      console.log(`📊 TODA LA ESTRUCTURA:`, JSON.stringify(property, null, 2));
+      
+      // Buscar todos los campos que puedan contener información de habitaciones
+      const possibleRoomsFields = {};
+      const possibleBathroomsFields = {};
+      const possibleAreaFields = {};
+      const possibleParkingFields = {};
+      
+      Object.keys(property).forEach(key => {
+        const value = property[key];
+        const keyLower = key.toLowerCase();
+        
+        // Buscar campos relacionados con habitaciones
+        if (keyLower.includes('room') || keyLower.includes('bedroom') || keyLower.includes('habitacion')) {
+          possibleRoomsFields[key] = value;
+        }
+        
+        // Buscar campos relacionados con baños
+        if (keyLower.includes('bath') || keyLower.includes('baño')) {
+          possibleBathroomsFields[key] = value;
+        }
+        
+        // Buscar campos relacionados con área
+        if (keyLower.includes('area') || keyLower.includes('size') || keyLower.includes('metro') || keyLower.includes('m2')) {
+          possibleAreaFields[key] = value;
+        }
+        
+        // Buscar campos relacionados con estacionamiento
+        if (keyLower.includes('park') || keyLower.includes('garage') || keyLower.includes('estacion')) {
+          possibleParkingFields[key] = value;
+        }
+      });
+      
+      console.log(`🏠 [ALTERESTATE DEBUG] Posibles campos de habitaciones:`, JSON.stringify(possibleRoomsFields, null, 2));
+      console.log(`🚿 [ALTERESTATE DEBUG] Posibles campos de baños:`, JSON.stringify(possibleBathroomsFields, null, 2));
+      console.log(`📐 [ALTERESTATE DEBUG] Posibles campos de área:`, JSON.stringify(possibleAreaFields, null, 2));
+      console.log(`🚗 [ALTERESTATE DEBUG] Posibles campos de estacionamiento:`, JSON.stringify(possibleParkingFields, null, 2));
+      
+      // Detectar si es un proyecto inmobiliario y obtener información adicional
       const isProject = this.isProjectProperty(property);
       console.log(`🏗️ [ALTERESTATE] Property is project: ${isProject}`);
       
