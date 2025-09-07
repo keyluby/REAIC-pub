@@ -143,35 +143,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
+        // DEBUG: Mostrar información cruda para debugging
+        const propertyRawData = {
+          slug: completeProperty.metadata?.slug || completeProperty.slug,
+          title: completeProperty.basicInfo?.title || completeProperty.name || completeProperty.title,
+          rawFieldsSample: Object.keys(completeProperty).slice(0, 20).map(key => `${key}: ${completeProperty[key]}`),
+          totalFields: Object.keys(completeProperty).length,
+          technicalDetailsExtracted: {
+            area: completeProperty.technicalDetails?.area,
+            rooms: completeProperty.technicalDetails?.rooms,
+            bathrooms: completeProperty.technicalDetails?.bathrooms,
+            parking: completeProperty.technicalDetails?.parking
+          }
+        };
+
         res.json({
           success: true,
           message: "Extracción automática completada exitosamente",
           testResult: {
             status: "✅ Propiedad extraída automáticamente",
-            details: `Propiedad completa extraída: "${completeProperty.basicInfo.title}"`,
+            details: `Propiedad completa extraída: "${completeProperty.basicInfo?.title || completeProperty.name}"`,
+            debugInfo: propertyRawData,
             propertyInfo: {
               // Información básica
-              name: completeProperty.basicInfo.title,
-              description: completeProperty.basicInfo.description,
-              type: completeProperty.basicInfo.type,
-              operation: completeProperty.basicInfo.operation,
+              name: completeProperty.basicInfo?.title || completeProperty.name,
+              description: completeProperty.basicInfo?.description || completeProperty.description,
+              type: completeProperty.basicInfo?.type || completeProperty.property_type?.name,
+              operation: completeProperty.basicInfo?.operation || completeProperty.operation,
               
               // Ubicación completa
-              location: `${completeProperty.locationInfo.neighborhood} ${completeProperty.locationInfo.city}`.trim(),
-              fullAddress: completeProperty.locationInfo.address,
-              province: completeProperty.locationInfo.province,
-              coordinates: completeProperty.locationInfo.coordinates,
+              location: `${completeProperty.locationInfo?.neighborhood || ''} ${completeProperty.locationInfo?.city || ''}`.trim(),
+              fullAddress: completeProperty.locationInfo?.address || completeProperty.address,
+              province: completeProperty.locationInfo?.province || completeProperty.province,
+              coordinates: completeProperty.locationInfo?.coordinates || {lat: null, lng: null},
               
               // Información comercial
-              price: completeProperty.commercialInfo.price,
-              currency: completeProperty.commercialInfo.currency,
-              status: completeProperty.commercialInfo.status,
-              publishedDate: completeProperty.commercialInfo.publishedDate,
+              price: completeProperty.commercialInfo?.price || completeProperty.price_formatted,
+              currency: completeProperty.commercialInfo?.currency || completeProperty.currency,
+              status: completeProperty.commercialInfo?.status || completeProperty.status,
+              publishedDate: completeProperty.commercialInfo?.publishedDate || completeProperty.created_at,
               
               // Detalles técnicos
-              area: completeProperty.technicalDetails.area,
-              rooms: `${completeProperty.technicalDetails.rooms} habitaciones`,
-              bathrooms: `${completeProperty.technicalDetails.bathrooms} baños`,
+              area: completeProperty.technicalDetails?.area || 'No especificado',
+              rooms: `${completeProperty.technicalDetails?.rooms || 0} habitaciones`,
+              bathrooms: `${completeProperty.technicalDetails?.bathrooms || 0} baños`,
               parking: `${completeProperty.technicalDetails.parking} estacionamientos`,
               features: completeProperty.technicalDetails.features,
               amenities: completeProperty.technicalDetails.amenities,
