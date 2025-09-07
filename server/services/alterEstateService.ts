@@ -246,9 +246,9 @@ export class AlterEstateService {
       });
       console.log(`🔍 ========================================================\n`);
       
-      // Detectar si es un proyecto inmobiliario y obtener información adicional
-      const isProject = this.isProjectProperty(property);
-      console.log(`🏗️ [ALTERESTATE] Property is project: ${isProject}`);
+      // Detectar si es un proyecto inmobiliario usando is_project_v2
+      const isProject = property.is_project_v2 === true;
+      console.log(`🏗️ [ALTERESTATE] Property is project (is_project_v2): ${isProject}`);
       
       let developmentInfo = null;
       if (isProject) {
@@ -440,15 +440,6 @@ export class AlterEstateService {
   /**
    * Detectar si una propiedad es un proyecto inmobiliario
    */
-  private isProjectProperty(property: any): boolean {
-    return !!(
-      property.delivery_date || 
-      property.project_model !== undefined ||
-      property.total_floors > 1 ||
-      property.condition === "5" || // En construcción
-      property.condition_read === "En Construcción"
-    );
-  }
 
   /**
    * Extraer información técnica de unidades de desarrollo
@@ -489,8 +480,8 @@ export class AlterEstateService {
    * Extraer información de área (maneja propiedades individuales y proyectos)
    */
   private extractAreaInfo(property: any): string {
-    // Para proyectos inmobiliarios, usar rangos si están disponibles
-    if (property.is_project && (property.min_area || property.max_area)) {
+    // Para proyectos inmobiliarios (is_project_v2 = true), usar rangos si están disponibles
+    if (property.is_project_v2 === true && (property.min_area || property.max_area)) {
       if (property.min_area && property.max_area) {
         return property.min_area === property.max_area 
           ? `${property.min_area} m²`
@@ -500,7 +491,7 @@ export class AlterEstateService {
       if (property.max_area) return `Hasta ${property.max_area} m²`;
     }
     
-    // Para propiedades individuales - usar campos correctos de AlterEstate
+    // Para propiedades individuales (is_project_v2 = false) - usar campos correctos de AlterEstate
     if (property.property_area) {
       const measurer = property.property_area_measurer || 'Mt2';
       return `${property.property_area} ${measurer}`;
@@ -514,8 +505,8 @@ export class AlterEstateService {
    * Extraer información de habitaciones (maneja propiedades individuales y proyectos)
    */
   private extractRoomsInfo(property: any): string | number {
-    // Para proyectos inmobiliarios, usar rangos si están disponibles
-    if (property.is_project && (property.min_rooms || property.max_rooms)) {
+    // Para proyectos inmobiliarios (is_project_v2 = true), usar rangos si están disponibles
+    if (property.is_project_v2 === true && (property.min_rooms || property.max_rooms)) {
       if (property.min_rooms && property.max_rooms) {
         return property.min_rooms === property.max_rooms 
           ? property.min_rooms
@@ -525,7 +516,7 @@ export class AlterEstateService {
       if (property.max_rooms) return `Hasta ${property.max_rooms}`;
     }
     
-    // Para propiedades individuales - usar campo correcto de AlterEstate
+    // Para propiedades individuales (is_project_v2 = false) - usar campo correcto de AlterEstate
     return property.room || property.rooms || property.bedrooms || 0;
   }
 
@@ -533,8 +524,8 @@ export class AlterEstateService {
    * Extraer información de baños (maneja propiedades individuales y proyectos)
    */
   private extractBathroomsInfo(property: any): string | number {
-    // Para proyectos inmobiliarios, usar rangos si están disponibles
-    if (property.is_project && (property.min_bathrooms || property.max_bathrooms)) {
+    // Para proyectos inmobiliarios (is_project_v2 = true), usar rangos si están disponibles
+    if (property.is_project_v2 === true && (property.min_bathrooms || property.max_bathrooms)) {
       if (property.min_bathrooms && property.max_bathrooms) {
         return property.min_bathrooms === property.max_bathrooms 
           ? property.min_bathrooms
@@ -544,7 +535,7 @@ export class AlterEstateService {
       if (property.max_bathrooms) return `Hasta ${property.max_bathrooms}`;
     }
     
-    // Para propiedades individuales - usar campo correcto de AlterEstate
+    // Para propiedades individuales (is_project_v2 = false) - usar campo correcto de AlterEstate
     return property.bathroom || property.bathrooms || 0;
   }
 
