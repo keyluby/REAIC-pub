@@ -291,7 +291,7 @@ export class AlterEstateService {
             },
         // Información comercial
         commercialInfo: {
-          price: property.price_formatted || property.price || 'Consultar precio',
+          price: this.extractSmartPrice(property),
           salePrice: property.sale_price || null,
           rentPrice: property.rent_price || null,
           rentalPrice: property.rental_price || null,
@@ -440,6 +440,105 @@ export class AlterEstateService {
   /**
    * Detectar si una propiedad es un proyecto inmobiliario
    */
+
+  /**
+   * Extraer precio inteligentemente basado en condiciones de la propiedad
+   */
+  private extractSmartPrice(property: any): string {
+    const forSale = property.forSale || false;
+    const forRent = property.forRent || property.forRental || false;
+    const furnished = property.furnished || false;
+    
+    // Construir array de precios disponibles con sus contextos
+    const availablePrices = [];
+    
+    // Precios de venta
+    if (property.furnished_sale_price && furnished && forSale) {
+      const currency = property.currency_sale_furnished || property.currency_sale || property.currency || 'USD';
+      availablePrices.push({
+        amount: property.furnished_sale_price,
+        currency,
+        type: 'Venta Amueblado',
+        priority: 1
+      });
+    }
+    
+    if (property.sale_price && forSale) {
+      const currency = property.currency_sale || property.currency || 'USD';
+      availablePrices.push({
+        amount: property.sale_price,
+        currency,
+        type: 'Venta',
+        priority: furnished ? 3 : 2
+      });
+    }
+    
+    // Precios de alquiler
+    if (property.furnished_price && furnished && forRent) {
+      const currency = property.currency_furnished || property.currency_rent || property.currency || 'USD';
+      availablePrices.push({
+        amount: property.furnished_price,
+        currency,
+        type: 'Alquiler Amueblado',
+        priority: 4
+      });
+    }
+    
+    if (property.rent_price && forRent) {
+      const currency = property.currency_rent || property.currency || 'USD';
+      availablePrices.push({
+        amount: property.rent_price,
+        currency,
+        type: 'Alquiler',
+        priority: furnished ? 6 : 5
+      });
+    }
+    
+    if (property.rental_price && forRent) {
+      const currency = property.currency_rental || property.currency_rent || property.currency || 'USD';
+      availablePrices.push({
+        amount: property.rental_price,
+        currency,
+        type: 'Alquiler',
+        priority: 7
+      });
+    }
+    
+    // Si hay precios específicos, usar el de mayor prioridad (menor número)
+    if (availablePrices.length > 0) {
+      const bestPrice = availablePrices.sort((a, b) => a.priority - b.priority)[0];
+      const formattedAmount = this.formatPrice(bestPrice.amount, bestPrice.currency);
+      return `${formattedAmount} (${bestPrice.type})`;
+    }
+    
+    // Fallback a precios generales
+    if (property.price_formatted) {
+      return property.price_formatted;
+    }
+    
+    if (property.price) {
+      const currency = property.currency || 'USD';
+      return this.formatPrice(property.price, currency);
+    }
+    
+    return 'Consultar precio';
+  }
+
+  /**
+   * Formatear precio con moneda
+   */
+  private formatPrice(amount: number | string, currency: string): string {
+    if (!amount || amount === 0) return 'Consultar precio';
+    
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(numAmount)) return 'Consultar precio';
+    
+    const currencySymbol = currency === 'USD' ? 'US$' : currency === 'DOP' ? 'RD$' : currency;
+    
+    // Formatear con comas para miles
+    const formatted = numAmount.toLocaleString('en-US');
+    return `${currencySymbol} ${formatted}`;
+  }
 
   /**
    * Extraer información técnica de unidades de desarrollo
