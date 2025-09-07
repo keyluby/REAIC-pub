@@ -1085,6 +1085,29 @@ export default function SettingsPage() {
                           </div>
                         </div>
                         
+                        {/* Imagen destacada */}
+                        {(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).featuredImage && (
+                          <div className="relative h-48 bg-gray-100 dark:bg-gray-700">
+                            <img
+                              src={(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).featuredImage}
+                              alt={(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                const nextElement = target.nextElementSibling as HTMLElement;
+                                target.style.display = 'none';
+                                if (nextElement) nextElement.style.display = 'flex';
+                              }}
+                            />
+                            <div className="hidden w-full h-full items-center justify-center text-gray-500">
+                              <span className="text-4xl">🏠</span>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                              🌟 Imagen Destacada
+                            </div>
+                          </div>
+                        )}
+                        
                         {/* Galería de imágenes */}
                         {readTokenTest.result.testResult.propertyInfo.images && readTokenTest.result.testResult.propertyInfo.images.length > 0 && (
                           <div className="p-3">

@@ -194,6 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Contenido multimedia
               images: completeProperty.multimedia.images,
+              featuredImage: completeProperty.multimedia.featuredImage,
               totalImages: completeProperty.multimedia.images.length.toString(),
               videos: completeProperty.multimedia.videos,
               virtualTour: completeProperty.multimedia.virtualTour,
