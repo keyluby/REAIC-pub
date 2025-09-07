@@ -211,7 +211,8 @@ export class AlterEstateService {
       
       let developmentInfo = null;
       if (isProject) {
-        developmentInfo = await this.getDevelopmentInfo(aeToken, property.cid || property.id);
+        // El project_slug es el slug de la propiedad
+        developmentInfo = await this.getDevelopmentInfo(aeToken, propertySlug);
       }
       
       // Enriquecer con información estructurada
@@ -333,48 +334,37 @@ export class AlterEstateService {
   /**
    * Obtener información de desarrollo/proyecto inmobiliario
    */
-  async getDevelopmentInfo(aeToken: string, propertyId: string): Promise<any> {
+  async getDevelopmentInfo(aeToken: string, projectSlug: string): Promise<any> {
     try {
-      console.log(`🏗️ [ALTERESTATE] Getting development info for property: ${propertyId}`);
+      console.log(`🏗️ [ALTERESTATE] Getting development info for project: ${projectSlug}`);
       
       // Primero obtener los edificios del desarrollo
       const buildingsResponse = await axios.get(
-        `${this.baseUrl}/developments/get-buildings/`,
+        `${this.baseUrl}/projects/buildings/${projectSlug}/`,
         {
           headers: {
             'aetoken': aeToken,
             'Content-Type': 'application/json'
-          },
-          params: {
-            property_id: propertyId
           }
         }
       );
       
-      const buildings = buildingsResponse.data?.results || [];
+      const buildings = buildingsResponse.data || [];
       console.log(`🏢 [ALTERESTATE] Found ${buildings.length} buildings for development`);
       
-      if (buildings.length === 0) {
-        return null;
-      }
-      
-      // Obtener las unidades del primer edificio (o de todos si hay varios)
-      const buildingId = buildings[0].id;
+      // Obtener las unidades del proyecto (no necesitamos building_id específico)
       const unitsResponse = await axios.get(
-        `${this.baseUrl}/developments/get-units/`,
+        `${this.baseUrl}/properties/public/units/${projectSlug}/`,
         {
           headers: {
             'aetoken': aeToken,
             'Content-Type': 'application/json'
-          },
-          params: {
-            building_id: buildingId
           }
         }
       );
       
-      const units = unitsResponse.data?.results || [];
-      console.log(`🏠 [ALTERESTATE] Found ${units.length} units in building`);
+      const units = unitsResponse.data || [];
+      console.log(`🏠 [ALTERESTATE] Found ${units.length} units in project`);
       
       if (units.length > 0) {
         console.log(`📊 [ALTERESTATE] Sample unit data:`, JSON.stringify(units[0], null, 2));
@@ -382,8 +372,7 @@ export class AlterEstateService {
       
       return {
         buildings,
-        units,
-        buildingId
+        units
       };
       
     } catch (error) {
@@ -419,10 +408,11 @@ export class AlterEstateService {
     }
     
     // Analizar todas las unidades para obtener rangos
-    const areas = units.map(u => u.area || u.area_private || 0).filter(a => a > 0);
-    const rooms = units.map(u => u.rooms || u.bedrooms || 0).filter(r => r > 0);
-    const bathrooms = units.map(u => u.bathrooms || 0).filter(b => b > 0);
-    const parking = units.map(u => u.parking || u.garages || 0).filter(p => p > 0);
+    // Según la documentación, los campos son: property_area, room, bathroom, parkinglot
+    const areas = units.map(u => u.property_area || u.area || u.area_private || 0).filter(a => a > 0);
+    const rooms = units.map(u => u.room || u.rooms || u.bedrooms || 0).filter(r => r > 0);
+    const bathrooms = units.map(u => u.bathroom || u.bathrooms || 0).filter(b => b > 0);
+    const parking = units.map(u => u.parkinglot || u.parking || u.garages || 0).filter(p => p > 0);
     
     const getRange = (arr: number[]) => {
       if (arr.length === 0) return 0;
