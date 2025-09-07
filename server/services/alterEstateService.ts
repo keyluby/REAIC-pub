@@ -205,18 +205,14 @@ export class AlterEstateService {
       
       const property = response.data;
       
-      // 🔍 DEBUG COMPLETO: Analizar TODA la estructura de datos
-      console.log(`🔍 [ALTERESTATE DEBUG] ESTRUCTURA COMPLETA para ${propertySlug}:`);
-      console.log(`📋 TODA LA ESTRUCTURA:`, JSON.stringify(property, null, 2));
+      // 🔍 Detectar si es un proyecto inmobiliario y obtener información adicional
+      const isProject = this.isProjectProperty(property);
+      console.log(`🏗️ [ALTERESTATE] Property is project: ${isProject}`);
       
-      // También buscar en todas las posibles variaciones de nombres de campos
-      const allPossibleFields = {};
-      Object.keys(property).forEach(key => {
-        if (typeof property[key] === 'string' || typeof property[key] === 'number') {
-          allPossibleFields[key] = property[key];
-        }
-      });
-      console.log(`🔎 [ALTERESTATE DEBUG] Todos los campos escalares:`, JSON.stringify(allPossibleFields, null, 2));
+      let developmentInfo = null;
+      if (isProject) {
+        developmentInfo = await this.getDevelopmentInfo(aeToken, property.cid || property.id);
+      }
       
       // Enriquecer con información estructurada
       const enrichedProperty = {
@@ -228,22 +224,29 @@ export class AlterEstateService {
           type: property.property_type?.name || property.ctype || 'No especificado',
           operation: property.operation || 'No especificado'
         },
-        // Detalles técnicos - adaptado para proyectos inmobiliarios
-        technicalDetails: {
-          area: this.extractAreaInfo(property),
-          rooms: this.extractRoomsInfo(property),
-          bathrooms: this.extractBathroomsInfo(property),
-          parking: property.parking || property.garages || 0,
-          features: Array.isArray(property.features) ? property.features : [],
-          amenities: Array.isArray(property.amenities) ? property.amenities : [],
-          // Información específica de proyectos
-          projectInfo: property.is_project ? {
-            totalUnits: property.project_units || 'No especificado',
-            deliveryDate: property.delivery_date || 'No especificado',
-            constructionStatus: property.construction_status || 'No especificado',
-            floors: property.total_floors || property.floors || 'No especificado'
-          } : null
-        },
+        // Detalles técnicos - usar datos de developments para proyectos
+        technicalDetails: isProject && developmentInfo 
+          ? {
+              ...this.extractTechnicalDetailsFromUnits(developmentInfo.units),
+              features: Array.isArray(property.features) ? property.features : [],
+              amenities: Array.isArray(property.amenities) ? property.amenities : [],
+              projectInfo: {
+                totalUnits: developmentInfo.units?.length || 'No especificado',
+                deliveryDate: property.delivery_date || 'No especificado',
+                constructionStatus: property.condition_read || 'No especificado',
+                floors: property.total_floors || property.floors || 'No especificado',
+                buildingsCount: developmentInfo.buildings?.length || 1
+              }
+            }
+          : {
+              area: this.extractAreaInfo(property),
+              rooms: this.extractRoomsInfo(property),
+              bathrooms: this.extractBathroomsInfo(property),
+              parking: property.parking || property.garages || 0,
+              features: Array.isArray(property.features) ? property.features : [],
+              amenities: Array.isArray(property.amenities) ? property.amenities : [],
+              projectInfo: null
+            },
         // Información comercial
         commercialInfo: {
           price: property.price_formatted || property.price || 'Consultar precio',
@@ -325,6 +328,115 @@ export class AlterEstateService {
       if (b.isPrimary) return 1;
       return a.order - b.order;
     });
+  }
+
+  /**
+   * Obtener información de desarrollo/proyecto inmobiliario
+   */
+  async getDevelopmentInfo(aeToken: string, propertyId: string): Promise<any> {
+    try {
+      console.log(`🏗️ [ALTERESTATE] Getting development info for property: ${propertyId}`);
+      
+      // Primero obtener los edificios del desarrollo
+      const buildingsResponse = await axios.get(
+        `${this.baseUrl}/developments/buildings/`,
+        {
+          headers: {
+            'aetoken': aeToken,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            property_id: propertyId
+          }
+        }
+      );
+      
+      const buildings = buildingsResponse.data?.results || [];
+      console.log(`🏢 [ALTERESTATE] Found ${buildings.length} buildings for development`);
+      
+      if (buildings.length === 0) {
+        return null;
+      }
+      
+      // Obtener las unidades del primer edificio (o de todos si hay varios)
+      const buildingId = buildings[0].id;
+      const unitsResponse = await axios.get(
+        `${this.baseUrl}/developments/units/`,
+        {
+          headers: {
+            'aetoken': aeToken,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            building_id: buildingId
+          }
+        }
+      );
+      
+      const units = unitsResponse.data?.results || [];
+      console.log(`🏠 [ALTERESTATE] Found ${units.length} units in building`);
+      
+      if (units.length > 0) {
+        console.log(`📊 [ALTERESTATE] Sample unit data:`, JSON.stringify(units[0], null, 2));
+      }
+      
+      return {
+        buildings,
+        units,
+        buildingId
+      };
+      
+    } catch (error) {
+      console.error(`❌ [ALTERESTATE] Error getting development info:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Detectar si una propiedad es un proyecto inmobiliario
+   */
+  private isProjectProperty(property: any): boolean {
+    return !!(
+      property.delivery_date || 
+      property.project_model !== undefined ||
+      property.total_floors > 1 ||
+      property.condition === "5" || // En construcción
+      property.condition_read === "En Construcción"
+    );
+  }
+
+  /**
+   * Extraer información técnica de unidades de desarrollo
+   */
+  private extractTechnicalDetailsFromUnits(units: any[]): any {
+    if (!units || units.length === 0) {
+      return {
+        area: 'No especificado',
+        rooms: 0,
+        bathrooms: 0,
+        parking: 0
+      };
+    }
+    
+    // Analizar todas las unidades para obtener rangos
+    const areas = units.map(u => u.area || u.area_private || 0).filter(a => a > 0);
+    const rooms = units.map(u => u.rooms || u.bedrooms || 0).filter(r => r > 0);
+    const bathrooms = units.map(u => u.bathrooms || 0).filter(b => b > 0);
+    const parking = units.map(u => u.parking || u.garages || 0).filter(p => p > 0);
+    
+    const getRange = (arr: number[]) => {
+      if (arr.length === 0) return 0;
+      const min = Math.min(...arr);
+      const max = Math.max(...arr);
+      return min === max ? min : `Desde ${min} hasta ${max}`;
+    };
+    
+    return {
+      area: areas.length > 0 ? `${getRange(areas)} m²` : 'No especificado',
+      rooms: getRange(rooms),
+      bathrooms: getRange(bathrooms),
+      parking: getRange(parking)
+    };
   }
 
   /**
