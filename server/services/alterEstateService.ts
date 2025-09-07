@@ -205,6 +205,41 @@ export class AlterEstateService {
       
       const property = response.data;
       
+      // 🔍 DEBUG: Analizar estructura completa para proyectos inmobiliarios
+      console.log(`🔍 [ALTERESTATE DEBUG] Full property data structure for ${propertySlug}:`);
+      console.log(`📋 Property Type: ${property.property_type?.name || property.ctype || 'Unknown'}`);
+      console.log(`🏗️ Is Project: ${property.is_project || 'No'}`);
+      console.log(`📊 Raw rooms data: ${JSON.stringify({
+        rooms: property.rooms,
+        bedrooms: property.bedrooms,
+        min_rooms: property.min_rooms,
+        max_rooms: property.max_rooms,
+        room_range: property.room_range
+      })}`);
+      console.log(`🚿 Raw bathrooms data: ${JSON.stringify({
+        bathrooms: property.bathrooms,
+        min_bathrooms: property.min_bathrooms,
+        max_bathrooms: property.max_bathrooms,
+        bathroom_range: property.bathroom_range
+      })}`);
+      console.log(`📐 Raw area data: ${JSON.stringify({
+        area: property.area,
+        area_private: property.area_private,
+        area_total: property.area_total,
+        min_area: property.min_area,
+        max_area: property.max_area,
+        area_range: property.area_range,
+        construction_area: property.construction_area
+      })}`);
+      console.log(`🏢 Project specific fields: ${JSON.stringify({
+        project_units: property.project_units,
+        unit_types: property.unit_types,
+        delivery_date: property.delivery_date,
+        construction_status: property.construction_status,
+        floors: property.floors,
+        total_floors: property.total_floors
+      })}`);
+      
       // Enriquecer con información estructurada
       const enrichedProperty = {
         ...property,
@@ -215,14 +250,21 @@ export class AlterEstateService {
           type: property.property_type?.name || property.ctype || 'No especificado',
           operation: property.operation || 'No especificado'
         },
-        // Detalles técnicos
+        // Detalles técnicos - adaptado para proyectos inmobiliarios
         technicalDetails: {
-          area: property.area || property.area_private || property.area_total || 'No especificado',
-          rooms: property.rooms || property.bedrooms || 0,
-          bathrooms: property.bathrooms || 0,
+          area: this.extractAreaInfo(property),
+          rooms: this.extractRoomsInfo(property),
+          bathrooms: this.extractBathroomsInfo(property),
           parking: property.parking || property.garages || 0,
           features: Array.isArray(property.features) ? property.features : [],
-          amenities: Array.isArray(property.amenities) ? property.amenities : []
+          amenities: Array.isArray(property.amenities) ? property.amenities : [],
+          // Información específica de proyectos
+          projectInfo: property.is_project ? {
+            totalUnits: property.project_units || 'No especificado',
+            deliveryDate: property.delivery_date || 'No especificado',
+            constructionStatus: property.construction_status || 'No especificado',
+            floors: property.total_floors || property.floors || 'No especificado'
+          } : null
         },
         // Información comercial
         commercialInfo: {
@@ -305,6 +347,63 @@ export class AlterEstateService {
       if (b.isPrimary) return 1;
       return a.order - b.order;
     });
+  }
+
+  /**
+   * Extraer información de área (maneja propiedades individuales y proyectos)
+   */
+  private extractAreaInfo(property: any): string {
+    // Para proyectos inmobiliarios, usar rangos si están disponibles
+    if (property.is_project && (property.min_area || property.max_area)) {
+      if (property.min_area && property.max_area) {
+        return property.min_area === property.max_area 
+          ? `${property.min_area} m²`
+          : `Desde ${property.min_area} hasta ${property.max_area} m²`;
+      }
+      if (property.min_area) return `Desde ${property.min_area} m²`;
+      if (property.max_area) return `Hasta ${property.max_area} m²`;
+    }
+    
+    // Para propiedades individuales
+    return property.area || property.area_private || property.area_total || property.construction_area || 'No especificado';
+  }
+
+  /**
+   * Extraer información de habitaciones (maneja propiedades individuales y proyectos)
+   */
+  private extractRoomsInfo(property: any): string | number {
+    // Para proyectos inmobiliarios, usar rangos si están disponibles
+    if (property.is_project && (property.min_rooms || property.max_rooms)) {
+      if (property.min_rooms && property.max_rooms) {
+        return property.min_rooms === property.max_rooms 
+          ? property.min_rooms
+          : `Desde ${property.min_rooms} hasta ${property.max_rooms}`;
+      }
+      if (property.min_rooms) return `Desde ${property.min_rooms}`;
+      if (property.max_rooms) return `Hasta ${property.max_rooms}`;
+    }
+    
+    // Para propiedades individuales
+    return property.rooms || property.bedrooms || 0;
+  }
+
+  /**
+   * Extraer información de baños (maneja propiedades individuales y proyectos)
+   */
+  private extractBathroomsInfo(property: any): string | number {
+    // Para proyectos inmobiliarios, usar rangos si están disponibles
+    if (property.is_project && (property.min_bathrooms || property.max_bathrooms)) {
+      if (property.min_bathrooms && property.max_bathrooms) {
+        return property.min_bathrooms === property.max_bathrooms 
+          ? property.min_bathrooms
+          : `Desde ${property.min_bathrooms} hasta ${property.max_bathrooms}`;
+      }
+      if (property.min_bathrooms) return `Desde ${property.min_bathrooms}`;
+      if (property.max_bathrooms) return `Hasta ${property.max_bathrooms}`;
+    }
+    
+    // Para propiedades individuales
+    return property.bathrooms || 0;
   }
 
   /**
