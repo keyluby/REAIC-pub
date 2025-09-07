@@ -205,40 +205,18 @@ export class AlterEstateService {
       
       const property = response.data;
       
-      // 🔍 DEBUG: Analizar estructura completa para proyectos inmobiliarios
-      console.log(`🔍 [ALTERESTATE DEBUG] Full property data structure for ${propertySlug}:`);
-      console.log(`📋 Property Type: ${property.property_type?.name || property.ctype || 'Unknown'}`);
-      console.log(`🏗️ Is Project: ${property.is_project || 'No'}`);
-      console.log(`📊 Raw rooms data: ${JSON.stringify({
-        rooms: property.rooms,
-        bedrooms: property.bedrooms,
-        min_rooms: property.min_rooms,
-        max_rooms: property.max_rooms,
-        room_range: property.room_range
-      })}`);
-      console.log(`🚿 Raw bathrooms data: ${JSON.stringify({
-        bathrooms: property.bathrooms,
-        min_bathrooms: property.min_bathrooms,
-        max_bathrooms: property.max_bathrooms,
-        bathroom_range: property.bathroom_range
-      })}`);
-      console.log(`📐 Raw area data: ${JSON.stringify({
-        area: property.area,
-        area_private: property.area_private,
-        area_total: property.area_total,
-        min_area: property.min_area,
-        max_area: property.max_area,
-        area_range: property.area_range,
-        construction_area: property.construction_area
-      })}`);
-      console.log(`🏢 Project specific fields: ${JSON.stringify({
-        project_units: property.project_units,
-        unit_types: property.unit_types,
-        delivery_date: property.delivery_date,
-        construction_status: property.construction_status,
-        floors: property.floors,
-        total_floors: property.total_floors
-      })}`);
+      // 🔍 DEBUG COMPLETO: Analizar TODA la estructura de datos
+      console.log(`🔍 [ALTERESTATE DEBUG] ESTRUCTURA COMPLETA para ${propertySlug}:`);
+      console.log(`📋 TODA LA ESTRUCTURA:`, JSON.stringify(property, null, 2));
+      
+      // También buscar en todas las posibles variaciones de nombres de campos
+      const allPossibleFields = {};
+      Object.keys(property).forEach(key => {
+        if (typeof property[key] === 'string' || typeof property[key] === 'number') {
+          allPossibleFields[key] = property[key];
+        }
+      });
+      console.log(`🔎 [ALTERESTATE DEBUG] Todos los campos escalares:`, JSON.stringify(allPossibleFields, null, 2));
       
       // Enriquecer con información estructurada
       const enrichedProperty = {
