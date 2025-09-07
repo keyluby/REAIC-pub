@@ -266,18 +266,18 @@ export class AlterEstateService {
           type: property.property_type?.name || property.ctype || 'No especificado',
           operation: property.operation || 'No especificado'
         },
-        // Detalles técnicos - usar datos de developments para proyectos
-        technicalDetails: isProject && developmentInfo 
+        // Detalles técnicos - usar datos de variations para proyectos
+        technicalDetails: isProject && property.variations 
           ? {
-              ...this.extractTechnicalDetailsFromUnits(developmentInfo.units),
+              ...this.extractTechnicalDetailsFromUnits(property.variations),
               features: Array.isArray(property.features) ? property.features : [],
               amenities: Array.isArray(property.amenities) ? property.amenities : [],
               projectInfo: {
-                totalUnits: developmentInfo.units?.length || 'No especificado',
+                totalUnits: property.variations?.length || 'No especificado',
                 deliveryDate: property.delivery_date || 'No especificado',
                 constructionStatus: property.condition_read || 'No especificado',
                 floors: property.total_floors || property.floors || 'No especificado',
-                buildingsCount: developmentInfo.buildings?.length || 1
+                buildingsCount: developmentInfo?.buildings?.length || 1
               }
             }
           : {
@@ -317,7 +317,8 @@ export class AlterEstateService {
         },
         // Contenido multimedia organizado
         multimedia: {
-          images: this.organizePropertyImages(property.images || property.photos || []),
+          images: this.organizePropertyImages(property.gallery_images || property.images || property.photos || []),
+          featuredImage: property.featured_image || '',
           videos: Array.isArray(property.videos) ? property.videos : [],
           virtualTour: property.virtual_tour_url || property.tour_360 || '',
           floorPlan: property.floor_plan || ''
