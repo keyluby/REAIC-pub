@@ -124,8 +124,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
 
-        // Usar extracción automática completa
-        const completeProperty = await alterEstateService.getRandomPropertyComplete(alterEstateToken);
+        // Obtener configuración del usuario para URL del sitio web
+        const userId = req.user.claims.sub;
+        const userSettings = await storage.getUserSettings(userId);
+        const userWebsiteUrl = userSettings?.realEstateWebsiteUrl || '';
+        
+        // Usar extracción automática completa con URL personalizada
+        const completeProperty = await alterEstateService.getRandomPropertyComplete(alterEstateToken, userWebsiteUrl);
         
         if (!completeProperty) {
           return res.json({

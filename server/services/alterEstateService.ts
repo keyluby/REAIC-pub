@@ -185,7 +185,7 @@ export class AlterEstateService {
   /**
    * Obtener detalles completos y estructurados de una propiedad
    */
-  async getPropertyDetail(aeToken: string, propertySlug: string): Promise<AlterEstatePropertyDetail> {
+  async getPropertyDetail(aeToken: string, propertySlug: string, userWebsiteUrl?: string): Promise<AlterEstatePropertyDetail> {
     try {
       const cacheKey = this.getCacheKey(`/properties/view/${propertySlug}`);
       const cached = this.getCache(cacheKey);
@@ -244,9 +244,9 @@ export class AlterEstateService {
           },
           references: property.references || ''
         },
-        // Enlaces y referencias
+        // Enlaces y referencias (URL personalizada del usuario)
         links: {
-          propertyUrl: `https://alterestate.com/properties/${propertySlug}/`,
+          propertyUrl: this.setPropertyUrl(property, userWebsiteUrl || '', propertySlug),
           directUrl: property.url || '',
           shareUrl: property.share_url || ''
         },
@@ -308,9 +308,22 @@ export class AlterEstateService {
   }
 
   /**
+   * Establecer URL personalizada para las propiedades
+   */
+  private setPropertyUrl(property: any, userWebsiteUrl: string, propertySlug: string): string {
+    if (!userWebsiteUrl) return '';
+    
+    // Asegurar que la URL termine con /
+    const baseUrl = userWebsiteUrl.endsWith('/') ? userWebsiteUrl : userWebsiteUrl + '/';
+    
+    // Construir URL con "propiedad" en lugar de "properties"
+    return `${baseUrl}propiedad/${propertySlug}/`;
+  }
+
+  /**
    * Obtener una propiedad aleatoria completa para extracción automática
    */
-  async getRandomPropertyComplete(aeToken: string): Promise<AlterEstatePropertyDetail | null> {
+  async getRandomPropertyComplete(aeToken: string, userWebsiteUrl?: string): Promise<AlterEstatePropertyDetail | null> {
     try {
       console.log('🎲 [ALTERESTATE] Getting random property for automatic extraction...');
       
@@ -329,7 +342,9 @@ export class AlterEstateService {
       console.log(`🎲 [ALTERESTATE] Selected random property: ${selectedProperty.slug}`);
       
       // Obtener el detalle completo de la propiedad seleccionada
-      return await this.getPropertyDetail(aeToken, selectedProperty.slug);
+      const propertyDetail = await this.getPropertyDetail(aeToken, selectedProperty.slug, userWebsiteUrl);
+      
+      return propertyDetail;
       
     } catch (error) {
       console.error('❌ [ALTERESTATE] Error getting random property:', error);

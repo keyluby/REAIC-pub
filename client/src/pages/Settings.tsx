@@ -283,9 +283,12 @@ export default function SettingsPage() {
         alterEstateApiKey: formData.alterEstateApiKey
       });
 
+      const responseData = await response.json();
+      console.log('API key test response:', responseData);
+      
       setApiKeyTest({ 
         isLoading: false, 
-        result: response, 
+        result: responseData, 
         hasError: false 
       });
 
