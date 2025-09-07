@@ -86,6 +86,10 @@ export const userSettings = pgTable("user_settings", {
   alterEstateEnabled: boolean("alter_estate_enabled").default(false),
   realEstateWebsiteUrl: varchar("real_estate_website_url"), // URL del sitio web de la inmobiliaria
   
+  // Currency exchange rate for USD/DOP conversion
+  usdToRdRate: doublePrecision("usd_to_rd_rate").default(60.0), // Default rate 1 USD = 60 RD$
+  lastRateUpdate: timestamp("last_rate_update").defaultNow(),
+  
   // Calendar configuration
   googleCalendarId: varchar("google_calendar_id"),
   calComUsername: varchar("cal_com_username"),

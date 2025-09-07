@@ -445,11 +445,71 @@ export class AlterEstateService {
    * Extraer precio inteligentemente basado en condiciones de la propiedad
    */
   private extractSmartPrice(property: any): string {
+    const isProject = property.is_project_v2 === true;
     const forSale = property.forSale || false;
     const forRent = property.forRent || property.forRental || false;
     const furnished = property.furnished || false;
     
-    // Construir array de precios disponibles con sus contextos
+    console.log(`🔍 [PRICE] Extracting price for property: ${property.title || property.name}`);
+    console.log(`🔍 [PRICE] isProject: ${isProject}, forSale: ${forSale}, forRent: ${forRent}, furnished: ${furnished}`);
+    
+    // Para PROYECTOS INMOBILIARIOS - buscar precios en campos específicos
+    if (isProject) {
+      console.log(`🏗️ [PRICE] Processing PROJECT pricing`);
+      
+      // Buscar precios de rango para proyectos
+      const availableProjectPrices = [];
+      
+      if (property.min_price && property.max_price) {
+        const currency = property.currency || property.currency_sale || property.currency_rent || 'USD';
+        const minFormatted = this.formatPrice(property.min_price, currency);
+        const maxFormatted = this.formatPrice(property.max_price, currency);
+        console.log(`🏗️ [PRICE] Found price range: ${minFormatted} - ${maxFormatted}`);
+        return `${minFormatted} - ${maxFormatted}`;
+      }
+      
+      if (property.min_price) {
+        const currency = property.currency || 'USD';
+        const formatted = this.formatPrice(property.min_price, currency);
+        console.log(`🏗️ [PRICE] Found min price: ${formatted}`);
+        return `Desde ${formatted}`;
+      }
+      
+      if (property.max_price) {
+        const currency = property.currency || 'USD';
+        const formatted = this.formatPrice(property.max_price, currency);
+        console.log(`🏗️ [PRICE] Found max price: ${formatted}`);
+        return `Hasta ${formatted}`;
+      }
+      
+      // Si hay variations con precios, extraer rangos
+      if (property.variations && Array.isArray(property.variations)) {
+        const prices = property.variations
+          .map(v => v.sale_price || v.rent_price || v.price)
+          .filter(p => p && p > 0);
+        
+        if (prices.length > 0) {
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          const currency = property.currency || property.currency_sale || 'USD';
+          
+          if (minPrice === maxPrice) {
+            const formatted = this.formatPrice(minPrice, currency);
+            console.log(`🏗️ [PRICE] Found variation price: ${formatted}`);
+            return formatted;
+          } else {
+            const minFormatted = this.formatPrice(minPrice, currency);
+            const maxFormatted = this.formatPrice(maxPrice, currency);
+            console.log(`🏗️ [PRICE] Found variation range: ${minFormatted} - ${maxFormatted}`);
+            return `${minFormatted} - ${maxFormatted}`;
+          }
+        }
+      }
+      
+      console.log(`🏗️ [PRICE] No project-specific prices found, falling back to general fields`);
+    }
+    
+    // Para PROPIEDADES INDIVIDUALES O FALLBACK - usar lógica de precios específicos
     const availablePrices = [];
     
     // Precios de venta
@@ -504,23 +564,31 @@ export class AlterEstateService {
       });
     }
     
+    console.log(`💰 [PRICE] Found ${availablePrices.length} specific prices:`, availablePrices.map(p => `${p.type}: ${p.amount} ${p.currency}`));
+    
     // Si hay precios específicos, usar el de mayor prioridad (menor número)
     if (availablePrices.length > 0) {
       const bestPrice = availablePrices.sort((a, b) => a.priority - b.priority)[0];
       const formattedAmount = this.formatPrice(bestPrice.amount, bestPrice.currency);
-      return `${formattedAmount} (${bestPrice.type})`;
+      const result = `${formattedAmount} (${bestPrice.type})`;
+      console.log(`💰 [PRICE] Best specific price: ${result}`);
+      return result;
     }
     
     // Fallback a precios generales
     if (property.price_formatted) {
+      console.log(`💰 [PRICE] Using price_formatted: ${property.price_formatted}`);
       return property.price_formatted;
     }
     
     if (property.price) {
       const currency = property.currency || 'USD';
-      return this.formatPrice(property.price, currency);
+      const formatted = this.formatPrice(property.price, currency);
+      console.log(`💰 [PRICE] Using general price: ${formatted}`);
+      return formatted;
     }
     
+    console.log(`⚠️ [PRICE] No price found, returning Consultar precio`);
     return 'Consultar precio';
   }
 
