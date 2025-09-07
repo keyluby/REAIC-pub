@@ -1202,19 +1202,19 @@ export default function SettingsPage() {
                                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total de Campos: {readTokenTest.result.testResult.debugInfo.totalFields}</div>
                                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Todos los Campos Disponibles:</div>
                                 
-                                {/* DEBUG TEMPORAL - mostrar estructura completa */}
-                                <div className="text-xs bg-yellow-100 dark:bg-yellow-900/20 p-2 rounded mb-2">
-                                  <strong>DEBUG:</strong> {JSON.stringify(readTokenTest.result.testResult.debugInfo, null, 2).substring(0, 500)}...
-                                </div>
-                                
-                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border max-h-64 overflow-y-auto">
-                                  {readTokenTest.result.testResult.debugInfo.rawFieldsAll ? (
-                                    readTokenTest.result.testResult.debugInfo.rawFieldsAll.map((field: string, index: number) => (
-                                      <div key={index} className="py-0.5 border-b border-gray-100 dark:border-gray-700 last:border-0">{field}</div>
-                                    ))
-                                  ) : (
-                                    <div className="text-red-500">❌ rawFieldsAll está vacío o no existe</div>
-                                  )}
+                                {/* Botón para ver todos los datos */}
+                                <div className="text-center">
+                                  <a 
+                                    href={`/api/debug-property-data/${readTokenTest.result.testResult.debugInfo.slug}?token=${encodeURIComponent(formData.alterEstateToken)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                  >
+                                    🔍 Ver Todos los Datos Raw (Nueva Ventana)
+                                  </a>
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    Se abrirá una nueva ventana con todos los {readTokenTest.result.testResult.debugInfo.totalFields} campos disponibles
+                                  </p>
                                 </div>
                               </div>
                               
