@@ -169,6 +169,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST version for debugging (handles long slugs better)
+  app.post('/api/debug-property-data', async (req: any, res: any) => {
+    try {
+      const { slug, token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ error: 'Token requerido en el body' });
+      }
+      if (!slug) {
+        return res.status(400).json({ error: 'Slug requerido en el body' });
+      }
+
+      console.log(`🔍 [DEBUG POST] Getting raw data for property: ${slug}`);
+      
+      const { alterEstateService } = await import('./services/alterEstateService');
+      const propertyDetail: any = await alterEstateService.getPropertyDetail(token, slug);
+      
+      // Organizar todos los campos de forma legible
+      const allFields = Object.keys(propertyDetail).sort().map(key => ({
+        field: key,
+        value: (propertyDetail as any)[key],
+        type: typeof (propertyDetail as any)[key]
+      }));
+      
+      const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Debug: ${slug}</title>
+        <style>
+          body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+          .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+          .field { padding: 8px; border-bottom: 1px solid #eee; display: flex; }
+          .field-name { font-weight: bold; color: #0066cc; width: 200px; flex-shrink: 0; }
+          .field-value { color: #333; word-break: break-all; }
+          .field-type { color: #666; font-size: 0.8em; margin-left: 10px; }
+          h1 { color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+          .stats { background: #e3f2fd; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+          .highlight { background: #fff3cd; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🔍 Debug: Datos Raw de Propiedad</h1>
+          
+          <div class="stats">
+            <strong>Slug:</strong> ${slug}<br>
+            <strong>Total de campos:</strong> ${allFields.length}<br>
+            <strong>Título:</strong> ${(propertyDetail as any).name || (propertyDetail as any).title || 'N/A'}
+          </div>
+          
+          <h2>📊 Todos los Campos Disponibles:</h2>
+          
+          ${allFields.map((item, index) => {
+            const isRelevant = ['room', 'bed', 'hab', 'bath', 'baño', 'area', 'metro', 'm2', 'park', 'garage', 'estacion'].some(keyword => 
+              item.field.toLowerCase().includes(keyword) || 
+              (typeof item.value === 'string' && item.value.toLowerCase().includes(keyword))
+            );
+            
+            return `
+            <div class="field ${isRelevant ? 'highlight' : ''}">
+              <div class="field-name">${item.field}:</div>
+              <div class="field-value">${JSON.stringify(item.value)}</div>
+              <div class="field-type">(${item.type})</div>
+            </div>
+            `;
+          }).join('')}
+          
+          <p style="margin-top: 30px; color: #666; font-size: 0.9em;">
+            💡 Los campos resaltados en amarillo podrían contener información técnica relevante.
+          </p>
+        </div>
+      </body>
+      </html>
+      `;
+      
+      res.setHeader('Content-Type', 'text/html');
+      res.send(html);
+      
+    } catch (error: any) {
+      console.error('Error getting debug data (POST):', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Test AlterEstate read token only
   app.post('/api/test-alterestate-read-token', isAuthenticated, async (req: any, res) => {
     try {

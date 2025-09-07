@@ -1227,14 +1227,29 @@ export default function SettingsPage() {
                                 
                                 {/* Botón para ver todos los datos */}
                                 <div className="text-center">
-                                  <a 
-                                    href={`/api/debug-property-data/${readTokenTest.result.testResult.debugInfo.slug}?token=${encodeURIComponent(formData.alterEstateToken)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                  <button
+                                    onClick={async () => {
+                                      const response = await fetch('/api/debug-property-data', {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                          slug: readTokenTest.result.testResult.debugInfo.slug,
+                                          token: formData.alterEstateToken
+                                        })
+                                      });
+                                      const html = await response.text();
+                                      const newWindow = window.open('', '_blank');
+                                      if (newWindow) {
+                                        newWindow.document.write(html);
+                                        newWindow.document.close();
+                                      }
+                                    }}
                                     className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                                   >
                                     🔍 Ver Todos los Datos Raw (Nueva Ventana)
-                                  </a>
+                                  </button>
                                   <p className="text-xs text-gray-500 mt-2">
                                     Se abrirá una nueva ventana con todos los {readTokenTest.result.testResult.debugInfo.totalFields} campos disponibles
                                   </p>
