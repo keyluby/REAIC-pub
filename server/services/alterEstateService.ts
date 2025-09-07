@@ -339,7 +339,7 @@ export class AlterEstateService {
       
       // Primero obtener los edificios del desarrollo
       const buildingsResponse = await axios.get(
-        `${this.baseUrl}/developments/buildings/`,
+        `${this.baseUrl}/developments/get-buildings/`,
         {
           headers: {
             'aetoken': aeToken,
@@ -361,7 +361,7 @@ export class AlterEstateService {
       // Obtener las unidades del primer edificio (o de todos si hay varios)
       const buildingId = buildings[0].id;
       const unitsResponse = await axios.get(
-        `${this.baseUrl}/developments/units/`,
+        `${this.baseUrl}/developments/get-units/`,
         {
           headers: {
             'aetoken': aeToken,
