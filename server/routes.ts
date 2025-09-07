@@ -87,7 +87,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Endpoint para mostrar datos raw completos de una propiedad
-  app.get('/api/debug-property-data/:slug', async (req: Request, res: Response) => {
+  app.get('/api/debug-property-data/:slug', async (req: any, res: any) => {
     try {
       const { slug } = req.params;
       const alterEstateToken = req.query.token as string;
@@ -99,13 +99,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 [DEBUG] Getting raw data for property: ${slug}`);
       
       const { alterEstateService } = await import('./services/alterEstateService');
-      const propertyDetail = await alterEstateService.getPropertyDetail(alterEstateToken, slug);
+      const propertyDetail: any = await alterEstateService.getPropertyDetail(alterEstateToken, slug);
       
       // Organizar todos los campos de forma legible
       const allFields = Object.keys(propertyDetail).sort().map(key => ({
         field: key,
-        value: propertyDetail[key],
-        type: typeof propertyDetail[key]
+        value: (propertyDetail as any)[key],
+        type: typeof (propertyDetail as any)[key]
       }));
       
       const html = `
@@ -132,7 +132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="stats">
             <strong>Slug:</strong> ${slug}<br>
             <strong>Total de campos:</strong> ${allFields.length}<br>
-            <strong>Título:</strong> ${propertyDetail.name || propertyDetail.title || 'N/A'}
+            <strong>Título:</strong> ${(propertyDetail as any).name || (propertyDetail as any).title || 'N/A'}
           </div>
           
           <h2>📊 Todos los Campos Disponibles:</h2>
