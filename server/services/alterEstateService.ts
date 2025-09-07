@@ -284,7 +284,7 @@ export class AlterEstateService {
               area: this.extractAreaInfo(property),
               rooms: this.extractRoomsInfo(property),
               bathrooms: this.extractBathroomsInfo(property),
-              parking: property.parking || property.garages || 0,
+              parking: property.parkinglot || property.parking || property.garages || 0,
               features: Array.isArray(property.features) ? property.features : [],
               amenities: Array.isArray(property.amenities) ? property.amenities : [],
               projectInfo: null
@@ -292,10 +292,23 @@ export class AlterEstateService {
         // Información comercial
         commercialInfo: {
           price: property.price_formatted || property.price || 'Consultar precio',
+          salePrice: property.sale_price || null,
+          rentPrice: property.rent_price || null,
+          rentalPrice: property.rental_price || null,
+          furnishedPrice: property.furnished_price || null,
+          furnishedSalePrice: property.furnished_sale_price || null,
           currency: property.currency || 'RD$',
+          currencyFurnished: property.currency_furnished || property.currency || 'RD$',
+          currencyRent: property.currency_rent || property.currency || 'RD$',
+          currencySale: property.currency_sale || property.currency || 'RD$',
           priceType: property.price_type || '',
           publishedDate: property.created_at || property.publication_date || '',
-          status: property.status || property.operation || 'Disponible'
+          status: property.status || property.operation || 'Disponible',
+          // Condiciones de venta/alquiler
+          forRent: property.forRent || false,
+          forRental: property.forRental || false,
+          forSale: property.forSale || false,
+          furnished: property.furnished || false
         },
         // Ubicación completa
         locationInfo: {
@@ -320,6 +333,7 @@ export class AlterEstateService {
           images: this.organizePropertyImages(property.gallery_images || property.images || property.photos || []),
           featuredImage: property.featured_image || '',
           videos: Array.isArray(property.videos) ? property.videos : [],
+          youtubeVideo: property.youtubeiframe || '',
           virtualTour: property.virtual_tour_url || property.tour_360 || '',
           floorPlan: property.floor_plan || ''
         },
@@ -486,7 +500,13 @@ export class AlterEstateService {
       if (property.max_area) return `Hasta ${property.max_area} m²`;
     }
     
-    // Para propiedades individuales
+    // Para propiedades individuales - usar campos correctos de AlterEstate
+    if (property.property_area) {
+      const measurer = property.property_area_measurer || 'Mt2';
+      return `${property.property_area} ${measurer}`;
+    }
+    
+    // Fallback para otros campos de área
     return property.area || property.area_private || property.area_total || property.construction_area || 'No especificado';
   }
 
@@ -505,8 +525,8 @@ export class AlterEstateService {
       if (property.max_rooms) return `Hasta ${property.max_rooms}`;
     }
     
-    // Para propiedades individuales
-    return property.rooms || property.bedrooms || 0;
+    // Para propiedades individuales - usar campo correcto de AlterEstate
+    return property.room || property.rooms || property.bedrooms || 0;
   }
 
   /**
@@ -524,8 +544,8 @@ export class AlterEstateService {
       if (property.max_bathrooms) return `Hasta ${property.max_bathrooms}`;
     }
     
-    // Para propiedades individuales
-    return property.bathrooms || 0;
+    // Para propiedades individuales - usar campo correcto de AlterEstate
+    return property.bathroom || property.bathrooms || 0;
   }
 
   /**
