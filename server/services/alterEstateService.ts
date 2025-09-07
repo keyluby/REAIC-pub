@@ -484,14 +484,23 @@ export class AlterEstateService {
       
       // Si hay variations con precios, extraer rangos
       if (property.variations && Array.isArray(property.variations)) {
-        const prices = property.variations
-          .map(v => v.sale_price || v.rent_price || v.price)
-          .filter(p => p && p > 0);
+        const priceData = property.variations
+          .map(v => ({
+            price: v.sale_price || v.rent_price || v.price,
+            currency: v.currency_sale || v.currency_rent || v.currency || 'USD'
+          }))
+          .filter(p => p.price && p.price > 0);
         
-        if (prices.length > 0) {
+        if (priceData.length > 0) {
+          const prices = priceData.map(p => p.price);
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
-          const currency = property.currency || property.currency_sale || 'USD';
+          
+          // Usar la moneda de la variación que tiene el precio mínimo
+          const minPriceData = priceData.find(p => p.price === minPrice);
+          const currency = minPriceData?.currency || 'USD';
+          
+          console.log(`🏗️ [PRICE] Detected currency from variations: ${currency}`);
           
           if (minPrice === maxPrice) {
             const formatted = this.formatPrice(minPrice, currency);
