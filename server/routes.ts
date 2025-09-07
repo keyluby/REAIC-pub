@@ -86,6 +86,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Exchange Rate Management
+  app.get("/api/exchange-rate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const settings = await storage.getUserSettings(userId);
+      
+      res.json({
+        usdToRdRate: settings?.usdToRdRate || 60.0,
+        lastRateUpdate: settings?.lastRateUpdate || new Date(),
+      });
+    } catch (error) {
+      console.error("Error fetching exchange rate:", error);
+      res.status(500).json({ message: "Failed to fetch exchange rate" });
+    }
+  });
+
+  app.put("/api/exchange-rate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { usdToRdRate } = req.body;
+      
+      if (!usdToRdRate || usdToRdRate <= 0) {
+        return res.status(400).json({ message: "Invalid exchange rate" });
+      }
+      
+      // Get current settings and update only exchange rate fields
+      const currentSettings = await storage.getUserSettings(userId);
+      await storage.upsertUserSettings({
+        userId,
+        ...currentSettings,
+        usdToRdRate,
+        lastRateUpdate: new Date(),
+      });
+      
+      res.json({
+        success: true,
+        message: "Exchange rate updated successfully",
+        usdToRdRate,
+        lastRateUpdate: new Date(),
+      });
+    } catch (error) {
+      console.error("Error updating exchange rate:", error);
+      res.status(500).json({ message: "Failed to update exchange rate" });
+    }
+  });
+
+  // Currency Conversion Utility
+  app.post("/api/convert-currency", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, fromCurrency, toCurrency } = req.body;
+      
+      if (!amount || !fromCurrency || !toCurrency) {
+        return res.status(400).json({ message: "Missing required parameters" });
+      }
+      
+      const settings = await storage.getUserSettings(userId);
+      const exchangeRate = settings?.usdToRdRate || 60.0;
+      
+      let convertedAmount = amount;
+      
+      if (fromCurrency === 'USD' && toCurrency === 'DOP') {
+        convertedAmount = amount * exchangeRate;
+      } else if (fromCurrency === 'DOP' && toCurrency === 'USD') {
+        convertedAmount = amount / exchangeRate;
+      } else if (fromCurrency === toCurrency) {
+        convertedAmount = amount;
+      } else {
+        return res.status(400).json({ message: "Unsupported currency conversion" });
+      }
+      
+      res.json({
+        originalAmount: amount,
+        fromCurrency,
+        toCurrency,
+        convertedAmount: Math.round(convertedAmount * 100) / 100,
+        exchangeRate,
+      });
+    } catch (error) {
+      console.error("Error converting currency:", error);
+      res.status(500).json({ message: "Failed to convert currency" });
+    }
+  });
+
   // Endpoint para mostrar datos raw completos de una propiedad
   app.get('/api/debug-property-data/:slug', async (req: any, res: any) => {
     try {

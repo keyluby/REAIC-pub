@@ -61,6 +61,10 @@ export default function SettingsPage() {
     alterEstateCompanyId: '',
     realEstateWebsiteUrl: '',
     
+    // Currency Exchange Rate
+    usdToRdRate: 60.0,
+    lastRateUpdate: new Date(),
+    
     // Legacy fields
     bufferTime: 10,
     maxMessageChunks: 3,
@@ -357,6 +361,58 @@ export default function SettingsPage() {
       toast({
         title: "Error de Conexión",
         description: error.response?.data?.message || "No se pudo conectar con AlterEstate",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle exchange rate update
+  const handleUpdateExchangeRate = async () => {
+    if (!formData.usdToRdRate || formData.usdToRdRate <= 0) {
+      toast({
+        title: "Error",
+        description: "Por favor ingresa una tasa de cambio válida",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest('PUT', '/api/exchange-rate', {
+        usdToRdRate: formData.usdToRdRate
+      });
+
+      const responseData = await response.json();
+      
+      // Update the local formData with the new timestamp
+      setFormData(prev => ({
+        ...prev,
+        lastRateUpdate: new Date()
+      }));
+
+      toast({
+        title: "Tasa Actualizada",
+        description: `Nueva tasa: 1 USD = ${formData.usdToRdRate} RD$`,
+      });
+
+    } catch (error: any) {
+      console.error('Error updating exchange rate:', error);
+      
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Sesión Expirada",
+          description: "Redirigiendo al login...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+
+      toast({
+        title: "Error al Actualizar",
+        description: error.response?.data?.message || "No se pudo actualizar la tasa de cambio",
         variant: "destructive",
       });
     }
@@ -764,6 +820,67 @@ export default function SettingsPage() {
                             </span>
                           )}
                         </p>
+                      </div>
+                      
+                      {/* Currency Exchange Rate Configuration */}
+                      <div className="border-t pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <Label className="text-base font-medium">Tasa de Cambio USD/Peso</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Configura la tasa de cambio para conversiones automáticas de precios
+                            </p>
+                          </div>
+                          {formData.lastRateUpdate && (
+                            <Badge variant="outline" className="text-xs">
+                              Actualizada: {new Date(formData.lastRateUpdate).toLocaleDateString('es-ES')}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-end space-x-3">
+                          <div className="flex-1">
+                            <Label htmlFor="usdToRdRate">1 USD =</Label>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                id="usdToRdRate"
+                                type="number"
+                                min="1"
+                                max="200"
+                                step="0.01"
+                                value={formData.usdToRdRate}
+                                onChange={(e) => handleInputChange('usdToRdRate', parseFloat(e.target.value) || 60.0)}
+                                placeholder="60.00"
+                                data-testid="input-usd-to-rd-rate"
+                                className="w-24"
+                              />
+                              <span className="text-sm text-muted-foreground">RD$</span>
+                            </div>
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUpdateExchangeRate()}
+                            disabled={!formData.usdToRdRate || formData.usdToRdRate <= 0}
+                            data-testid="button-update-exchange-rate"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-1" />
+                            Actualizar Tasa
+                          </Button>
+                        </div>
+                        
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            <span className="font-medium">💡 Beneficio:</span> El asistente IA podrá mostrar propiedades en ambas monedas. 
+                            Si un cliente busca en dólares, incluirá automáticamente propiedades en pesos convertidas, y viceversa.
+                          </p>
+                          {formData.usdToRdRate && formData.usdToRdRate > 0 && (
+                            <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-mono">
+                              Ejemplos: RD$ 100,000 = US$ {(100000 / formData.usdToRdRate).toFixed(0)} | US$ 50,000 = RD$ {(50000 * formData.usdToRdRate).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
