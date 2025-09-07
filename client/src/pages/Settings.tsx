@@ -742,17 +742,27 @@ export default function SettingsPage() {
                       </div>
                       
                       <div>
-                        <Label htmlFor="realEstateWebsiteUrl">URL de tu Página Web <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="realEstateWebsiteUrl">
+                          URL de tu Página Web 
+                          {formData.alterEstateEnabled && <span className="text-red-500">*</span>}
+                          {!formData.alterEstateEnabled && <span className="text-gray-400">(Opcional)</span>}
+                        </Label>
                         <Input
                           id="realEstateWebsiteUrl"
                           value={formData.realEstateWebsiteUrl}
                           onChange={(e) => handleInputChange('realEstateWebsiteUrl', e.target.value)}
                           placeholder="https://tuinmobiliaria.com"
                           data-testid="input-real-estate-website"
+                          className={formData.alterEstateEnabled && !formData.realEstateWebsiteUrl.trim() ? 'border-red-300' : ''}
                         />
                         <p className="text-sm text-muted-foreground mt-1">
-                          <span className="font-medium text-amber-600">📋 Importante:</span> URL base donde tienes publicadas las propiedades. Se usa para generar enlaces directos usando el slug de AlterEstate.
-                          <br />Ejemplo: <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">https://tuinmobiliaria.com</span>
+                          <span className="font-medium text-amber-600">📋 Importante:</span> URL donde se crearán enlaces como /propiedad/[slug]/
+                          <br />Ejemplo: <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">https://tuinmobiliaria.com/propiedad/casa-123/</span>
+                          {formData.alterEstateEnabled && !formData.realEstateWebsiteUrl.trim() && (
+                            <span className="text-red-500 block mt-1">
+                              ⚠️ Campo obligatorio cuando AlterEstate está habilitado
+                            </span>
+                          )}
                         </p>
                       </div>
                     </>
@@ -1059,15 +1069,6 @@ export default function SettingsPage() {
                   
                   <h4 className="font-medium text-sm mb-2">🔐 API de Lectura</h4>
                   
-                  {/* DEBUG: Mostrar estructura de datos */}
-                  {!readTokenTest.hasError && readTokenTest.result && (
-                    <div className="mb-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                      <details>
-                        <summary>Debug - Estructura de respuesta</summary>
-                        <pre>{JSON.stringify(readTokenTest.result, null, 2)}</pre>
-                      </details>
-                    </div>
-                  )}
                   
                   {/* Mostrar contenido siempre que haya datos, sin importar la estructura */}
                   {!readTokenTest.hasError && readTokenTest.result && (readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo) && (

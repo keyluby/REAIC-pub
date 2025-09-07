@@ -130,7 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userWebsiteUrl = userSettings?.realEstateWebsiteUrl || '';
         
         // Usar extracción automática completa con URL personalizada
-        const completeProperty = await alterEstateService.getRandomPropertyComplete(alterEstateToken, userWebsiteUrl);
+        const completeProperty: any = await alterEstateService.getRandomPropertyComplete(alterEstateToken, userWebsiteUrl);
         
         if (!completeProperty) {
           return res.json({
