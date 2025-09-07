@@ -147,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const propertyRawData = {
           slug: completeProperty.metadata?.slug || completeProperty.slug,
           title: completeProperty.basicInfo?.title || completeProperty.name || completeProperty.title,
-          rawFieldsSample: Object.keys(completeProperty).slice(0, 20).map(key => `${key}: ${completeProperty[key]}`),
+          rawFieldsAll: Object.keys(completeProperty).map(key => `${key}: ${completeProperty[key]}`),
           totalFields: Object.keys(completeProperty).length,
           technicalDetailsExtracted: {
             area: completeProperty.technicalDetails?.area,

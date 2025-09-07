@@ -1200,10 +1200,10 @@ export default function SettingsPage() {
                               
                               <div>
                                 <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Total de Campos: {readTokenTest.result.testResult.debugInfo.totalFields}</div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Muestra de Campos (primeros 20):</div>
-                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border max-h-32 overflow-y-auto">
-                                  {readTokenTest.result.testResult.debugInfo.rawFieldsSample?.map((field: string, index: number) => (
-                                    <div key={index} className="py-0.5">{field}</div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Todos los Campos Disponibles:</div>
+                                <div className="text-xs font-mono bg-white dark:bg-gray-800 p-2 rounded border max-h-64 overflow-y-auto">
+                                  {readTokenTest.result.testResult.debugInfo.rawFieldsAll?.map((field: string, index: number) => (
+                                    <div key={index} className="py-0.5 border-b border-gray-100 dark:border-gray-700 last:border-0">{field}</div>
                                   ))}
                                 </div>
                               </div>
