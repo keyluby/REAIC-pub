@@ -205,45 +205,46 @@ export class AlterEstateService {
       
       const property = response.data;
       
-      // 🔍 DEBUG: Vamos a encontrar exactamente qué campos contienen la info técnica
-      console.log(`🔍 [ALTERESTATE DEBUG] BÚSQUEDA DE CAMPOS TÉCNICOS para ${propertySlug}:`);
-      console.log(`📊 TODA LA ESTRUCTURA:`, JSON.stringify(property, null, 2));
+      // 🔍 DEBUG: Mostrar campos clave para encontrar la información técnica
+      console.log(`\n🔍 ==================== ALTERESTATE DEBUG ====================`);
+      console.log(`🏠 PROPIEDAD: ${propertySlug}`);
+      console.log(`📋 TÍTULO: ${property.name || property.title || 'Sin título'}`);
+      console.log(`🔧 DEBUGGING CAMPOS TÉCNICOS...`);
       
-      // Buscar todos los campos que puedan contener información de habitaciones
-      const possibleRoomsFields = {};
-      const possibleBathroomsFields = {};
-      const possibleAreaFields = {};
-      const possibleParkingFields = {};
+      // Mostrar todos los campos de la propiedad de forma legible
+      const allFields = Object.keys(property).map(key => `${key}: ${property[key]}`);
+      console.log(`📊 CAMPOS DISPONIBLES (${allFields.length} total):`);
+      allFields.forEach((field, index) => {
+        if (index < 50) { // Limitar a primeros 50 campos para evitar truncado
+          console.log(`   ${index + 1}. ${field}`);
+        }
+      });
       
+      if (allFields.length > 50) {
+        console.log(`   ... y ${allFields.length - 50} campos más`);
+      }
+      
+      // Buscar campos sospechosos que puedan contener la información
+      const suspects = {};
       Object.keys(property).forEach(key => {
         const value = property[key];
         const keyLower = key.toLowerCase();
         
-        // Buscar campos relacionados con habitaciones
-        if (keyLower.includes('room') || keyLower.includes('bedroom') || keyLower.includes('habitacion')) {
-          possibleRoomsFields[key] = value;
-        }
-        
-        // Buscar campos relacionados con baños
-        if (keyLower.includes('bath') || keyLower.includes('baño')) {
-          possibleBathroomsFields[key] = value;
-        }
-        
-        // Buscar campos relacionados con área
-        if (keyLower.includes('area') || keyLower.includes('size') || keyLower.includes('metro') || keyLower.includes('m2')) {
-          possibleAreaFields[key] = value;
-        }
-        
-        // Buscar campos relacionados con estacionamiento
-        if (keyLower.includes('park') || keyLower.includes('garage') || keyLower.includes('estacion')) {
-          possibleParkingFields[key] = value;
+        // Campos que podrían tener info técnica
+        if (keyLower.includes('room') || keyLower.includes('bed') || keyLower.includes('hab') ||
+            keyLower.includes('bath') || keyLower.includes('baño') || keyLower.includes('wc') ||
+            keyLower.includes('area') || keyLower.includes('m2') || keyLower.includes('metro') ||
+            keyLower.includes('park') || keyLower.includes('garage') || keyLower.includes('estacion') ||
+            typeof value === 'number' && value > 0 && value < 20) {
+          suspects[key] = value;
         }
       });
       
-      console.log(`🏠 [ALTERESTATE DEBUG] Posibles campos de habitaciones:`, JSON.stringify(possibleRoomsFields, null, 2));
-      console.log(`🚿 [ALTERESTATE DEBUG] Posibles campos de baños:`, JSON.stringify(possibleBathroomsFields, null, 2));
-      console.log(`📐 [ALTERESTATE DEBUG] Posibles campos de área:`, JSON.stringify(possibleAreaFields, null, 2));
-      console.log(`🚗 [ALTERESTATE DEBUG] Posibles campos de estacionamiento:`, JSON.stringify(possibleParkingFields, null, 2));
+      console.log(`🎯 CAMPOS SOSPECHOSOS QUE PODRÍAN CONTENER INFO TÉCNICA:`);
+      Object.entries(suspects).forEach(([key, value]) => {
+        console.log(`   🔑 ${key}: ${value}`);
+      });
+      console.log(`🔍 ========================================================\n`);
       
       // Detectar si es un proyecto inmobiliario y obtener información adicional
       const isProject = this.isProjectProperty(property);
