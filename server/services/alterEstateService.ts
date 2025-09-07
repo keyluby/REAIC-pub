@@ -609,6 +609,77 @@ export class AlterEstateService {
   }
 
   /**
+   * Convertir precio entre monedas usando tasa de cambio del usuario
+   */
+  async convertCurrency(amount: number, fromCurrency: string, toCurrency: string, exchangeRate: number): Promise<number> {
+    if (!amount || amount <= 0) return 0;
+    if (fromCurrency === toCurrency) return amount;
+    
+    if (fromCurrency === 'USD' && toCurrency === 'DOP') {
+      return amount * exchangeRate;
+    } else if (fromCurrency === 'DOP' && toCurrency === 'USD') {
+      return amount / exchangeRate;
+    }
+    
+    return amount; // No conversion available
+  }
+
+  /**
+   * Expandir rango de precios para incluir conversiones automáticas
+   */
+  async expandPriceRangeWithConversions(
+    minPrice: number | null, 
+    maxPrice: number | null, 
+    searchCurrency: string,
+    exchangeRate: number = 60.0
+  ): Promise<{ expandedMinPrice: number | null, expandedMaxPrice: number | null }> {
+    
+    if (!minPrice && !maxPrice) {
+      return { expandedMinPrice: null, expandedMaxPrice: null };
+    }
+    
+    console.log(`💱 [CONVERSION] Original range: ${minPrice || 'null'}-${maxPrice || 'null'} ${searchCurrency}`);
+    console.log(`💱 [CONVERSION] Exchange rate: 1 USD = ${exchangeRate} DOP`);
+    
+    let expandedMinPrice = minPrice;
+    let expandedMaxPrice = maxPrice;
+    
+    if (searchCurrency === 'USD') {
+      // El usuario busca en USD, pero también queremos incluir propiedades en DOP
+      // Convertir el rango USD a DOP para ampliar la búsqueda
+      if (minPrice) {
+        const dopMin = await this.convertCurrency(minPrice, 'USD', 'DOP', exchangeRate);
+        expandedMinPrice = Math.min(minPrice, dopMin);
+        console.log(`💱 [CONVERSION] USD ${minPrice} = DOP ${dopMin}`);
+      }
+      
+      if (maxPrice) {
+        const dopMax = await this.convertCurrency(maxPrice, 'USD', 'DOP', exchangeRate);
+        expandedMaxPrice = Math.max(maxPrice, dopMax);
+        console.log(`💱 [CONVERSION] USD ${maxPrice} = DOP ${dopMax}`);
+      }
+    } else if (searchCurrency === 'DOP') {
+      // El usuario busca en DOP, pero también queremos incluir propiedades en USD
+      // Convertir el rango DOP a USD para ampliar la búsqueda
+      if (minPrice) {
+        const usdMin = await this.convertCurrency(minPrice, 'DOP', 'USD', exchangeRate);
+        expandedMinPrice = Math.min(minPrice, usdMin);
+        console.log(`💱 [CONVERSION] DOP ${minPrice} = USD ${usdMin}`);
+      }
+      
+      if (maxPrice) {
+        const usdMax = await this.convertCurrency(maxPrice, 'DOP', 'USD', exchangeRate);
+        expandedMaxPrice = Math.max(maxPrice, usdMax);
+        console.log(`💱 [CONVERSION] DOP ${maxPrice} = USD ${usdMax}`);
+      }
+    }
+    
+    console.log(`💱 [CONVERSION] Expanded range: ${expandedMinPrice || 'null'}-${expandedMaxPrice || 'null'}`);
+    
+    return { expandedMinPrice, expandedMaxPrice };
+  }
+
+  /**
    * Extraer información técnica de unidades de desarrollo
    */
   private extractTechnicalDetailsFromUnits(units: any[]): any {
