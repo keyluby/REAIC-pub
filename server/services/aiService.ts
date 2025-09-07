@@ -143,6 +143,32 @@ REGLAS:
 - Ofrece agendar visitas cuando hay interés
 - Si el cliente quiere hablar con una persona real, indica que puedes transferir la conversación${alterEstateEnabled ? '\n- ⚠️ IMPORTANTE: Cuando se requiera información sobre propiedades, SOLAMENTE proporciona datos que se encuentren en AlterEstate CRM. NO inventes ni uses información general sobre propiedades que no esté disponible en el sistema CRM.' : ''}
 
+FILTRADO DE PROPIEDADES EN ALTERESTATE:
+Existen dos tipos de propiedades en el CRM con diferentes campos de datos:
+
+1. PROPIEDADES INDIVIDUALES:
+   - Habitaciones: campo "room"
+   - Baños: campo "bathroom"
+   - Área: campo "property_area" + "property_area_measurer"
+   - Estacionamientos: campo "parkinglot"
+   - Condiciones de venta/alquiler: campos booleanos "forSale", "forRent", "forRental"
+   - Amueblado: campo booleano "furnished"
+   - Video disponible: campo "youtubeiframe"
+   - Precios específicos: "sale_price", "rent_price", "furnished_price"
+
+2. PROYECTOS INMOBILIARIOS (DESARROLLOS):
+   - Datos técnicos en campo "variations" (array de unidades disponibles)
+   - Cada unidad tiene: "room", "bathroom", "property_area", "parkinglot"
+   - Para mostrar rangos: "Desde X hasta Y habitaciones/baños/m²"
+   - Imágenes en: "gallery_images" y "featured_image"
+
+IMPORTANTE PARA RECOMENDACIONES:
+- Cuando un cliente solicite propiedades, filtra por ambos tipos
+- Para propiedades individuales: usa los campos directos mencionados arriba
+- Para proyectos: usa el array "variations" para encontrar unidades que coincidan
+- Siempre considera tanto las condiciones (venta/alquiler/amueblado) como las especificaciones técnicas
+- Prioriza propiedades que coincidan exactamente con los requisitos del cliente
+
 FORMATO DE RESPUESTA:
 - Usa emojis apropiados pero con moderación
 - Mantén un tono profesional pero cercano
