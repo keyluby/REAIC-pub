@@ -580,6 +580,270 @@ class EvolutionApiService {
     }
   }
 
+  async sendListMessage(instanceName: string, messageData: any): Promise<{ success: boolean; messageId?: string }> {
+    const instance = this.instances.get(instanceName);
+    
+    if (!instance || !instance.socket) {
+      throw new Error(`Instance ${instanceName} not found or not connected`);
+    }
+
+    if (instance.status !== 'CONNECTED') {
+      throw new Error(`Instance ${instanceName} is not connected. Status: ${instance.status}`);
+    }
+
+    try {
+      const formattedNumber = this.formatPhoneNumber(messageData.number);
+      console.log(`📋 Sending list message via ${instanceName} to ${formattedNumber}`);
+      
+      // Construir mensaje con lista para Baileys
+      const listMessage = {
+        text: messageData.listMessage.description,
+        footer: messageData.listMessage.footer || '',
+        title: messageData.listMessage.title,
+        buttonText: messageData.listMessage.buttonText,
+        sections: messageData.listMessage.sections.map((section: any) => ({
+          title: section.title,
+          rows: section.rows.map((row: any) => ({
+            title: row.title,
+            description: row.description,
+            rowId: row.rowId
+          }))
+        }))
+      };
+
+      const result = await instance.socket.sendMessage(formattedNumber, listMessage);
+      
+      return {
+        success: true,
+        messageId: result?.key?.id || undefined
+      };
+      
+    } catch (error) {
+      console.error(`❌ Error sending list message via ${instanceName}:`, error);
+      
+      // Fallback: enviar como mensaje de texto con numeración
+      try {
+        let fallbackText = `${messageData.listMessage.title}\n\n${messageData.listMessage.description}\n\n`;
+        
+        messageData.listMessage.sections.forEach((section: any, sectionIndex: number) => {
+          if (section.title) {
+            fallbackText += `**${section.title}**\n`;
+          }
+          section.rows.forEach((row: any, rowIndex: number) => {
+            const number = sectionIndex * 10 + rowIndex + 1;
+            fallbackText += `${number}. ${row.title}\n`;
+            if (row.description) {
+              fallbackText += `   ${row.description}\n`;
+            }
+          });
+          fallbackText += '\n';
+        });
+        
+        if (messageData.listMessage.footer) {
+          fallbackText += `\n${messageData.listMessage.footer}`;
+        }
+        
+        const result = await instance.socket.sendMessage(formattedNumber, { text: fallbackText });
+        return {
+          success: true,
+          messageId: result?.key?.id || undefined
+        };
+      } catch (fallbackError) {
+        console.error('Fallback text message also failed:', fallbackError);
+        throw error;
+      }
+    }
+  }
+
+  async sendEnhancedPropertyCarousel(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
+    console.log(`🏠 Sending enhanced property carousel via ${instanceName} to ${number} (${properties.length} properties)`);
+    
+    const messageIds: string[] = [];
+    
+    // Decidir formato según número de propiedades
+    if (properties.length <= 3) {
+      // Usar botones para pocas propiedades
+      return this.sendPropertyButtons(instanceName, number, properties);
+    } else {
+      // Usar lista interactiva para múltiples propiedades
+      return this.sendPropertyList(instanceName, number, properties);
+    }
+  }
+
+  private async sendPropertyButtons(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
+    const messageIds: string[] = [];
+    
+    for (const property of properties) {
+      try {
+        // Enviar imagen con caption mejorado
+        const caption = this.buildEnhancedPropertyCaption(property);
+        
+        const mediaResult = await this.sendMedia(
+          instanceName,
+          number,
+          property.imageUrl,
+          'image',
+          caption
+        );
+
+        if (mediaResult.messageId) messageIds.push(mediaResult.messageId);
+
+        // Enviar botones de acción
+        const buttonMessage = {
+          number: number,
+          buttonMessage: {
+            text: `¿Qué te gustaría hacer con esta propiedad?`,
+            buttons: [
+              {
+                buttonId: `details_${property.uid}`,
+                buttonText: '📋 Más Detalles'
+              },
+              {
+                buttonId: `photos_${property.uid}`,
+                buttonText: '📸 Ver Fotos'
+              },
+              {
+                buttonId: `contact_${property.uid}`,
+                buttonText: '🏪 Contactar Agente'
+              }
+            ]
+          }
+        };
+
+        const buttonResult = await this.sendButtonMessage(instanceName, buttonMessage);
+        if (buttonResult.messageId) messageIds.push(buttonResult.messageId);
+
+        // Pausa entre propiedades
+        if (properties.indexOf(property) < properties.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+
+      } catch (error) {
+        console.error(`Error sending property button card:`, error);
+      }
+    }
+
+    return { success: messageIds.length > 0, messageIds };
+  }
+
+  private async sendPropertyList(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
+    const messageIds: string[] = [];
+    
+    try {
+      // Mensaje introductorio
+      const introMessage = `🏠 *Propiedades Disponibles*\n\nEncontré ${properties.length} propiedades que coinciden con tu búsqueda. Selecciona una para ver más detalles:`;
+      
+      const intro = await this.sendMessage(instanceName, number, introMessage);
+      if (intro.messageId) messageIds.push(intro.messageId);
+
+      // Dividir propiedades en grupos de 10 (límite de WhatsApp)
+      const propertyChunks = this.chunkArray(properties, 10);
+      
+      for (let i = 0; i < propertyChunks.length; i++) {
+        const chunk = propertyChunks[i];
+        
+        const listMessage = {
+          number: number,
+          listMessage: {
+            title: `🏠 Propiedades ${i + 1}/${propertyChunks.length}`,
+            description: `Selecciona una propiedad para ver información detallada:`,
+            buttonText: "Ver Propiedades",
+            footer: "🏘️ Tu inmobiliaria de confianza",
+            sections: [
+              {
+                title: chunk.length > 1 ? "Propiedades Disponibles" : "Propiedad Disponible",
+                rows: chunk.map(property => ({
+                  title: this.truncateText(property.title, 24),
+                  description: `${property.price} • ${this.truncateText(property.description, 72)}`,
+                  rowId: `property_${property.uid}`
+                }))
+              }
+            ]
+          }
+        };
+
+        const listResult = await this.sendListMessage(instanceName, listMessage);
+        if (listResult.messageId) messageIds.push(listResult.messageId);
+
+        // Pausa entre chunks
+        if (i < propertyChunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
+    } catch (error) {
+      console.error('Error sending property list:', error);
+      // Fallback a carousel original
+      return this.sendPropertyCarousel(instanceName, number, properties);
+    }
+
+    return { success: messageIds.length > 0, messageIds };
+  }
+
+  private buildEnhancedPropertyCaption(property: any): string {
+    const propertyType = this.getPropertyTypeEmoji(property.title);
+    
+    let caption = `${propertyType} *${property.title}*\n\n`;
+    caption += `💰 *Precio*: ${property.price}\n`;
+    
+    // Extraer detalles técnicos de la descripción
+    const details = this.parsePropertyDetails(property.description);
+    if (details.rooms) caption += `🛏️ *Habitaciones*: ${details.rooms}\n`;
+    if (details.bathrooms) caption += `🚿 *Baños*: ${details.bathrooms}\n`;
+    if (details.location) caption += `📍 *Ubicación*: ${details.location}\n`;
+    
+    caption += `\n✨ *Destacados*:\n`;
+    caption += `• Propiedad verificada\n`;
+    caption += `• Documentos en orden\n`;
+    caption += `• Disponible para visita\n\n`;
+    caption += `🆔 *ID*: ${property.uid}`;
+
+    return caption;
+  }
+
+  private getPropertyTypeEmoji(title: string): string {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('casa')) return '🏠';
+    if (titleLower.includes('apartamento') || titleLower.includes('depto')) return '🏢';
+    if (titleLower.includes('villa')) return '🏘️';
+    if (titleLower.includes('penthouse')) return '🏙️';
+    if (titleLower.includes('local') || titleLower.includes('comercial')) return '🏪';
+    if (titleLower.includes('terreno') || titleLower.includes('lote')) return '🌾';
+    return '🏡';
+  }
+
+  private parsePropertyDetails(description: string): { rooms?: string; bathrooms?: string; location?: string } {
+    const details: { rooms?: string; bathrooms?: string; location?: string } = {};
+    
+    if (description.includes('hab')) {
+      const match = description.match(/(\d+)\s*hab/);
+      if (match) details.rooms = match[1];
+    }
+    
+    if (description.includes('baño')) {
+      const match = description.match(/(\d+)\s*baño/);
+      if (match) details.bathrooms = match[1];
+    }
+
+    // Extraer ubicación (después de •)
+    const locationMatch = description.split('•').pop()?.trim();
+    if (locationMatch) details.location = locationMatch;
+
+    return details;
+  }
+
+  private chunkArray<T>(array: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  private truncateText(text: string, maxLength: number): string {
+    return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+  }
+
   private formatPhoneNumber(number: string): string {
     // Limpiar número y agregar formato WhatsApp
     let cleaned = number.replace(/\D/g, '');
