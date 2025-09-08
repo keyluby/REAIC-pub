@@ -405,6 +405,116 @@ class EvolutionApiService {
   /**
    * Enviar mensaje con botones interactivos
    */
+  /**
+   * Enviar carrusel de propiedades (múltiples tarjetas con botones)
+   */
+  async sendPropertyCarousel(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
+    console.log(`🏠 Sending property carousel via ${instanceName} to ${number} (${properties.length} properties)`);
+    
+    const messageIds: string[] = [];
+    
+    // Enviar mensaje introductorio
+    try {
+      const introMessage = properties.length > 1 
+        ? `Aquí tienes ${properties.length} propiedades que podrían interesarte: 🏠✨`
+        : `Encontré esta propiedad que podría interesarte: 🏠✨`;
+        
+      const intro = await this.sendMessage(instanceName, number, introMessage);
+      if (intro.messageId) messageIds.push(intro.messageId);
+    } catch (error) {
+      console.error('Error sending intro message:', error);
+    }
+
+    // Enviar cada propiedad como tarjeta individual
+    for (let i = 0; i < Math.min(properties.length, 5); i++) {
+      const property = properties[i];
+      
+      try {
+        // Preparar el caption con información de la propiedad
+        const caption = `*${property.title}*\n\n` +
+          `💰 ${property.price}\n` +
+          `📍 ${property.description}\n\n` +
+          `🆔 ID: ${property.uid}`;
+
+        // Enviar imagen con caption
+        const mediaResult = await this.sendMedia(
+          instanceName,
+          number,
+          property.imageUrl,
+          'image',
+          caption
+        );
+
+        if (mediaResult.messageId) messageIds.push(mediaResult.messageId);
+
+        // Enviar mensaje con botones de acción
+        const buttonMessage = {
+          number: number,
+          buttonMessage: {
+            text: `¿Qué te gustaría hacer con esta propiedad?`,
+            buttons: [
+              {
+                buttonId: `details_${property.uid}`,
+                buttonText: '📋 Más Detalles'
+              },
+              {
+                buttonId: `photos_${property.uid}`,
+                buttonText: '📸 Ver Fotos'
+              },
+              {
+                buttonId: `contact_${property.uid}`,
+                buttonText: '👨‍💼 Contactar Agente'
+              }
+            ]
+          }
+        };
+
+        const buttonResult = await this.sendButtonMessage(instanceName, buttonMessage);
+        if (buttonResult.messageId) messageIds.push(buttonResult.messageId);
+
+        // Pequeña pausa entre tarjetas para mejor experiencia
+        if (i < properties.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+      } catch (error) {
+        console.error(`Error sending property card ${i + 1}:`, error);
+        
+        // Fallback: enviar como texto simple
+        try {
+          const fallbackText = `🏠 *${property.title}*\n\n` +
+            `💰 ${property.price}\n` +
+            `📍 ${property.description}\n` +
+            `🆔 ID: ${property.uid}\n\n` +
+            `🔗 Ver más: ${property.propertyUrl}`;
+
+          const fallbackResult = await this.sendMessage(instanceName, number, fallbackText);
+          if (fallbackResult.messageId) messageIds.push(fallbackResult.messageId);
+        } catch (fallbackError) {
+          console.error(`Fallback also failed for property ${i + 1}:`, fallbackError);
+        }
+      }
+    }
+
+    // Si hay más de 5 propiedades, mencionar que hay más disponibles
+    if (properties.length > 5) {
+      try {
+        const moreMessage = `... y ${properties.length - 5} propiedades más disponibles. ¿Te gustaría ver más opciones o refinar tu búsqueda? 🔍`;
+        const moreResult = await this.sendMessage(instanceName, number, moreMessage);
+        if (moreResult.messageId) messageIds.push(moreResult.messageId);
+      } catch (error) {
+        console.error('Error sending more properties message:', error);
+      }
+    }
+
+    console.log(`✅ Property carousel sent: ${messageIds.length} messages delivered`);
+
+    return {
+      success: messageIds.length > 0,
+      messageIds
+    };
+  }
+
   async sendButtonMessage(instanceName: string, messageData: any): Promise<{ success: boolean; messageId?: string }> {
     const instance = this.instances.get(instanceName);
     

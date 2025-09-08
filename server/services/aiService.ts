@@ -483,59 +483,195 @@ Responde en formato JSON:
         return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
       }
       
-      // Para múltiples propiedades, formatear con información directa y enlaces
+      // Para múltiples propiedades, usar formato carrusel
       if (properties.length >= 2) {
-        console.log(`📋 [AI] Found ${properties.length} properties, formatting with direct links`);
+        console.log(`🎠 [AI] Found ${properties.length} properties, formatting as carousel`);
         
-        // Formatear hasta 5 propiedades con información completa
-        const propertiesToShow = properties.slice(0, 5);
-        const propertiesText = propertiesToShow.map((property, index) => {
-          const salePrice = property.sale_price;
-          const currency = property.currency_sale || 'USD';
-          const formattedPrice = salePrice && typeof salePrice === 'number' 
-            ? `${currency} ${salePrice.toLocaleString()}`
-            : 'Precio a consultar';
+        // Format properties for carousel display
+        const carouselProperties = alterEstateService.formatPropertiesForCarousel(
+          properties.slice(0, 5), // Limit to 5 for better experience
+          context.realEstateWebsiteUrl
+        );
+
+        console.log(`🎠 [AI] Formatted ${carouselProperties.length} properties for carousel`);
+        
+        // Send properties as carousel via WhatsApp
+        try {
+          const { evolutionApiService } = await import('./evolutionApiService');
+          const instanceName = `instance_${context.userId}`;
           
-          const propertyUrl = alterEstateService.getPropertyPublicUrl(
-            property.slug, 
-            context.realEstateWebsiteUrl
+          // Extract phone number from conversationId - need to implement this properly
+          let phoneNumber = context.phoneNumber;
+          
+          // Try to extract from various sources
+          if (!phoneNumber) {
+            // If conversationId contains phone number (like "18292639382@s.whatsapp.net")
+            const phoneMatch = conversationId.match(/(\d{10,15})/);
+            phoneNumber = phoneMatch ? phoneMatch[1] : null;
+          }
+          
+          if (!phoneNumber) {
+            console.error('❌ [AI] No phone number available for carousel');
+            throw new Error('No phone number available');
+          }
+          
+          console.log(`📱 [AI] Sending carousel via ${instanceName} to ${phoneNumber}`);
+          
+          const result = await evolutionApiService.sendPropertyCarousel(
+            instanceName,
+            phoneNumber,
+            carouselProperties
           );
           
-          return `${index + 1}. 🏠 **${property.name}**
+          if (result.success) {
+            console.log(`✅ [AI] Carousel sent successfully with ${result.messageIds.length} messages`);
+            
+            // Update conversation context with a summary
+            const conversationContext = this.conversationContexts.get(conversationId) || [];
+            const contextSummary = `Se enviaron ${carouselProperties.length} propiedades en formato carrusel con fotos y botones interactivos:
+${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.uid})`).join('\n')}`;
+            
+            conversationContext.push(
+              { role: "user", content: message },
+              { role: "assistant", content: contextSummary }
+            );
+
+            // Keep only last 20 messages for context
+            if (conversationContext.length > 20) {
+              conversationContext.splice(0, conversationContext.length - 20);
+            }
+
+            this.conversationContexts.set(conversationId, conversationContext);
+            
+            // Return success message for internal tracking
+            return `Propiedades enviadas en formato carrusel: ${carouselProperties.length} opciones con fotos y botones`;
+          } else {
+            console.error('❌ [AI] Failed to send carousel, falling back to text format');
+            throw new Error('Carousel send failed');
+          }
+          
+        } catch (carouselError) {
+          console.error('❌ [AI] Error sending carousel:', carouselError);
+          console.log('🔄 [AI] Falling back to text format...');
+          
+          // Fallback to text format
+          const propertiesToShow = properties.slice(0, 5);
+          const propertiesText = propertiesToShow.map((property, index) => {
+            const salePrice = property.sale_price;
+            const currency = property.currency_sale || 'USD';
+            const formattedPrice = salePrice && typeof salePrice === 'number' 
+              ? `${currency} ${salePrice.toLocaleString()}`
+              : 'Precio a consultar';
+            
+            const propertyUrl = alterEstateService.getPropertyPublicUrl(
+              property.slug, 
+              context.realEstateWebsiteUrl
+            );
+            
+            return `${index + 1}. 🏠 **${property.name}**
 💰 ${formattedPrice}
 🏠 ${property.room || 'N/A'} hab • 🚿 ${property.bathroom || 'N/A'} baños
 📍 ${property.sector || 'Sector no especificado'}, ${property.city || 'Ciudad no especificada'}
 🔗 Ver detalles: ${propertyUrl}`;
-        }).join('\n\n');
+          }).join('\n\n');
 
-        const moreProperties = properties.length > 5 ? `\n\n➕ *Tengo ${properties.length - 5} propiedades adicionales que podrían interesarte.*` : '';
-        
-        if (isRefinement) {
-          return `Perfecto! 😊 Considerando tu presupuesto y las preferencias que me has mencionado, aquí tienes las mejores opciones:\n\n${propertiesText}${moreProperties}\n\n¿Te interesa alguna en particular? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
-        } else {
-          return `🏠 ¡Encontré ${properties.length} excelentes opciones para ti!\n\n${propertiesText}${moreProperties}\n\n¿Cuál te llama más la atención? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
+          const moreProperties = properties.length > 5 ? `\n\n➕ *Tengo ${properties.length - 5} propiedades adicionales que podrían interesarte.*` : '';
+          
+          if (isRefinement) {
+            return `Perfecto! 😊 Considerando tu presupuesto y las preferencias que me has mencionado, aquí tienes las mejores opciones:\n\n${propertiesText}${moreProperties}\n\n¿Te interesa alguna en particular? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
+          } else {
+            return `🏠 ¡Encontré ${properties.length} excelentes opciones para ti!\n\n${propertiesText}${moreProperties}\n\n¿Cuál te llama más la atención? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
+          }
         }
       }
       
-      // Para una sola propiedad, usar formato mejorado con enlace directo
-      const property = properties[0];
-      const propertyUrl = alterEstateService.getPropertyPublicUrl(
-        property.slug, 
+      // Para una sola propiedad, también usar formato carrusel para consistencia
+      console.log(`🎠 [AI] Found 1 property, formatting as single carousel card`);
+      
+      // Format single property for carousel display
+      const carouselProperties = alterEstateService.formatPropertiesForCarousel(
+        [properties[0]], 
         context.realEstateWebsiteUrl
       );
-      
-      // Formato mejorado para una sola propiedad con enlace directo
-      const salePrice = property.sale_price;
-      const currency = property.currency_sale || 'RD$';
-      const formattedPrice = salePrice && typeof salePrice === 'number' 
-        ? `${currency} ${salePrice.toLocaleString()}`
-        : 'Precio a consultar';
-      
-      const categoryName = property.category && typeof property.category === 'object' 
-        ? property.category.name 
-        : property.category || 'Tipo no especificado';
-      
-      const enhancedPropertyInfo = `🏠 **${property.name || 'Propiedad sin nombre'}**
+
+      // Send single property as carousel via WhatsApp
+      try {
+        const { evolutionApiService } = await import('./evolutionApiService');
+        const instanceName = `instance_${context.userId}`;
+        
+        // Extract phone number from conversationId
+        let phoneNumber = context.phoneNumber;
+        
+        // Try to extract from various sources
+        if (!phoneNumber) {
+          // If conversationId contains phone number (like "18292639382@s.whatsapp.net")
+          const phoneMatch = conversationId.match(/(\d{10,15})/);
+          phoneNumber = phoneMatch ? phoneMatch[1] : null;
+        }
+        
+        if (!phoneNumber) {
+          console.error('❌ [AI] No phone number available for carousel');
+          throw new Error('No phone number available');
+        }
+        
+        console.log(`📱 [AI] Sending single property carousel via ${instanceName} to ${phoneNumber}`);
+        
+        const result = await evolutionApiService.sendPropertyCarousel(
+          instanceName,
+          phoneNumber,
+          carouselProperties
+        );
+        
+        if (result.success) {
+          console.log(`✅ [AI] Single property carousel sent successfully`);
+          
+          // Update conversation context with a summary
+          const conversationContext = this.conversationContexts.get(conversationId) || [];
+          const property = carouselProperties[0];
+          const contextSummary = `Se envió 1 propiedad en formato carrusel con foto y botones interactivos: ${property.title} - ${property.price} (ID: ${property.uid})`;
+          
+          conversationContext.push(
+            { role: "user", content: message },
+            { role: "assistant", content: contextSummary }
+          );
+
+          // Keep only last 20 messages for context
+          if (conversationContext.length > 20) {
+            conversationContext.splice(0, conversationContext.length - 20);
+          }
+
+          this.conversationContexts.set(conversationId, conversationContext);
+          
+          // Return success message for internal tracking
+          return `Propiedad enviada en formato carrusel con foto y botones`;
+        } else {
+          console.error('❌ [AI] Failed to send single property carousel, falling back to text format');
+          throw new Error('Single property carousel send failed');
+        }
+        
+      } catch (carouselError) {
+        console.error('❌ [AI] Error sending single property carousel:', carouselError);
+        console.log('🔄 [AI] Falling back to text format for single property...');
+        
+        // Fallback to existing text format for single property
+        const property = properties[0];
+        const propertyUrl = alterEstateService.getPropertyPublicUrl(
+          property.slug, 
+          context.realEstateWebsiteUrl
+        );
+        
+        // Formato mejorado para una sola propiedad con enlace directo
+        const salePrice = property.sale_price;
+        const currency = property.currency_sale || 'RD$';
+        const formattedPrice = salePrice && typeof salePrice === 'number' 
+          ? `${currency} ${salePrice.toLocaleString()}`
+          : 'Precio a consultar';
+        
+        const categoryName = property.category && typeof property.category === 'object' 
+          ? property.category.name 
+          : property.category || 'Tipo no especificado';
+        
+        const enhancedPropertyInfo = `🏠 **${property.name || 'Propiedad sin nombre'}**
 
 💰 **Precio**: ${formattedPrice}
 🏢 **Tipo**: ${categoryName}
@@ -546,24 +682,24 @@ Responde en formato JSON:
 🔗 **Ver publicación completa**: ${propertyUrl}
 
 📝 **Descripción**: ${property.short_description || 'Información disponible en el enlace'}`;
-      
-      // Generar respuesta contextual usando IA
-      const conversationContext = this.conversationContexts.get(conversationId) || [];
-      const contextInstructions = isRefinement 
-        ? '\n\nINSTRUCCIONES ESPECIALES: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y presenta esta propiedad como resultado de haber considerado toda su información. Sé cálido, personal y muestra que has estado atento a sus necesidades. Tienes acceso a propiedades reales del CRM. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads.'
-        : '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
         
-      const systemPrompt = this.buildSystemPrompt(context) + contextInstructions;
-      
-      const propertyPrompt = isRefinement 
-        ? `El usuario ha estado refinando su búsqueda y ahora dice: "${message}"
+        // Generar respuesta contextual usando IA
+        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const contextInstructions = isRefinement 
+          ? '\n\nINSTRUCCIONES ESPECIALES: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y presenta esta propiedad como resultado de haber considerado toda su información. Sé cálido, personal y muestra que has estado atento a sus necesidades. Tienes acceso a propiedades reales del CRM. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads.'
+          : '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
+          
+        const systemPrompt = this.buildSystemPrompt(context) + contextInstructions;
+        
+        const propertyPrompt = isRefinement 
+          ? `El usuario ha estado refinando su búsqueda y ahora dice: "${message}"
 
 Basándome en toda nuestra conversación y sus criterios, he encontrado esta propiedad real que se ajusta perfectamente:
 
 ${enhancedPropertyInfo}
 
 Presenta esta propiedad reconociendo que recuerdas sus preferencias anteriores. Destaca cómo esta propiedad cumple con los criterios que ha mencionado, menciona que puede ver la publicación completa en el enlace proporcionado, y pregunta si le gustaría agendar una visita o ver más fotos.`
-        : `El usuario preguntó: "${message}"
+          : `El usuario preguntó: "${message}"
 
 He encontrado esta propiedad real disponible en nuestro CRM:
 
