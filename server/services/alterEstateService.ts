@@ -1417,20 +1417,17 @@ Responde en JSON:
     return properties.map(property => {
       // Manejar precio con lógica de negocio mejorada
       const salePrice = property.sale_price;
-      const rentPrice = property.rent_price;
-      const currency = property.currency_sale || property.currency_rent || 'RD$';
+      const currency = property.currency_sale || 'RD$';
       
       let formattedPrice = 'Precio a consultar';
       if (salePrice && typeof salePrice === 'number') {
         formattedPrice = `${currency} ${salePrice.toLocaleString()}`;
-      } else if (rentPrice && typeof rentPrice === 'number') {
-        formattedPrice = `${currency} ${rentPrice.toLocaleString()}/mes`;
       }
 
       // Mejorar información de habitaciones y baños
       const rooms = property.room || 0;
       const bathrooms = property.bathroom || 0;
-      const area = property.constructed_area || property.total_area;
+      const area = property.property_area;
       
       // Ubicación más específica
       const sector = property.sector || '';
@@ -1438,7 +1435,7 @@ Responde en JSON:
       const location = [sector, city].filter(Boolean).join(', ') || 'Ubicación no especificada';
       
       // Título más descriptivo
-      const propertyType = property.property_type?.name || property.ctype || 'Propiedad';
+      const propertyType = property.category?.name || 'Propiedad';
       const title = property.name || `${propertyType} en ${sector || city || 'Zona Exclusiva'}`;
 
       // Descripción enriquecida con emojis
