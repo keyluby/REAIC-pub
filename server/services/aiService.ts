@@ -716,12 +716,11 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         return 'Esta propiedad no tiene fotos disponibles en este momento. ¿Te gustaría que coordine una visita para que puedas verla en persona?';
       }
       
-      // This special message triggers the WhatsApp controller to send the actual photos
-      let response = `Te estoy preparando las fotos de esta propiedad. Un momento por favor...`;
+      // Send media through queue and return a simple confirmation
+      console.log(`📸 [AI] Media queued successfully for property ${propertySlug}`);
       
-      if (media.images.length > 0) {
-        response = `📸 Te estoy preparando ${media.images.length + (media.featuredImage ? 1 : 0)} fotos de esta propiedad. Un momento por favor...`;
-      }
+      // Return a simple response without promising specific number of photos
+      let response = `📸 Te envío las fotos de esta propiedad.`;
       
       if (media.virtualTour) {
         response += `\n\n🎥 También incluiré el tour virtual.`;

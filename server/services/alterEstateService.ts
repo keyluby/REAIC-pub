@@ -1390,7 +1390,7 @@ Responde en JSON:
     if (userWebsiteUrl) {
       // Asegurar que la URL termine sin slash
       const baseUrl = userWebsiteUrl.replace(/\/$/, '');
-      return `${baseUrl}/propiedades/${propertySlug}`;
+      return `${baseUrl}/propiedad/${propertySlug}`;
     }
     
     // Fallback: URL genérica de AlterEstate
