@@ -182,7 +182,7 @@ export class MessageBufferService {
   }
 
   /**
-   * Divide una respuesta larga en chunks inteligentes
+   * Divide una respuesta larga en chunks inteligentes preservando información inmobiliaria
    */
   private splitIntoChunks(response: string, maxChunks: number): string[] {
     const chunks: string[] = [];
@@ -192,6 +192,47 @@ export class MessageBufferService {
       return [response];
     }
 
+    // NUEVA LÓGICA: Detectar y preservar bloques de información inmobiliaria
+    const preservedBlocks = this.identifyPropertyBlocks(response);
+    
+    if (preservedBlocks.length > 0) {
+      console.log(`🏠 [CHUNK] Found ${preservedBlocks.length} property information blocks to preserve`);
+      
+      // Si tenemos bloques de propiedades, dividir respetando su integridad
+      let currentChunk = '';
+      let chunkCount = 0;
+      
+      for (const block of preservedBlocks) {
+        // Si agregar este bloque haría el chunk demasiado largo, crear nuevo chunk
+        if (currentChunk && (currentChunk.length + block.length) > 800) {
+          if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+            chunkCount++;
+          }
+          currentChunk = block;
+        } else {
+          currentChunk = currentChunk ? `${currentChunk}\n\n${block}` : block;
+        }
+        
+        // Respetar el límite máximo de chunks
+        if (chunkCount >= maxChunks - 1) {
+          // Concatenar el resto en el último chunk
+          const remainingBlocks = preservedBlocks.slice(preservedBlocks.indexOf(block) + 1);
+          if (remainingBlocks.length > 0) {
+            currentChunk = currentChunk + '\n\n' + remainingBlocks.join('\n\n');
+          }
+          break;
+        }
+      }
+      
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+      
+      return chunks;
+    }
+
+    // LÓGICA ORIGINAL para mensajes sin información inmobiliaria
     // Dividir por párrafos primero (saltos de línea dobles)
     const paragraphs = response.split(/\n\s*\n/).filter(p => p.trim());
     
@@ -233,6 +274,91 @@ export class MessageBufferService {
     }
     
     return chunks;
+  }
+
+  /**
+   * Identificar bloques de información inmobiliaria que deben mantenerse juntos
+   */
+  private identifyPropertyBlocks(response: string): string[] {
+    const blocks: string[] = [];
+    
+    // Patrones para identificar información inmobiliaria completa
+    const propertyPatterns = [
+      // Propiedades numeradas con emoji (ej: "1. 🏠 *Casa en...")
+      /\d+\.\s*[🏠🏡🏘️🏢🏰⛪🏛️]\s*[*"'`][^*"'`]+[*"'`][^]*?(?=\n\n\d+\.\s*[🏠🏡🏘️🏢🏰⛪🏛️]|\n\n\+|\n\n¿|$)/gm,
+      
+      // Detalles de propiedad con viñetas (- **Campo:** valor)
+      /(?:^|\n)(?:-\s*\*\*[^*]+\*\*[^\n]+\n?)+/gm,
+      
+      // Bloques que inician con "Aquí tienes" o "Claro" seguidos de información
+      /(?:Aquí tienes|Claro[^,]*,)[^]*?(?=\n\n(?:Aquí tienes|Claro|¿)|$)/gm,
+      
+      // Bloques de información inmobiliaria con URLs
+      /[🏠🏡🏘️🏢🏰⛪🏛️][^]*?https:\/\/[^\s]+[^]*?(?=\n\n|$)/gm
+    ];
+    
+    // Intentar con cada patrón
+    for (const pattern of propertyPatterns) {
+      const matches = response.match(pattern);
+      if (matches && matches.length > 0) {
+        console.log(`🔍 [CHUNK] Found ${matches.length} property blocks with specific pattern`);
+        return matches.map(match => match.trim()).filter(block => block.length > 0);
+      }
+    }
+    
+    // Fallback: Buscar párrafos con información inmobiliaria por palabras clave
+    const paragraphs = response.split(/\n\s*\n/).filter(p => p.trim());
+    const propertyKeywords = [
+      'habitaciones?', 'baños?', 'estacionamientos?', 'área', 'm²', 'mt2',
+      'precio', 'US\\$', 'RD\\$', 'venta', 'alquiler', 'amueblado',
+      'Ver detalles:', 'https://', 'Autopista', 'Santo Domingo', 'Punta Cana',
+      '\\*\\*[^*]+\\*\\*', // Cualquier cosa en negritas
+      '🏠|🏡|🏘️|🏢|🏰|⛪|🏛️' // Emojis de propiedades
+    ];
+    
+    const keywordPattern = new RegExp(propertyKeywords.join('|'), 'i');
+    
+    // Agrupar párrafos consecutivos que contengan información inmobiliaria
+    let currentBlock = '';
+    let foundKeywords = false;
+    
+    for (let i = 0; i < paragraphs.length; i++) {
+      const paragraph = paragraphs[i];
+      const hasKeywords = keywordPattern.test(paragraph);
+      
+      if (hasKeywords) {
+        currentBlock = currentBlock ? `${currentBlock}\n\n${paragraph}` : paragraph;
+        foundKeywords = true;
+      } else if (foundKeywords) {
+        // Terminar bloque actual y guardarlo
+        if (currentBlock.trim()) {
+          blocks.push(currentBlock.trim());
+        }
+        currentBlock = '';
+        foundKeywords = false;
+        
+        // Si no es inmobiliario, guardarlo como bloque separado
+        if (paragraph.trim()) {
+          blocks.push(paragraph.trim());
+        }
+      } else {
+        // Párrafo regular sin información inmobiliaria
+        if (paragraph.trim()) {
+          blocks.push(paragraph.trim());
+        }
+      }
+    }
+    
+    // Guardar el último bloque si queda
+    if (currentBlock.trim()) {
+      blocks.push(currentBlock.trim());
+    }
+    
+    if (blocks.length > 0) {
+      console.log(`🔍 [CHUNK] Found ${blocks.length} blocks (${blocks.filter(b => keywordPattern.test(b)).length} contain property info)`);
+    }
+    
+    return blocks;
   }
 
   /**
