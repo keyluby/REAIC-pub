@@ -225,7 +225,7 @@ export class AlterEstateService {
       }
       
       // Buscar campos sospechosos que puedan contener la información
-      const suspects = {};
+      const suspects: { [key: string]: any } = {};
       Object.keys(property).forEach(key => {
         const value = property[key];
         const keyLower = key.toLowerCase();
@@ -485,19 +485,19 @@ export class AlterEstateService {
       // Si hay variations con precios, extraer rangos
       if (property.variations && Array.isArray(property.variations)) {
         const priceData = property.variations
-          .map(v => ({
+          .map((v: any) => ({
             price: v.sale_price || v.rent_price || v.price,
             currency: v.currency_sale || v.currency_rent || v.currency || 'USD'
           }))
-          .filter(p => p.price && p.price > 0);
+          .filter((p: any) => p.price && p.price > 0);
         
         if (priceData.length > 0) {
-          const prices = priceData.map(p => p.price);
+          const prices = priceData.map((p: any) => p.price);
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
           
           // Usar la moneda de la variación que tiene el precio mínimo
-          const minPriceData = priceData.find(p => p.price === minPrice);
+          const minPriceData = priceData.find((p: any) => p.price === minPrice);
           const currency = minPriceData?.currency || 'USD';
           
           console.log(`🏗️ [PRICE] Detected currency from variations: ${currency}`);
