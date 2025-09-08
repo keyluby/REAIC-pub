@@ -179,6 +179,13 @@ CONVERSIÓN AUTOMÁTICA DE PRECIOS (SOLO PARA FILTRADO):
 - Ejemplo de presentación: Una propiedad de RD$ 4,500,000 se muestra como "RD$ 4,500,000" (precio original), NO convertida a USD
 - Esto maximiza opciones sin alterar la información original de cada propiedad
 
+CAPACIDADES DE IMÁGENES:
+- SÍ PUEDES enviar fotos de propiedades cuando el cliente las solicite
+- Tienes acceso a la galería de imágenes de cada propiedad a través de AlterEstate
+- Cuando alguien pida fotos, puedes obtenerlas y enviarlas automáticamente
+- No digas "no puedo enviar fotos" - en su lugar, menciona que las estás preparando
+- Si no tienes la propiedad específica, pregunta cuál le interesa o sugiere hacer una búsqueda
+
 FORMATO DE RESPUESTA:
 - Usa emojis apropiados pero con moderación
 - Mantén un tono profesional pero cercano
@@ -623,7 +630,13 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       /podria?\s+ver\s+(foto|imagen)/i,
       /puedes?\s+(mostrar|enviar|mandar)\s+(foto|imagen)/i,
       /ver\s+(foto|imagen).*?(del?|de\s+la?)\s+(que|propiedad|casa|apartament)/i,
-      /foto.*?(del?|de\s+la?)\s+(que|propiedad|casa|apartament)/i
+      /foto.*?(del?|de\s+la?)\s+(que|propiedad|casa|apartament)/i,
+      // NUEVOS PATRONES más flexibles para solicitudes en contexto
+      /puedes?\s+(enviar|mandar|mostrar).*?(foto|imagen)/i,
+      /tienes?\s+(foto|imagen)/i,
+      /^(foto|imagen|ver)/i, // Mensajes que empiezan con foto/imagen/ver
+      /(enviar|mandar|mostrar).*?(foto|imagen)/i,
+      /ver\s+como\s+(es|está|se\s+ve)/i
     ];
     
     const hasMediaPattern = mediaPatterns.some(pattern => pattern.test(message));
@@ -631,7 +644,16 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
     console.log(`🔍 [AI] Media detection for: "${message}"`);
     console.log(`📸 [AI] Has media keyword: ${hasMediaKeyword}, property keyword: ${hasPropertyKeyword}, pattern: ${hasMediaPattern}`);
     
-    return hasMediaPattern || (hasMediaKeyword && hasPropertyKeyword);
+    // LÓGICA MEJORADA: También considerar solicitudes genéricas cuando existe contexto
+    // Si hay una palabra clave de media Y el mensaje es corto (sugiere que está en contexto)
+    const isShortMediaRequest = hasMediaKeyword && message.trim().length <= 30;
+    
+    // Si es una solicitud específica con patrón O si tiene keywords relevantes
+    const isMediaRequest = hasMediaPattern || (hasMediaKeyword && hasPropertyKeyword) || isShortMediaRequest;
+    
+    console.log(`📸 [AI] Short media request: ${isShortMediaRequest}, Final result: ${isMediaRequest}`);
+    
+    return isMediaRequest;
   }
 
   /**
