@@ -768,30 +768,8 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
 
       this.conversationContexts.set(conversationId, conversationContext);
       
-        const response = await this.openaiClient.chat.completions.create({
-          model: "gpt-4o",
-          messages: messages as any,
-          max_tokens: 600,
-          temperature: 0.7,
-        });
-
-        const aiResponse = response.choices[0].message.content || enhancedPropertyInfo;
-        
-        // Update conversation context
-        conversationContext.push(
-          { role: "user", content: message },
-          { role: "assistant", content: aiResponse }
-        );
-
-        // Keep only last 20 messages for context
-        if (conversationContext.length > 20) {
-          conversationContext.splice(0, conversationContext.length - 20);
-        }
-
-        this.conversationContexts.set(conversationId, conversationContext);
-        
-        return aiResponse;
-      }
+      return aiResponse;
+    }
       
     } catch (error) {
       console.error('❌ [AI] Error in property search:', error);
