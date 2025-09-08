@@ -459,28 +459,61 @@ Responde en formato JSON:
       );
       
       if (properties.length === 0) {
-        // No se encontraron propiedades, dar respuesta personalizada considerando el historial
+        console.log(`❌ [AI] No properties found, providing helpful suggestions`);
+        
+        // Analizar los criterios de búsqueda para dar sugerencias específicas
+        const searchAnalysis = await this.analyzeFailedSearch(searchQuery, context);
+        
+        // Dar respuesta personalizada considerando el historial y sugerir alternativas específicas
         const conversationContext = this.conversationContexts.get(conversationId) || [];
+        
+        const helpfulSuggestions = this.generateAlternativeSuggestions(searchQuery, searchAnalysis);
+        
         const contextNote = isRefinement 
-          ? '\n\nNOTA: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y sugiere alternativas basadas en su historial de búsqueda. Sé cálido y personal.'
-          : '\n\nNOTA: No se encontraron propiedades que coincidan con los criterios. Sugiere ajustar la búsqueda o recomendar áreas alternativas.';
+          ? '\n\nNOTA: El cliente está refinando una búsqueda anterior pero no hay propiedades que coincidan exactamente. Reconoce que recuerdas sus preferencias previas, explica por qué no hay coincidencias exactas, y sugiere alternativas útiles basadas en su historial. Mantén un tono cálido y personalizado. Ofrece opciones como: aumentar presupuesto, considerar áreas cercanas, o cambiar algunos criterios específicos.'
+          : '\n\nNOTA: No se encontraron propiedades que coincidan exactamente con los criterios. Sé empático y específico sobre por qué no hay resultados, y proporciona sugerencias constructivas para encontrar opciones. Ofrece ajustar presupuesto, considerar áreas alternativas, o modificar criterios específicos. Siempre mantén esperanza de ayudar a encontrar algo.';
           
         const systemPrompt = this.buildSystemPrompt(context) + contextNote;
         
+        const detailedPrompt = `El usuario busca: "${message}"
+        
+Los criterios de búsqueda analizados son:
+${searchAnalysis}
+
+Sugerencias específicas para el cliente:
+${helpfulSuggestions}
+
+Responde de manera empática y constructiva. Explica brevemente por qué no hay resultados exactos y ofrece alternativas específicas y útiles. Pregunta qué prefiere hacer: ajustar criterios, ver áreas alternativas, o cambiar el presupuesto.`;
+
         const messages = [
           { role: "system", content: systemPrompt },
           ...conversationContext,
-          { role: "user", content: message }
+          { role: "user", content: detailedPrompt }
         ];
 
         const response = await this.openaiClient.chat.completions.create({
           model: "gpt-4o",
           messages: messages as any,
-          max_tokens: 300,
+          max_tokens: 400,
           temperature: 0.7,
         });
 
-        return response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios. ¿Te gustaría ajustar tu búsqueda?';
+        const aiResponse = response.choices[0].message.content || 'No encontré propiedades disponibles con esos criterios exactos, pero puedo ayudarte a encontrar opciones similares. ¿Te gustaría ajustar algún criterio de tu búsqueda?';
+        
+        // Update conversation context
+        conversationContext.push(
+          { role: "user", content: message },
+          { role: "assistant", content: aiResponse }
+        );
+
+        // Keep only last 20 messages for context
+        if (conversationContext.length > 20) {
+          conversationContext.splice(0, conversationContext.length - 20);
+        }
+
+        this.conversationContexts.set(conversationId, conversationContext);
+        
+        return aiResponse;
       }
       
       // Para múltiples propiedades, usar formato carrusel
@@ -735,8 +768,30 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
 
       this.conversationContexts.set(conversationId, conversationContext);
       
-      console.log(`✅ [AI] Property search response generated with ${properties.length} real properties`);
-      return aiResponse;
+        const response = await this.openaiClient.chat.completions.create({
+          model: "gpt-4o",
+          messages: messages as any,
+          max_tokens: 600,
+          temperature: 0.7,
+        });
+
+        const aiResponse = response.choices[0].message.content || enhancedPropertyInfo;
+        
+        // Update conversation context
+        conversationContext.push(
+          { role: "user", content: message },
+          { role: "assistant", content: aiResponse }
+        );
+
+        // Keep only last 20 messages for context
+        if (conversationContext.length > 20) {
+          conversationContext.splice(0, conversationContext.length - 20);
+        }
+
+        this.conversationContexts.set(conversationId, conversationContext);
+        
+        return aiResponse;
+      }
       
     } catch (error) {
       console.error('❌ [AI] Error in property search:', error);
@@ -986,6 +1041,97 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       console.error('❌ [AI] Error processing property details request:', error);
       return 'Disculpa, tuve un problema procesando tu solicitud. ¿Podrías intentar de nuevo?';
     }
+  }
+
+  /**
+   * Analizar una búsqueda fallida para entender por qué no hay resultados
+   */
+  private async analyzeFailedSearch(searchQuery: string, context: any): Promise<string> {
+    try {
+      console.log(`🔍 [AI] Analyzing failed search: "${searchQuery}"`);
+      
+      // Extraer criterios específicos de la búsqueda
+      const analysis = [];
+      
+      // Analizar ubicación
+      const locationKeywords = ['santiago', 'santo domingo', 'punta cana', 'zona colonial', 'bella vista', 'cacique'];
+      const mentionedLocation = locationKeywords.find(loc => searchQuery.toLowerCase().includes(loc));
+      if (mentionedLocation) {
+        analysis.push(`📍 Ubicación solicitada: ${mentionedLocation}`);
+      }
+      
+      // Analizar presupuesto
+      const budgetMatches = searchQuery.match(/(\d+)\s*(dolar|dollar|usd|rd\$|peso)/i);
+      if (budgetMatches) {
+        analysis.push(`💰 Presupuesto mencionado: ${budgetMatches[0]}`);
+      }
+      
+      // Analizar habitaciones
+      const roomMatches = searchQuery.match(/(\d+)\s*(hab|habitacion|bedroom)/i);
+      if (roomMatches) {
+        analysis.push(`🏠 Habitaciones solicitadas: ${roomMatches[0]}`);
+      }
+      
+      // Analizar tipo de operación
+      const isRental = searchQuery.toLowerCase().includes('alquil') || searchQuery.toLowerCase().includes('rent');
+      const isSale = searchQuery.toLowerCase().includes('compr') || searchQuery.toLowerCase().includes('venta') || searchQuery.toLowerCase().includes('sale');
+      if (isRental) {
+        analysis.push(`🔑 Tipo: Alquiler`);
+      } else if (isSale) {
+        analysis.push(`🏷️ Tipo: Venta`);
+      }
+      
+      return analysis.length > 0 ? analysis.join('\n') : 'Criterios de búsqueda generales';
+      
+    } catch (error) {
+      console.error('❌ [AI] Error analyzing failed search:', error);
+      return 'Búsqueda específica solicitada';
+    }
+  }
+
+  /**
+   * Generar sugerencias alternativas específicas
+   */
+  private generateAlternativeSuggestions(searchQuery: string, analysis: string): string {
+    const suggestions = [];
+    
+    // Sugerencias basadas en ubicación
+    if (searchQuery.toLowerCase().includes('santiago')) {
+      suggestions.push('• Considera también áreas cercanas como Licey o Tamboril');
+      suggestions.push('• Explora sectores populares como Gurabo o Villa Bisonó');
+    }
+    
+    if (searchQuery.toLowerCase().includes('santo domingo')) {
+      suggestions.push('• Revisa sectores adyacentes como Bella Vista, Cacique, o Hidalgos');
+      suggestions.push('• Considera el Distrito Nacional o zonas como Gazcue');
+    }
+    
+    // Sugerencias basadas en presupuesto
+    const budgetMatch = searchQuery.match(/(\d+)/);
+    if (budgetMatch) {
+      const budget = parseInt(budgetMatch[1]);
+      if (budget < 1000) {
+        suggestions.push(`• Considera incrementar el presupuesto ligeramente para más opciones`);
+        suggestions.push(`• Revisa propiedades en sectores emergentes con mejor precio`);
+      }
+    }
+    
+    // Sugerencias basadas en habitaciones
+    const roomMatch = searchQuery.match(/(\d+)\s*hab/);
+    if (roomMatch) {
+      const rooms = parseInt(roomMatch[1]);
+      if (rooms >= 3) {
+        suggestions.push(`• Considera propiedades de ${rooms - 1} habitaciones más espaciosas`);
+        suggestions.push(`• Revisa casas en lugar de apartamentos para más espacio`);
+      }
+    }
+    
+    // Sugerencias generales
+    suggestions.push('• Amplía el rango de precios para ver más opciones');
+    suggestions.push('• Considera propiedades en diferentes sectores de la misma ciudad');
+    suggestions.push('• Revisa tanto apartamentos como casas para más variedad');
+    
+    return suggestions.slice(0, 4).join('\n'); // Limitar a 4 sugerencias para no saturar
   }
 
   /**
