@@ -366,7 +366,10 @@ Posibles intenciones:
 - "complaint": queja o problema
 - "goodbye": despedida
 
-IMPORTANTE: Si el contexto muestra búsquedas previas de propiedades y el mensaje actual proporciona información adicional (presupuesto, preferencias, etc.), usa "refine_search".
+IMPORTANTE: 
+- Si el contexto muestra búsquedas previas de propiedades y el mensaje actual proporciona información adicional (presupuesto, preferencias, etc.), usa "refine_search".
+- Si el mensaje solicita más información, detalles, descripción o características específicas de una propiedad ya mostrada, usa "property_details".
+- Patrones para "property_details": "más información", "detalles", "descripción", "cuéntame más", "del que tiene", "de la que tiene", "información adicional"
 
 Responde en formato JSON:
 {
@@ -766,7 +769,18 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       }
       
       if (!propertySlug) {
-        return 'Para darte más información específica, ¿podrías mencionar el ID de la propiedad que te interesa? O puedo hacer una nueva búsqueda si me das algunos criterios.';
+        // Check if user is referring to a property by description/feature from context
+        const matchResult = await this.findPropertiesByDescription(message, conversationId, context);
+        
+        if (matchResult.matches.length === 1) {
+          propertySlug = matchResult.matches[0].slug;
+          console.log(`🏠 [AI] Single property found by contextual description: ${propertySlug}`);
+        } else if (matchResult.matches.length > 1) {
+          console.log(`⚠️ [AI] Multiple properties match the description, asking for clarification`);
+          return this.buildClarificationResponse(matchResult.matches, matchResult.feature);
+        } else {
+          return 'Para darte más información específica, ¿podrías mencionar el ID de la propiedad que te interesa? O puedo hacer una nueva búsqueda si me das algunos criterios.';
+        }
       }
       
       // Get detailed property information from AlterEstate
@@ -836,6 +850,183 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       console.error('❌ [AI] Error processing property details request:', error);
       return 'Disculpa, tuve un problema procesando tu solicitud. ¿Podrías intentar de nuevo?';
     }
+  }
+
+  /**
+   * Construir respuesta de clarificación cuando hay múltiples propiedades que coinciden
+   */
+  private buildClarificationResponse(matches: any[], feature: string): string {
+    console.log(`🔍 [AI] Building clarification response for ${matches.length} matches with feature: ${feature}`);
+    
+    let response = `Encontré ${matches.length} propiedades que tienen ${feature}. ¿Podrías ser más específico sobre cuál te interesa?\n\n`;
+    
+    matches.forEach((match, index) => {
+      // Extract basic info from the property context
+      const locationMatch = match.content.match(/(santo domingo|punta cana|santiago|[^,\n]+),?\s+([^,\n]+)/i);
+      const priceMatch = match.content.match(/(us\$|rd\$|\$)\s*[\d,]+/i);
+      const roomMatch = match.content.match(/(\d+)\s*(hab|habitacion)/i);
+      
+      let description = `${index + 1}. `;
+      if (locationMatch) {
+        description += `📍 ${locationMatch[0]}`;
+      }
+      if (priceMatch) {
+        description += ` - 💰 ${priceMatch[0]}`;
+      }
+      if (roomMatch) {
+        description += ` - 🏠 ${roomMatch[0]}`;
+      }
+      description += ` (ID: ${match.slug})`;
+      
+      response += description + '\n';
+    });
+    
+    response += '\nPuedes responder con el número de la propiedad o mencionando alguna característica específica adicional.';
+    
+    return response;
+  }
+
+  /**
+   * Buscar propiedades por descripción/características en el contexto de la conversación
+   */
+  private async findPropertiesByDescription(message: string, conversationId: string, context: any): Promise<{matches: any[], feature: string}> {
+    try {
+      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      console.log(`🔍 [AI] Searching for property by description: "${message}"`);
+      
+      // Extract properties mentioned in recent conversation context
+      const recentProperties: any[] = [];
+      
+      for (let i = conversationContext.length - 1; i >= 0 && i >= conversationContext.length - 10; i--) {
+        const msg = conversationContext[i];
+        if (msg.role === 'assistant' && msg.content) {
+          // Look for property IDs and associated information
+          const propertyMatches = msg.content.match(/\*\*ID\*\*:\s*([A-Z0-9]{8,12})[^]*?(?=\*\*ID\*\*|$)/g);
+          if (propertyMatches) {
+            for (const match of propertyMatches) {
+              const idMatch = match.match(/\*\*ID\*\*:\s*([A-Z0-9]{8,12})/);
+              if (idMatch) {
+                const propertyId = idMatch[1];
+                recentProperties.push({
+                  slug: propertyId,
+                  content: match.toLowerCase()
+                });
+              }
+            }
+          }
+          
+          // Also look for properties in URLs (as backup)
+          const urlMatches = msg.content.match(/https:\/\/[^\s]+\/propiedad\/([^\/\s]+)/g);
+          if (urlMatches) {
+            for (const urlMatch of urlMatches) {
+              const slugMatch = urlMatch.match(/\/propiedad\/([^\/\s]+)/);
+              if (slugMatch) {
+                const slug = slugMatch[1];
+                const contextAround = this.getContextAroundUrl(msg.content, urlMatch);
+                recentProperties.push({
+                  slug: slug,
+                  content: contextAround.toLowerCase()
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`🏠 [AI] Found ${recentProperties.length} recent properties in context`);
+      
+      if (recentProperties.length === 0) {
+        return null;
+      }
+      
+      // Extract key features from user's message
+      const messageLower = message.toLowerCase();
+      const features = this.extractPropertyFeatures(messageLower);
+      
+      console.log(`🔍 [AI] Extracted features from message:`, features);
+      
+      // Find matching properties
+      const matches = recentProperties.filter(property => {
+        return features.some(feature => property.content.includes(feature));
+      });
+      
+      console.log(`🎯 [AI] Found ${matches.length} matching properties`);
+      
+      const mainFeature = features.length > 0 ? features[0] : 'la característica mencionada';
+      
+      return {
+        matches: matches,
+        feature: mainFeature
+      };
+      
+    } catch (error) {
+      console.error('❌ [AI] Error finding property by description:', error);
+      return { matches: [], feature: '' };
+    }
+  }
+
+  /**
+   * Extraer características/features de un mensaje
+   */
+  private extractPropertyFeatures(message: string): string[] {
+    const features: string[] = [];
+    
+    // Features relacionadas con espacios exteriores
+    if (message.includes('terraza') || message.includes('terrace')) {
+      features.push('terraza', 'terrace');
+    }
+    if (message.includes('balcon') || message.includes('balcón')) {
+      features.push('balcon', 'balcón');
+    }
+    if (message.includes('jardín') || message.includes('jardin')) {
+      features.push('jardín', 'jardin');
+    }
+    
+    // Features relacionadas con número de habitaciones
+    const roomMatches = message.match(/(\d+)\s*(hab|habitacion|habitaciones|bedroom)/);
+    if (roomMatches) {
+      features.push(`${roomMatches[1]} hab`, `${roomMatches[1]} habitacion`);
+    }
+    
+    // Features relacionadas con precio
+    const priceMatches = message.match(/(us\$|rd\$|\$)\s*[\d,]+/);
+    if (priceMatches) {
+      features.push(priceMatches[0]);
+    }
+    
+    // Features relacionadas con ubicación
+    const locations = ['santo domingo', 'punta cana', 'santiago', 'zona colonial', 'bella vista', 'cacique', 'hidalgos', 'monumenta'];
+    for (const location of locations) {
+      if (message.includes(location)) {
+        features.push(location);
+      }
+    }
+    
+    // Features relacionadas con tipo
+    if (message.includes('apartamento') || message.includes('apartment')) {
+      features.push('apartamento', 'apartment');
+    }
+    if (message.includes('casa') || message.includes('house')) {
+      features.push('casa', 'house');
+    }
+    if (message.includes('villa')) {
+      features.push('villa');
+    }
+    
+    return features;
+  }
+
+  /**
+   * Obtener contexto alrededor de una URL en un texto
+   */
+  private getContextAroundUrl(content: string, url: string): string {
+    const urlIndex = content.indexOf(url);
+    if (urlIndex === -1) return content;
+    
+    const start = Math.max(0, urlIndex - 200);
+    const end = Math.min(content.length, urlIndex + url.length + 200);
+    
+    return content.substring(start, end);
   }
 
   /**
