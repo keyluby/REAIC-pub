@@ -956,6 +956,9 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       const { alterEstateService } = await import('./alterEstateService');
       
       try {
+        if (!propertySlug) {
+          return 'No pude identificar la propiedad específica. ¿Podrías proporcionar el ID de la propiedad?';
+        }
         const propertyDetails = await alterEstateService.getPropertyDetail(context.alterEstateToken, propertySlug);
         
         if (!propertyDetails) {
@@ -965,7 +968,7 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         // Build detailed response using description and agent information
         const propertyUrl = alterEstateService.getPropertyPublicUrl(
           propertySlug, 
-          context.realEstateWebsiteUrl
+          context.realEstateWebsiteUrl || ''
         );
         
         let detailedResponse = `🏠 **${propertyDetails.name || 'Propiedad'}**\n\n`;
@@ -991,16 +994,17 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         }
         
         // Add agent contact information if available
-        if (propertyDetails.agent && (propertyDetails.agent.name || propertyDetails.agent.phone || propertyDetails.agent.email)) {
+        const agentInfo = propertyDetails.agents && propertyDetails.agents.length > 0 ? propertyDetails.agents[0] : null;
+        if (agentInfo && (agentInfo.full_name || agentInfo.phone || agentInfo.email)) {
           detailedResponse += `👤 **Contacto del agente**:\n`;
-          if (propertyDetails.agent.name) {
-            detailedResponse += `📞 **Agente**: ${propertyDetails.agent.name}\n`;
+          if (agentInfo.full_name) {
+            detailedResponse += `📞 **Agente**: ${agentInfo.full_name}\n`;
           }
-          if (propertyDetails.agent.phone) {
-            detailedResponse += `📱 **Teléfono**: ${propertyDetails.agent.phone}\n`;
+          if (agentInfo.phone) {
+            detailedResponse += `📱 **Teléfono**: ${agentInfo.phone}\n`;
           }
-          if (propertyDetails.agent.email) {
-            detailedResponse += `📧 **Email**: ${propertyDetails.agent.email}\n`;
+          if (agentInfo.email) {
+            detailedResponse += `📧 **Email**: ${agentInfo.email}\n`;
           }
           detailedResponse += '\n';
         }
@@ -1196,7 +1200,7 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       console.log(`🏠 [AI] Found ${recentProperties.length} recent properties in context`);
       
       if (recentProperties.length === 0) {
-        return null;
+        return { matches: [], feature: '' };
       }
       
       // Extract key features from user's message
