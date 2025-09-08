@@ -643,7 +643,7 @@ class EvolutionApiService {
           fallbackText += `\n${messageData.listMessage.footer}`;
         }
         
-        const result = await instance.socket.sendMessage(formattedNumber, { text: fallbackText });
+        const result = await instance.socket.sendMessage(this.formatPhoneNumber(messageData.number), { text: fallbackText });
         return {
           success: true,
           messageId: result?.key?.id || undefined

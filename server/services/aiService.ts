@@ -550,7 +550,7 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
           
           console.log(`📱 [AI] Sending carousel via ${instanceName} to ${phoneNumber}`);
           
-          const result = await evolutionApiService.sendPropertyCarousel(
+          const result = await evolutionApiService.sendEnhancedPropertyCarousel(
             instanceName,
             phoneNumber,
             carouselProperties

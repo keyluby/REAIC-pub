@@ -1411,30 +1411,53 @@ Responde en JSON:
     propertyUrl: string;
     uid: string;
     slug: string;
+    type: string;
+    area?: string;
   }> {
     return properties.map(property => {
-      // Manejar precio null/undefined
+      // Manejar precio con lógica de negocio mejorada
       const salePrice = property.sale_price;
-      const currency = property.currency_sale || 'RD$';
-      const formattedPrice = salePrice && typeof salePrice === 'number' 
-        ? `${currency} ${salePrice.toLocaleString()}`
-        : 'Precio a consultar';
+      const rentPrice = property.rent_price;
+      const currency = property.currency_sale || property.currency_rent || 'RD$';
+      
+      let formattedPrice = 'Precio a consultar';
+      if (salePrice && typeof salePrice === 'number') {
+        formattedPrice = `${currency} ${salePrice.toLocaleString()}`;
+      } else if (rentPrice && typeof rentPrice === 'number') {
+        formattedPrice = `${currency} ${rentPrice.toLocaleString()}/mes`;
+      }
 
-      // Manejar campos opcionales
+      // Mejorar información de habitaciones y baños
       const rooms = property.room || 0;
       const bathrooms = property.bathroom || 0;
-      const sector = property.sector || 'Sector no especificado';
-      const city = property.city || 'Ciudad no especificada';
-      const title = property.name || 'Propiedad sin nombre';
+      const area = property.constructed_area || property.total_area;
+      
+      // Ubicación más específica
+      const sector = property.sector || '';
+      const city = property.city || '';
+      const location = [sector, city].filter(Boolean).join(', ') || 'Ubicación no especificada';
+      
+      // Título más descriptivo
+      const propertyType = property.property_type?.name || property.ctype || 'Propiedad';
+      const title = property.name || `${propertyType} en ${sector || city || 'Zona Exclusiva'}`;
+
+      // Descripción enriquecida con emojis
+      let description = '';
+      if (rooms > 0) description += `🛏️ ${rooms} hab`;
+      if (bathrooms > 0) description += `${rooms > 0 ? ' • ' : ''}🚿 ${bathrooms} baños`;
+      if (area) description += `${(rooms > 0 || bathrooms > 0) ? ' • ' : ''}📐 ${area}m²`;
+      description += `\n📍 ${location}`;
 
       return {
         imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
         title: title,
         price: formattedPrice,
-        description: `${rooms} hab • ${bathrooms} baños\n${sector}, ${city}`,
+        description: description,
         propertyUrl: this.getPropertyPublicUrl(property.slug, userWebsiteUrl),
         uid: property.uid,
-        slug: property.slug
+        slug: property.slug,
+        type: propertyType,
+        area: area?.toString()
       };
     });
   }
