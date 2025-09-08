@@ -1,0 +1,130 @@
+# Prompt Optimizado para Presentación de Propiedades
+
+## Instrucciones Principales
+Cuando el asistente deba enviar información de propiedades inmobiliarias, debe presentarla utilizando el formato más visual y atractivo disponible en WhatsApp Business API.
+
+## Formatos Recomendados (por orden de prioridad)
+
+### 1. Lista Interactiva (Recomendado)
+- Utilizar `list messages` con hasta 10 opciones
+- Cada propiedad como una opción con título, descripción breve y precio
+- Incluir emoji relevante para cada tipo de propiedad
+- Ejemplo: 🏠 Casa 3BR - $250,000 - Zona Norte
+
+### 2. Botones Interactivos (Para pocas propiedades)
+- Usar `button messages` cuando sean 3 o menos propiedades
+- Un botón por propiedad con acción "Ver detalles"
+- Incluir información básica en el mensaje principal
+
+### 3. Mensajes con Formato Rico
+- **Encabezado**: Emoji + Tipo de propiedad + Precio destacado
+- **Información clave**: Ubicación, habitaciones, baños, área
+- **Características especiales**: En viñetas con emojis
+- **Call-to-action**: Botón o texto para solicitar más información
+
+## Estructura de Información por Propiedad
+
+```
+🏡 **CASA EN VENTA - $XXX,XXX**
+
+📍 **Ubicación**: [Zona/Barrio]
+🛏️ **Habitaciones**: X
+🚿 **Baños**: X  
+📐 **Área**: XXX m²
+
+✨ **Destacados**:
+• [Característica 1]
+• [Característica 2] 
+• [Característica 3]
+```
+
+## Consideraciones Técnicas para Evolution API
+
+### 1. Configuración de Mensajes Interactivos
+```json
+{
+  "number": "recipient_number",
+  "options": {
+    "delay": 1200,
+    "presence": "composing"
+  },
+  "listMessage": {
+    "title": "Propiedades Disponibles",
+    "description": "Selecciona una propiedad para ver más detalles:",
+    "buttonText": "Ver Propiedades",
+    "footer": "Inmobiliaria [Nombre]",
+    "sections": [
+      {
+        "title": "Casas",
+        "rows": [
+          {
+            "title": "Casa 3BR - Zona Norte",
+            "description": "$250,000 • 150m² • 3 baños",
+            "rowId": "casa_001"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 2. Optimizaciones Técnicas
+
+#### Rate Limiting
+- Implementar delay de 1-2 segundos entre mensajes
+- Agrupar información para minimizar número de mensajes
+
+#### Gestión de Medios
+- Comprimir imágenes a menos de 5MB
+- Usar formato JPEG para fotos de propiedades
+- Implementar lazy loading para múltiples imágenes
+
+#### Tracking y Analytics
+- Asignar IDs únicos a cada propiedad
+- Trackear interacciones con botones/listas
+- Implementar webhooks para capturar respuestas
+
+### 3. Fallbacks y Compatibilidad
+```javascript
+// Detectar si el cliente soporta mensajes interactivos
+if (client.supportsInteractiveMessages) {
+    sendListMessage(properties);
+} else {
+    sendFormattedTextMessage(properties);
+}
+```
+
+## Mejores Prácticas
+
+### UX/UI en WhatsApp
+- **Máximo 3 propiedades por mensaje** para evitar scroll excesivo
+- **Usar emojis consistentes** para cada tipo de propiedad
+- **Incluir precio prominente** en título o primera línea
+- **Call-to-actions claros** con comandos específicos
+
+### Gestión de Conversación
+- Implementar sistema de comandos rápidos
+- Configurar respuestas automáticas para consultas frecuentes  
+- Usar quick replies para opciones comunes
+
+### Performance
+- Cache de imágenes más solicitadas
+- Base de datos optimizada para búsquedas rápidas
+- Implementar paginación para listados largos
+
+## Comandos Sugeridos para Usuarios
+- `PROPIEDADES [TIPO]` - Lista propiedades por tipo
+- `INFO [ID]` - Detalles completos de una propiedad
+- `VISITA [ID]` - Agendar visita
+- `PRECIO [MIN] [MAX]` - Filtrar por rango de precio
+- `ZONA [NOMBRE]` - Propiedades por ubicación
+
+## Variables de Entorno Recomendadas
+```env
+EVOLUTION_API_URL=your_evolution_api_url
+WHATSAPP_INSTANCE_NAME=your_instance
+MAX_PROPERTIES_PER_MESSAGE=3
+DEFAULT_DELAY_MS=1200
+IMAGE_COMPRESSION_QUALITY=80
+```
