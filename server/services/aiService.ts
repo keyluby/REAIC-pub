@@ -43,6 +43,12 @@ export class AIService {
           console.log(`🔍 [AI] ${intent.intent} intent detected, querying AlterEstate`);
           return await this.processPropertySearch(message, context, conversationId, intent.intent === 'refine_search');
         }
+        
+        // THIRD: Detect if user wants more details about a specific property
+        if (intent.intent === 'property_details' && intent.confidence > 0.6) {
+          console.log(`📋 [AI] Property details request detected`);
+          return await this.processPropertyDetailsRequest(message, context, conversationId);
+        }
       }
       
       // Get conversation context
@@ -351,6 +357,7 @@ Mensaje actual: "${message}"
 Posibles intenciones:
 - "search_property": buscar propiedades (nueva búsqueda)
 - "refine_search": refinar o agregar información a una búsqueda anterior
+- "property_details": solicitar más información/detalles sobre una propiedad específica ya mostrada
 - "schedule_appointment": agendar cita
 - "ask_question": hacer pregunta general
 - "request_info": solicitar información específica
@@ -731,6 +738,103 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
     } catch (error) {
       console.error('❌ [AI] Error processing media request:', error);
       return 'Disculpa, tuve un problema obteniendo las fotos de la propiedad. ¿Podrías intentar de nuevo o especificar qué propiedad te interesa?';
+    }
+  }
+
+  /**
+   * Procesar solicitud de detalles adicionales de una propiedad
+   */
+  private async processPropertyDetailsRequest(message: string, context: any, conversationId: string): Promise<string> {
+    try {
+      console.log('📋 [AI] Processing property details request');
+      
+      if (!context.alterEstateEnabled || !context.alterEstateToken) {
+        return 'Para poder obtener información detallada de propiedades, necesito que AlterEstate CRM esté configurado en las configuraciones.';
+      }
+      
+      // Try to extract property ID from message or context
+      const propertyIdMatch = message.match(/([A-Z0-9]{8,12})/);
+      let propertySlug: string | null = null;
+      
+      if (propertyIdMatch) {
+        propertySlug = propertyIdMatch[1];
+        console.log(`🏠 [AI] Property ID extracted from message: ${propertySlug}`);
+      } else {
+        // Try to get property from recent conversation context
+        propertySlug = await this.extractPropertyFromContext(conversationId);
+        console.log(`🏠 [AI] Property extracted from context: ${propertySlug}`);
+      }
+      
+      if (!propertySlug) {
+        return 'Para darte más información específica, ¿podrías mencionar el ID de la propiedad que te interesa? O puedo hacer una nueva búsqueda si me das algunos criterios.';
+      }
+      
+      // Get detailed property information from AlterEstate
+      const { alterEstateService } = await import('./alterEstateService');
+      
+      try {
+        const propertyDetails = await alterEstateService.getPropertyDetail(context.alterEstateToken, propertySlug);
+        
+        if (!propertyDetails) {
+          return 'No pude encontrar información detallada de esa propiedad. ¿Podrías verificar el ID o hacer una nueva búsqueda?';
+        }
+        
+        // Build detailed response using description and agent information
+        const propertyUrl = alterEstateService.getPropertyPublicUrl(
+          propertySlug, 
+          context.realEstateWebsiteUrl
+        );
+        
+        let detailedResponse = `🏠 **${propertyDetails.name || 'Propiedad'}**\n\n`;
+        
+        // Add price and basic info
+        const salePrice = propertyDetails.sale_price;
+        const currency = propertyDetails.currency_sale || 'RD$';
+        const formattedPrice = salePrice && typeof salePrice === 'number' 
+          ? `${currency} ${salePrice.toLocaleString()}`
+          : 'Precio a consultar';
+        
+        detailedResponse += `💰 **Precio**: ${formattedPrice}\n`;
+        detailedResponse += `🏢 **Tipo**: ${propertyDetails.category || 'No especificado'}\n`;
+        detailedResponse += `🏠 **Habitaciones**: ${propertyDetails.room || 'N/A'}\n`;
+        detailedResponse += `🚿 **Baños**: ${propertyDetails.bathroom || 'N/A'}\n`;
+        detailedResponse += `📍 **Ubicación**: ${propertyDetails.sector || ''}, ${propertyDetails.city || ''}\n\n`;
+        
+        // Add description if available
+        if (propertyDetails.description && propertyDetails.description.trim()) {
+          detailedResponse += `📝 **Descripción completa**:\n${propertyDetails.description}\n\n`;
+        } else if (propertyDetails.short_description && propertyDetails.short_description.trim()) {
+          detailedResponse += `📝 **Descripción**:\n${propertyDetails.short_description}\n\n`;
+        }
+        
+        // Add agent contact information if available
+        if (propertyDetails.agent && (propertyDetails.agent.name || propertyDetails.agent.phone || propertyDetails.agent.email)) {
+          detailedResponse += `👤 **Contacto del agente**:\n`;
+          if (propertyDetails.agent.name) {
+            detailedResponse += `📞 **Agente**: ${propertyDetails.agent.name}\n`;
+          }
+          if (propertyDetails.agent.phone) {
+            detailedResponse += `📱 **Teléfono**: ${propertyDetails.agent.phone}\n`;
+          }
+          if (propertyDetails.agent.email) {
+            detailedResponse += `📧 **Email**: ${propertyDetails.agent.email}\n`;
+          }
+          detailedResponse += '\n';
+        }
+        
+        detailedResponse += `🔗 **Ver publicación completa**: ${propertyUrl}\n\n`;
+        detailedResponse += `¿Te gustaría agendar una visita, ver las fotos o tienes alguna otra pregunta específica sobre esta propiedad?`;
+        
+        return detailedResponse;
+        
+      } catch (error) {
+        console.error('❌ [AI] Error getting property details:', error);
+        return 'Disculpa, tuve un problema obteniendo los detalles de la propiedad. ¿Podrías intentar de nuevo?';
+      }
+      
+    } catch (error) {
+      console.error('❌ [AI] Error processing property details request:', error);
+      return 'Disculpa, tuve un problema procesando tu solicitud. ¿Podrías intentar de nuevo?';
     }
   }
 
