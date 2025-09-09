@@ -717,7 +717,7 @@ class EvolutionApiService {
     for (const property of properties) {
       try {
         // Enviar imagen con caption mejorado
-        const caption = this.buildEnhancedPropertyCaption(property);
+        const caption = this.buildCompletePropertyCaption(property);
         
         const mediaResult = await this.sendMedia(
           instanceName,

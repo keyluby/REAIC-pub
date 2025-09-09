@@ -520,9 +520,9 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
       if (properties.length >= 2) {
         console.log(`🎠 [AI] Found ${properties.length} properties, formatting as carousel`);
         
-        // Format properties for carousel display
+        // Format properties for recommendations (limit to 6 as specified)
         const carouselProperties = alterEstateService.formatPropertiesForCarousel(
-          properties.slice(0, 5), // Limit to 5 for better experience
+          properties.slice(0, 6), // Limit to 6 property recommendations
           context.realEstateWebsiteUrl
         );
 
@@ -550,18 +550,18 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
           
           console.log(`📱 [AI] Sending carousel via ${instanceName} to ${phoneNumber}`);
           
-          const result = await evolutionApiService.sendEnhancedPropertyCarousel(
+          const result = await evolutionApiService.sendPropertyRecommendations(
             instanceName,
             phoneNumber,
             carouselProperties
           );
           
           if (result.success) {
-            console.log(`✅ [AI] Carousel sent successfully with ${result.messageIds.length} messages`);
+            console.log(`✅ [AI] Property recommendations sent successfully: ${result.messageIds.length} messages`);
             
             // Update conversation context with a summary
             const conversationContext = this.conversationContexts.get(conversationId) || [];
-            const contextSummary = `Se enviaron ${carouselProperties.length} propiedades en formato carrusel con fotos y botones interactivos:
+            const contextSummary = `Se enviaron ${carouselProperties.length} propiedades recomendadas (una por mensaje con foto):
 ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.uid})`).join('\n')}`;
             
             conversationContext.push(
@@ -577,14 +577,14 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
             this.conversationContexts.set(conversationId, conversationContext);
             
             // Return success message for internal tracking
-            return `Propiedades enviadas en formato carrusel: ${carouselProperties.length} opciones con fotos y botones`;
+            return `Propiedades enviadas como recomendaciones: ${carouselProperties.length} mensajes individuales con fotos`;
           } else {
-            console.error('❌ [AI] Failed to send carousel, falling back to text format');
-            throw new Error('Carousel send failed');
+            console.error('❌ [AI] Failed to send property recommendations, falling back to text format');
+            throw new Error('Property recommendations send failed');
           }
           
-        } catch (carouselError) {
-          console.error('❌ [AI] Error sending carousel:', carouselError);
+        } catch (recommendationError) {
+          console.error('❌ [AI] Error sending property recommendations:', recommendationError);
           console.log('🔄 [AI] Falling back to text format...');
           
           // Fallback to text format
@@ -649,7 +649,7 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
         
         console.log(`📱 [AI] Sending single property carousel via ${instanceName} to ${phoneNumber}`);
         
-        const result = await evolutionApiService.sendPropertyCarousel(
+        const result = await evolutionApiService.sendPropertyRecommendations(
           instanceName,
           phoneNumber,
           carouselProperties
