@@ -75,13 +75,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/settings', isAuthenticated, validateRequest('userSettings'), async (req: any, res) => {
+  app.post('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log('🔧 [SETTINGS] Incoming settings data:', JSON.stringify(req.body, null, 2));
+      
+      // Manual validation since we need to see what's failing
+      const validationResult = insertUserSettingsSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        console.error('❌ [SETTINGS] Validation error:', validationResult.error.errors);
+        return res.status(400).json({
+          message: 'Validation error',
+          errors: validationResult.error.errors,
+          receivedData: req.body
+        });
+      }
+      
       const settings = await storage.upsertUserSettings({ userId, ...req.body });
+      console.log('✅ [SETTINGS] Settings saved successfully for user:', userId);
       res.json(settings);
     } catch (error) {
-      console.error("Error updating settings:", error);
+      console.error("❌ [SETTINGS] Error updating settings:", error);
       res.status(500).json({ message: "Failed to update settings" });
     }
   });
