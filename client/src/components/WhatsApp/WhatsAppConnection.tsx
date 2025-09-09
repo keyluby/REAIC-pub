@@ -13,7 +13,13 @@ export default function WhatsAppConnection() {
   // Ensure instances is always an array
   const instanceList = Array.isArray(instances) ? instances : [];
 
-  const handleCreateInstance = async () => {
+  const handleCreateInstance = async (e?: React.MouseEvent) => {
+    // Prevenir comportamiento por defecto
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     try {
       const instanceName = `instance_${Date.now()}`;
       await createInstance(instanceName);
@@ -100,7 +106,11 @@ export default function WhatsAppConnection() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => refreshStatus(instance.instanceName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        refreshStatus(instance.instanceName);
+                      }}
                       disabled={isRefreshing}
                       data-testid={`button-refresh-${instance.id}`}
                       title="Actualizar estado de conexión"
@@ -112,7 +122,11 @@ export default function WhatsAppConnection() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowQRModal(true)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowQRModal(true);
+                        }}
                         data-testid={`button-reconnect-${instance.id}`}
                       >
                         <QrCode className="w-4 h-4 mr-2" />
@@ -123,7 +137,11 @@ export default function WhatsAppConnection() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => logout(instance.instanceName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        logout(instance.instanceName);
+                      }}
                       disabled={isLoggingOut}
                       data-testid={`button-disconnect-${instance.id}`}
                     >
@@ -133,7 +151,11 @@ export default function WhatsAppConnection() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => forceDelete(instance.instanceName)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        forceDelete(instance.instanceName);
+                      }}
                       disabled={isForceDeleting}
                       className="text-red-600 border-red-300 hover:bg-red-50"
                       data-testid={`button-force-delete-${instance.id}`}

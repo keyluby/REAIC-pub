@@ -69,13 +69,29 @@ export class WhatsAppService {
         return { base64: result.qrCode };
       }
       
+      // Si no hay QR code disponible, intentar obtener el estado
+      if (result.status === 'CONNECTED') {
+        return { 
+          status: 'CONNECTED',
+          message: 'La instancia ya está conectada'
+        };
+      }
+      
+      // Si no hay QR code disponible pero tampoco está conectado
       return { 
-        status: result.status,
-        message: result.status === 'CONNECTED' ? 'Instance already connected' : 'QR code not available yet'
+        status: result.status || 'WAITING',
+        message: 'Código QR no disponible aún, intenta en unos segundos',
+        error: false
       };
     } catch (error) {
       console.error('Error getting QR code:', error);
-      throw new Error('Failed to get QR code');
+      
+      // En lugar de lanzar el error, retornar un estado de error manejable
+      return {
+        status: 'ERROR',
+        message: 'Error al obtener el código QR. La instancia puede no existir.',
+        error: true
+      };
     }
   }
 

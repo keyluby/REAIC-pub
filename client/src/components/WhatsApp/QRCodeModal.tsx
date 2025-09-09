@@ -27,7 +27,19 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
       
       console.log('QR Code response:', data); // Debug log
       
-      // Evolution API puede devolver diferentes formatos
+      // Manejar respuesta con error del backend
+      if (data.error || data.status === 'ERROR') {
+        setError(data.message || 'Error al obtener código QR');
+        return;
+      }
+      
+      // Manejar instancia ya conectada
+      if (data.status === 'CONNECTED') {
+        setError('Esta instancia ya está conectada. Actualiza la página para ver el estado actualizado.');
+        return;
+      }
+      
+      // Manejar código QR disponible
       if (data.base64) {
         setQrCode(data.base64);
         console.log('QR code set successfully');
@@ -36,13 +48,21 @@ export default function QRCodeModal({ open, onClose, instanceName }: QRCodeModal
         console.log('QR code set from .code field');
       } else if (data.pairingCode) {
         setError('Esta instancia usa código de emparejamiento. Reconecta desde tu dispositivo.');
+      } else if (data.status === 'WAITING') {
+        setError(data.message || 'Código QR no disponible aún, intenta en unos segundos');
       } else {
         console.log('No QR data found in response:', data);
         setError('Código QR no disponible');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching QR code:', error);
-      setError('Error al cargar el código QR');
+      
+      // Evitar recargas automáticas en errores de red
+      if (error.status === 500) {
+        setError('Error del servidor. Intenta crear una nueva instancia.');
+      } else {
+        setError('Error al cargar el código QR. Verifica tu conexión.');
+      }
     } finally {
       setIsLoading(false);
     }

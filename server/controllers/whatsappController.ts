@@ -180,13 +180,21 @@ class WhatsAppController {
       const { instanceName } = req.params;
       const qrData = await whatsappService.getQRCode(instanceName);
       
-      // Update QR code in database
-      await storage.updateWhatsappInstanceStatus(instanceName, 'CONNECTING', qrData.base64);
+      // Solo actualizar en base de datos si hay un QR code válido
+      if (qrData.base64 && !qrData.error) {
+        await storage.updateWhatsappInstanceStatus(instanceName, 'CONNECTING', qrData.base64);
+      } else if (qrData.status === 'CONNECTED') {
+        await storage.updateWhatsappInstanceStatus(instanceName, 'CONNECTED');
+      }
 
       res.json(qrData);
     } catch (error) {
       console.error('Error getting QR code:', error);
-      res.status(500).json({ message: 'Failed to get QR code' });
+      res.status(500).json({ 
+        message: 'Error al obtener código QR',
+        error: true,
+        status: 'ERROR'
+      });
     }
   }
 
