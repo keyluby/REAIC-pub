@@ -671,6 +671,15 @@ class EvolutionApiService {
         // Construir caption completo con toda la información
         const caption = this.buildCompletePropertyCaption(property);
         
+        console.log(`🖼️ [DEBUG] Property ${i + 1} image URL: ${property.imageUrl}`);
+        console.log(`📝 [DEBUG] Property ${i + 1} caption: ${caption.substring(0, 100)}...`);
+        
+        // Verificar si la imagen URL es válida antes de enviar
+        if (!property.imageUrl || property.imageUrl.includes('placeholder')) {
+          console.log(`⚠️ [DEBUG] Property ${i + 1} has no valid image, sending text only`);
+          throw new Error('No valid image URL');
+        }
+        
         // Enviar imagen con caption completo - Un mensaje por propiedad
         const mediaResult = await this.sendMedia(
           instanceName,
@@ -682,6 +691,9 @@ class EvolutionApiService {
 
         if (mediaResult.messageId) {
           messageIds.push(mediaResult.messageId);
+          console.log(`✅ [DEBUG] Property ${i + 1} sent successfully with image`);
+        } else {
+          console.log(`❌ [DEBUG] Property ${i + 1} failed to send - no message ID`);
         }
 
         // Pausa entre propiedades para mejor experiencia
