@@ -150,18 +150,21 @@ export class AlterEstateService {
     previous?: string;
   }> {
     try {
-      console.log('🏘️ [ALTERESTATE] Searching properties with filters:', filters);
+      console.log('🏘️ [ALTERESTATE] Searching properties with filters:', JSON.stringify(filters, null, 2));
       
       const queryParams = new URLSearchParams();
       
-      // Add filters to query
+      // Add filters to query with debug logging
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
+          console.log(`🔍 [FILTER] Adding ${key} = ${value}`);
           queryParams.append(key, value.toString());
         }
       });
       
       queryParams.append('page', page.toString());
+      
+      console.log(`🌐 [API] Query URL: ${this.baseUrl}/properties/filter/?${queryParams.toString()}`);
       
       const response = await axios.get(
         `${this.baseUrl}/properties/filter/?${queryParams.toString()}`,
@@ -693,6 +696,13 @@ export class AlterEstateService {
         const usdMax = await this.convertCurrency(maxPrice, 'DOP', 'USD', exchangeRate);
         expandedMaxPrice = Math.max(maxPrice, usdMax);
         console.log(`💱 [CONVERSION] DOP ${maxPrice} = USD ${usdMax}`);
+        
+        // 🔧 FIX: Para búsquedas en DOP, también usar el valor USD convertido como máximo
+        // para que las propiedades en USD también sean incluidas
+        if (usdMax && usdMax < expandedMaxPrice) {
+          expandedMaxPrice = usdMax;
+          console.log(`💱 [CONVERSION] Using USD equivalent as max: ${usdMax}`);
+        }
       }
     }
     
