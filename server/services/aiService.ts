@@ -585,9 +585,35 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
           
         } catch (recommendationError) {
           console.error('❌ [AI] Error sending property recommendations:', recommendationError);
-          console.log('🔄 [AI] Falling back to text format...');
+          console.log('🔄 [AI] FORCING individual recommendations - NO fallback to text...');
           
-          // Fallback to text format
+          // FORCE individual property sending - no fallback
+          console.log('🔧 [AI] Attempting forced individual property sending...');
+          for (let i = 0; i < Math.min(carouselProperties.length, 6); i++) {
+            const property = carouselProperties[i];
+            try {
+              const caption = `🏠 *${property.title}*\n\n💰 ${property.price}\n🏠 ${property.description}\n📍 ${property.uid}\n\n🔗 ${property.propertyUrl}`;
+              
+              // Force simple text message per property for now
+              await evolutionApiService.sendMessage(
+                instanceName,
+                phoneNumber,
+                caption
+              );
+              
+              // Small delay between properties
+              if (i < carouselProperties.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              }
+            } catch (forceError) {
+              console.error(`❌ [AI] Failed to force send property ${i + 1}:`, forceError);
+            }
+          }
+          
+          return `Propiedades enviadas individualmente: ${carouselProperties.length} mensajes separados`;
+          
+          // OLD FALLBACK CODE - Disabled to force individual sending
+          /*
           const propertiesToShow = properties.slice(0, 5);
           const propertiesText = propertiesToShow.map((property, index) => {
             const salePrice = property.sale_price;
@@ -615,6 +641,7 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
           } else {
             return `🏠 ¡Encontré ${properties.length} excelentes opciones para ti!\n\n${propertiesText}${moreProperties}\n\n¿Cuál te llama más la atención? Puedo ayudarte con más información, fotos o para agendar una visita. 🗓️`;
           }
+          */
         }
       }
       
