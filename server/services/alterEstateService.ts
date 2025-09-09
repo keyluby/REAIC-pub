@@ -1208,17 +1208,31 @@ Responde en JSON:
       filters.bath_min = parseInt(bathsMatch[1]);
     }
     
-    // Detectar rango de precio
-    const priceMatch = queryLower.match(/(\d+(?:,\d+)*(?:\.\d+)?)\s*(usd|dollar|peso)/);
+    // Detectar rango de precio - Mejorado para interpretar "hasta X" correctamente
+    const priceMatch = queryLower.match(/(\d+(?:,\d+)*(?:\.\d+)?)\s*(usd|dollar|peso|million)/);
     if (priceMatch) {
-      const price = parseFloat(priceMatch[1].replace(',', ''));
-      filters.currency = priceMatch[2].includes('usd') || priceMatch[2].includes('dollar') ? 'USD' : 'DOP';
+      let price = parseFloat(priceMatch[1].replace(/,/g, ''));
+      const currencyIndicator = priceMatch[2];
       
-      // Si es menor a 200k, asumimos es el máximo
-      if (price < 200000) {
+      // Detectar si menciona millones
+      if (currencyIndicator.includes('million') || queryLower.includes('millon')) {
+        price = price * 1000000; // Convertir millones
+      }
+      
+      filters.currency = currencyIndicator.includes('usd') || currencyIndicator.includes('dollar') ? 'USD' : 'DOP';
+      
+      // Detectar si es "hasta", "máximo", "no más de" = value_max
+      if (queryLower.includes('hasta') || queryLower.includes('máximo') || queryLower.includes('no más de') || 
+          queryLower.includes('presupuesto')) {
         filters.value_max = price;
-      } else {
+      } 
+      // Detectar si es "desde", "mínimo", "a partir de" = value_min  
+      else if (queryLower.includes('desde') || queryLower.includes('mínimo') || queryLower.includes('a partir de')) {
         filters.value_min = price;
+      }
+      // Por defecto, asumir que es el máximo presupuesto disponible
+      else {
+        filters.value_max = price;
       }
     }
     
