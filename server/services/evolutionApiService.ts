@@ -655,19 +655,60 @@ class EvolutionApiService {
     }
   }
 
-  async sendEnhancedPropertyCarousel(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
-    console.log(`🏠 Sending enhanced property carousel via ${instanceName} to ${number} (${properties.length} properties)`);
+  async sendPropertyRecommendations(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
+    console.log(`🏠 Sending property recommendations via ${instanceName} to ${number} (${properties.length} properties)`);
     
     const messageIds: string[] = [];
     
-    // Decidir formato según número de propiedades
-    if (properties.length <= 3) {
-      // Usar botones para pocas propiedades
-      return this.sendPropertyButtons(instanceName, number, properties);
-    } else {
-      // Usar lista interactiva para múltiples propiedades
-      return this.sendPropertyList(instanceName, number, properties);
+    // Limitar a máximo 6 propiedades recomendadas
+    const limitedProperties = properties.slice(0, 6);
+    
+    // Enviar cada propiedad como mensaje individual con foto
+    for (let i = 0; i < limitedProperties.length; i++) {
+      const property = limitedProperties[i];
+      
+      try {
+        // Construir caption completo con toda la información
+        const caption = this.buildCompletePropertyCaption(property);
+        
+        // Enviar imagen con caption completo - Un mensaje por propiedad
+        const mediaResult = await this.sendMedia(
+          instanceName,
+          number,
+          property.imageUrl,
+          'image',
+          caption
+        );
+
+        if (mediaResult.messageId) {
+          messageIds.push(mediaResult.messageId);
+        }
+
+        // Pausa entre propiedades para mejor experiencia
+        if (i < limitedProperties.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+      } catch (error) {
+        console.error(`Error sending property recommendation ${i + 1}:`, error);
+        
+        // Fallback: enviar como texto simple sin imagen
+        try {
+          const fallbackText = this.buildCompletePropertyCaption(property);
+          const fallbackResult = await this.sendMessage(instanceName, number, fallbackText);
+          if (fallbackResult.messageId) messageIds.push(fallbackResult.messageId);
+        } catch (fallbackError) {
+          console.error(`Fallback also failed for property ${i + 1}:`, fallbackError);
+        }
+      }
     }
+
+    console.log(`✅ Property recommendations sent: ${messageIds.length}/${limitedProperties.length} messages delivered`);
+
+    return {
+      success: messageIds.length > 0,
+      messageIds
+    };
   }
 
   private async sendPropertyButtons(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
@@ -780,23 +821,30 @@ class EvolutionApiService {
     return { success: messageIds.length > 0, messageIds };
   }
 
-  private buildEnhancedPropertyCaption(property: any): string {
+  private buildCompletePropertyCaption(property: any): string {
     const propertyType = this.getPropertyTypeEmoji(property.title);
     
-    let caption = `${propertyType} *${property.title}*\n\n`;
-    caption += `💰 *Precio*: ${property.price}\n`;
+    // Título con emoji tipo de propiedad
+    let caption = `${propertyType} *${property.title}*\n`;
+    
+    // Precio con emoji
+    caption += `💰 ${property.price}\n`;
     
     // Extraer detalles técnicos de la descripción
     const details = this.parsePropertyDetails(property.description);
-    if (details.rooms) caption += `🛏️ *Habitaciones*: ${details.rooms}\n`;
-    if (details.bathrooms) caption += `🚿 *Baños*: ${details.bathrooms}\n`;
-    if (details.location) caption += `📍 *Ubicación*: ${details.location}\n`;
     
-    caption += `\n✨ *Destacados*:\n`;
-    caption += `• Propiedad verificada\n`;
-    caption += `• Documentos en orden\n`;
-    caption += `• Disponible para visita\n\n`;
-    caption += `🆔 *ID*: ${property.uid}`;
+    // Detalles técnicos con emojis
+    if (details.rooms) caption += `🏠 ${details.rooms} hab`;
+    if (details.bathrooms) caption += `${details.rooms ? ' • ' : ''}🚿 ${details.bathrooms} baños\n`;
+    else if (details.rooms) caption += '\n';
+    
+    // Ubicación con emoji
+    if (details.location) {
+      caption += `📍 ${details.location}\n`;
+    }
+    
+    // Enlace para ver detalles
+    caption += `🔗 Ver detalles: ${property.propertyUrl}`;
 
     return caption;
   }
