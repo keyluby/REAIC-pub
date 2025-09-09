@@ -10,28 +10,27 @@ export function useWhatsApp() {
 
   const { data: instances = [], isLoading, error } = useQuery<WhatsappInstance[]>({
     queryKey: ["/api/whatsapp/instances"],
-    refetchInterval: 2000, // Verificar cada 2 segundos para conexiones rápidas
-    retry: (failureCount, error) => {
+    refetchInterval: 10000, // Verificar cada 10 segundos para reducir la carga
+    retry: (failureCount, error: any) => {
       // Don't retry on auth errors
       if (isUnauthorizedError(error)) {
         return false;
       }
       return failureCount < 3;
     },
-    onError: (error) => {
-      console.error('Error fetching WhatsApp instances:', error);
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    },
   });
+
+  // Handle error separately using useEffect
+  if (error && isUnauthorizedError(error)) {
+    toast({
+      title: "Unauthorized", 
+      description: "You are logged out. Logging in again...",
+      variant: "destructive",
+    });
+    setTimeout(() => {
+      window.location.href = "/api/login";
+    }, 500);
+  }
 
   const createInstanceMutation = useMutation({
     mutationFn: async (instanceName: string) => {

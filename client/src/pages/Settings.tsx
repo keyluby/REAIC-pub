@@ -167,6 +167,10 @@ export default function SettingsPage() {
         alterEstateCompanyId: (settings as any).alterEstateCompanyId || '',
         realEstateWebsiteUrl: (settings as any).realEstateWebsiteUrl || '',
         
+        // Currency Exchange Rate
+        usdToRdRate: (settings as any).usdToRdRate || 60.0,
+        lastRateUpdate: (settings as any).lastRateUpdate || new Date(),
+        
         // Legacy fields
         bufferTime: (settings as any).bufferTime || 10,
         maxMessageChunks: (settings as any).maxMessageChunks || 3,

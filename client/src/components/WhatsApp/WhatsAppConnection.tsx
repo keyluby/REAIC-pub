@@ -9,6 +9,9 @@ import QRCodeModal from "./QRCodeModal";
 export default function WhatsAppConnection() {
   const [showQRModal, setShowQRModal] = useState(false);
   const { instances, isLoading, createInstance, logout, forceDelete, refreshStatus, isLoggingOut, isForceDeleting, isRefreshing } = useWhatsApp();
+  
+  // Ensure instances is always an array
+  const instanceList = Array.isArray(instances) ? instances : [];
 
   const handleCreateInstance = async () => {
     try {
@@ -44,7 +47,7 @@ export default function WhatsAppConnection() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {instances.length === 0 ? (
+          {instanceList.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="fab fa-whatsapp text-green-500 text-2xl"></i>
@@ -60,7 +63,7 @@ export default function WhatsAppConnection() {
             </div>
           ) : (
             <div className="space-y-3">
-              {instances.slice(0, 1).map((instance: any) => (
+              {instanceList.slice(0, 1).map((instance: any) => (
                 <div key={instance.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
@@ -142,7 +145,7 @@ export default function WhatsAppConnection() {
                 </div>
               ))}
               
-              {instances.length < 1 && (
+              {instanceList.length < 1 && (
                 <Button
                   variant="outline"
                   onClick={handleCreateInstance}
@@ -154,7 +157,7 @@ export default function WhatsAppConnection() {
                 </Button>
               )}
               
-              {instances.length >= 1 && (
+              {instanceList.length >= 1 && (
                 <div className="text-center p-4 bg-muted/30 rounded-lg">
                   <p className="text-sm text-muted-foreground">
                     Solo se permite una instancia de WhatsApp por cuenta
@@ -169,7 +172,7 @@ export default function WhatsAppConnection() {
       <QRCodeModal 
         open={showQRModal} 
         onClose={() => setShowQRModal(false)}
-        instanceName={instances[0]?.instanceName}
+        instanceName={instanceList[0]?.instanceName}
       />
     </>
   );
