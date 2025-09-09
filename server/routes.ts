@@ -7,6 +7,7 @@ import { whatsappController } from "./controllers/whatsappController";
 import { crmController } from "./controllers/crmController";
 import { appointmentController } from "./controllers/appointmentController";
 import { validateRequest } from "./middleware/validation";
+import { insertUserSettingsSchema } from "../shared/schema";
 import axios from "axios";
 
 export async function registerRoutes(app: Express): Promise<Server> {
