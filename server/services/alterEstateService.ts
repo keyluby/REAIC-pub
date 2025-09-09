@@ -174,6 +174,19 @@ export class AlterEstateService {
       );
       
       console.log(`🏘️ [ALTERESTATE] Found ${response.data.count} properties`);
+      
+      // 🖼️ DEBUG: Verificar si las propiedades tienen featured_image
+      if (response.data.results && response.data.results.length > 0) {
+        const propertiesWithImages = response.data.results.filter((p: any) => p.featured_image).length;
+        console.log(`🖼️ [DEBUG] Properties with featured_image: ${propertiesWithImages}/${response.data.results.length}`);
+        
+        // Mostrar primeras 3 propiedades con sus imágenes
+        response.data.results.slice(0, 3).forEach((prop: any, index: number) => {
+          console.log(`🏠 [DEBUG] Property ${index + 1}: ${prop.name}`);
+          console.log(`🖼️ [DEBUG] Featured image: ${prop.featured_image || 'NONE'}`);
+        });
+      }
+      
       return response.data;
       
     } catch (error) {
@@ -1125,8 +1138,14 @@ TIPOS DE OPERACIÓN:
 2 = Alquiler
 
 UBICACIONES ESPECÍFICAS DOMINICANAS:
-- Santo Domingo y sectores: Piantini, Naco, Bella Vista, Evaristo Morales, Gazcue, Zona Colonial, etc.
+- Santo Domingo y sectores: Piantini, Naco, Bella Vista, Evaristo Morales, Gazcue, Zona Colonial, Distrito Nacional, etc.
 - Santiago, Punta Cana, Puerto Plata, La Romana
+
+IMPORTANTE PARA PRECIOS:
+- Si menciona "hasta X", "presupuesto de X", "máximo X" = usar value_max
+- Si menciona "desde X", "mínimo X", "a partir de X" = usar value_min
+- Si dice "30 millones" = 30,000,000 (agregar los ceros)
+- Para pesos dominicanos usar "DOP", para dólares "USD"
 
 Responde en JSON:
 {
@@ -1238,9 +1257,10 @@ Responde en JSON:
     
     // Detectar ubicaciones específicas
     const dominicanLocations = [
-      'santo domingo', 'santiago', 'punta cana', 'puerto plata', 'la romana',
+      'santo domingo', 'distrito nacional', 'santiago', 'punta cana', 'puerto plata', 'la romana',
       'bella vista', 'naco', 'piantini', 'gazcue', 'zona colonial', 'los prados',
-      'evaristo morales', 'la esperilla', 'serralles', 'mirador sur'
+      'evaristo morales', 'la esperilla', 'serralles', 'mirador sur', 'el millón',
+      'arroyo hondo', 'cacicazgos', 'viejo arroyo hondo'
     ];
     
     dominicanLocations.forEach(location => {
