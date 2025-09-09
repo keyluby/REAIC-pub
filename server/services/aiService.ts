@@ -589,17 +589,44 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
           
           // FORCE individual property sending - no fallback
           console.log('🔧 [AI] Attempting forced individual property sending...');
+          
+          // Import and setup required services
+          const { evolutionApiService: evolutionService } = await import('./evolutionApiService');
+          const instanceName = `instance_${context.userId}`;
+          
+          // Extract phone number from conversationId
+          let phoneNumber = context.phoneNumber;
+          if (!phoneNumber) {
+            const phoneMatch = conversationId.match(/(\d{10,15})/);
+            phoneNumber = phoneMatch ? phoneMatch[1] : null;
+          }
+          
+          if (!phoneNumber) {
+            console.error('❌ [AI] No phone number available for forced sending');
+            return `Error: No se pudo determinar el número de teléfono`;
+          }
+          
+          console.log(`📱 [AI] Force sending to ${phoneNumber} via ${instanceName}`);
+          
           for (let i = 0; i < Math.min(carouselProperties.length, 6); i++) {
             const property = carouselProperties[i];
             try {
-              const caption = `🏠 *${property.title}*\n\n💰 ${property.price}\n🏠 ${property.description}\n📍 ${property.uid}\n\n🔗 ${property.propertyUrl}`;
+              const caption = `🏠 *${property.title}*\n\n💰 ${property.price}\n🏠 ${property.description}\n📍 ID: ${property.uid}\n\n🔗 ${property.propertyUrl}`;
+              
+              console.log(`📤 [AI] Sending individual property ${i + 1}/${carouselProperties.length}`);
               
               // Force simple text message per property for now
-              await evolutionApiService.sendMessage(
+              const result = await evolutionService.sendMessage(
                 instanceName,
                 phoneNumber,
                 caption
               );
+              
+              if (result.success) {
+                console.log(`✅ [AI] Property ${i + 1} sent successfully`);
+              } else {
+                console.log(`❌ [AI] Property ${i + 1} failed to send`);
+              }
               
               // Small delay between properties
               if (i < carouselProperties.length - 1) {
