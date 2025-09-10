@@ -1497,9 +1497,10 @@ Responde en JSON:
 }
 
 IMPORTANTE: 
-- Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona específica.
-- Si el cliente dice "cualquier zona de [ciudad]" o "en toda la ciudad", extraer como zones: ["cualquier_zona"] y considerar como zona válida.
-- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad"`;
+- Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona (específica o cualquier zona).
+- Si el cliente dice "cualquier zona de [ciudad]" o "en toda la ciudad", extraer como zones: ["cualquier_zona"] y SÍ CONSIDERAR COMO ZONA VÁLIDA para proceder con búsqueda.
+- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad", "cualquier zona"
+- Si zones contiene ["cualquier_zona"], NO incluir "zones" en missingCriteria.`;
 
       const response = await this.openaiClient.chat.completions.create({
         model: "gpt-4o",
