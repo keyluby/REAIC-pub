@@ -4,3 +4,33 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# WhatsApp credentials and session files (SECURITY CRITICAL)
+instances/
+*.creds.json
+*session*.json
+*pre-key*.json
+*app-state-sync*.json
+*sender-key*.json
+*auth_info*.json
+
+# Environment and secrets
+.env
+.env.local
+.env.production
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database and logs
+*.db
+*.sqlite
+*.log
+logs/
+
+# Temporary and cache files
+tmp/
+temp/
+.cache/
+.tmp/

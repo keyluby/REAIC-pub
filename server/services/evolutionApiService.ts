@@ -46,7 +46,8 @@ class EvolutionApiService {
   private instancesPath: string;
   
   constructor() {
-    this.instancesPath = path.join(process.cwd(), 'instances');
+    // Use secure auth directory outside VCS (SECURITY: moved from './instances')
+    this.instancesPath = process.env.WHATSAPP_AUTH_DIR || path.join('/tmp', 'whatsapp_auth');
     this.ensureInstancesDirectory();
   }
 
