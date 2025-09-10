@@ -260,7 +260,8 @@ class InternalWebhookService {
         assistantPersonality: settings?.assistantPersonality,
         customSystemPrompt: settings?.systemPrompt,
         language: settings?.language || 'es',
-        // Phone number for AI service
+        // WhatsApp instance details for AI service
+        instanceName: instanceName,
         phoneNumber: phoneNumber,
         userId: conversation.userId,
         // AlterEstate integration

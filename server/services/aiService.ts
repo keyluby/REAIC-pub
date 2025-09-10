@@ -531,7 +531,7 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
         // Send properties as carousel via WhatsApp
         try {
           const { evolutionApiService } = await import('./evolutionApiService');
-          const instanceName = `instance_${context.userId}`;
+          const instanceName = context.instanceName || `instance_${context.userId}`;
           
           // Extract phone number from conversationId - need to implement this properly
           let phoneNumber = context.phoneNumber;
@@ -592,7 +592,7 @@ ${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.u
           
           // Import and setup required services
           const { evolutionApiService: evolutionService } = await import('./evolutionApiService');
-          const instanceName = `instance_${context.userId}`;
+          const instanceName = context.instanceName || `instance_${context.userId}`;
           
           // Extract phone number from conversationId
           let phoneNumber = context.phoneNumber;
