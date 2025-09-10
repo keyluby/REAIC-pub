@@ -31,13 +31,15 @@ export interface IStorage {
   
   // User settings
   getUserSettings(userId: string): Promise<UserSettings | undefined>;
-  upsertUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
+  upsertUserSettings(settings: InsertUserSettings & { userId: string }): Promise<UserSettings>;
   
   // WhatsApp instances
   createWhatsappInstance(instance: InsertWhatsappInstance): Promise<WhatsappInstance>;
   getWhatsappInstance(instanceName: string): Promise<WhatsappInstance | undefined>;
   getAllWhatsappInstances(): Promise<WhatsappInstance[]>;
   getUserWhatsappInstances(userId: string): Promise<WhatsappInstance[]>;
+  getActiveWhatsappInstance(userId: string): Promise<WhatsappInstance | undefined>;
+  setActiveWhatsappInstance(userId: string, instanceName: string): Promise<void>;
   updateWhatsappInstanceStatus(instanceName: string, status: string, qrCode?: string): Promise<void>;
   deleteWhatsappInstance(instanceName: string): Promise<void>;
   deleteInstanceConversationsAndMessages(instanceName: string): Promise<void>;
@@ -47,8 +49,10 @@ export interface IStorage {
   getConversation(id: string): Promise<Conversation | undefined>;
   getConversationById(id: string): Promise<Conversation | undefined>;
   getConversationByPhone(whatsappInstanceId: string, clientPhone: string): Promise<Conversation | undefined>;
+  getConversationByUserAndPhone(userId: string, clientPhone: string): Promise<Conversation | undefined>;
   getUserConversations(userId: string): Promise<Conversation[]>;
   updateConversationStatus(id: string, status: string): Promise<void>;
+  updateConversationContext(id: string, context: any): Promise<void>;
   
   // Messages
   createMessage(message: InsertMessage): Promise<Message>;
@@ -138,6 +142,59 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(whatsappInstances).where(eq(whatsappInstances.userId, userId));
   }
 
+  async getActiveWhatsappInstance(userId: string): Promise<WhatsappInstance | undefined> {
+    const [instance] = await db
+      .select()
+      .from(whatsappInstances)
+      .where(
+        and(
+          eq(whatsappInstances.userId, userId),
+          eq(whatsappInstances.isActive, true)
+        )
+      );
+    return instance;
+  }
+
+  async setActiveWhatsappInstance(userId: string, instanceName: string): Promise<void> {
+    try {
+      await db.transaction(async (tx) => {
+        // First, verify the target instance exists and belongs to the user
+        const [targetInstance] = await tx
+          .select()
+          .from(whatsappInstances)
+          .where(
+            and(
+              eq(whatsappInstances.userId, userId),
+              eq(whatsappInstances.instanceName, instanceName)
+            )
+          );
+        
+        if (!targetInstance) {
+          throw new Error(`WhatsApp instance '${instanceName}' not found for user '${userId}'`);
+        }
+        
+        // Deactivate all instances for this user
+        await tx
+          .update(whatsappInstances)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(whatsappInstances.userId, userId));
+        
+        // Then, activate the specified instance
+        await tx
+          .update(whatsappInstances)
+          .set({ isActive: true, updatedAt: new Date() })
+          .where(
+            and(
+              eq(whatsappInstances.userId, userId),
+              eq(whatsappInstances.instanceName, instanceName)
+            )
+          );
+      });
+    } catch (error) {
+      throw new Error(`Failed to set active WhatsApp instance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async updateWhatsappInstanceStatus(instanceName: string, status: string, qrCode?: string): Promise<void> {
     const updateData: any = { status, updatedAt: new Date() };
     if (qrCode !== undefined) {
@@ -205,6 +262,21 @@ export class DatabaseStorage implements IStorage {
     return conversation;
   }
 
+  async getConversationByUserAndPhone(userId: string, clientPhone: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userId, userId),
+          eq(conversations.clientPhone, clientPhone),
+          eq(conversations.status, "ACTIVE")
+        )
+      )
+      .orderBy(desc(conversations.lastMessageAt));
+    return conversation;
+  }
+
   async getUserConversations(userId: string): Promise<Conversation[]> {
     return await db
       .select()
@@ -217,6 +289,13 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(conversations)
       .set({ status })
+      .where(eq(conversations.id, id));
+  }
+
+  async updateConversationContext(id: string, context: any): Promise<void> {
+    await db
+      .update(conversations)
+      .set({ context, lastMessageAt: new Date() })
       .where(eq(conversations.id, id));
   }
 

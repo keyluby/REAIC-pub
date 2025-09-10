@@ -8,7 +8,8 @@ import {
   boolean,
   integer,
   text,
-  doublePrecision
+  doublePrecision,
+  unique
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -114,11 +115,15 @@ export const whatsappInstances = pgTable("whatsapp_instances", {
   instanceName: varchar("instance_name").unique().notNull(),
   phoneNumber: varchar("phone_number"),
   status: varchar("status").default("DISCONNECTED").notNull(),
+  isActive: boolean("is_active").default(false).notNull(), // Only one active instance per user
   qrCode: text("qr_code"),
   lastSeen: timestamp("last_seen"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  // Ensure only one active instance per user (enforced by application logic)
+  index("idx_user_active_instance").on(table.userId, table.isActive),
+]);
 
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
