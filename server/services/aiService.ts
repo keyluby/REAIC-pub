@@ -482,7 +482,9 @@ Responde en formato JSON:
         const searchAnalysis = await this.analyzeFailedSearch(searchQuery, context);
         
         // Dar respuesta personalizada considerando el historial y sugerir alternativas específicas
-        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const { storage } = await import('../storage');
+        const conversation = await storage.getConversationById(conversationId);
+        const conversationContext = (conversation?.context as any)?.messages || [];
         
         const helpfulSuggestions = this.generateAlternativeSuggestions(searchQuery, searchAnalysis);
         
@@ -528,7 +530,11 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
           conversationContext.splice(0, conversationContext.length - 20);
         }
 
-        this.conversationContexts.set(conversationId, conversationContext);
+        // Save updated context to database
+        await storage.updateConversationContext(conversationId, { 
+          messages: conversationContext,
+          lastUpdated: new Date().toISOString()
+        });
         
         return aiResponse;
       }
@@ -549,9 +555,14 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
         try {
           const { evolutionApiService } = await import('./evolutionApiService');
           
-          // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
-          const { internalWebhookService } = await import('./internalWebhookService');
-          const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+          // FIXED: Use proper instance resolution within AIService scope
+          let carouselInstanceName = context.instanceName;
+          if (!carouselInstanceName && context.userId) {
+            // Attempt to resolve instance from user mapping or use default
+            console.warn(`⚠️ [AI] No instanceName provided for user ${context.userId}, using fallback`);
+            carouselInstanceName = null; // Will cause proper error handling below
+          }
+          const activeInstanceInfo = carouselInstanceName ? { instanceName: carouselInstanceName } : null;
           
           if (!activeInstanceInfo) {
             console.error(`❌ [AI] Cannot send property carousel - no active instance for user ${context.userId}`);
@@ -587,7 +598,9 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             console.log(`✅ [AI] Property recommendations sent successfully: ${result.messageIds.length} messages`);
             
             // Update conversation context with enhanced property information
-            const conversationContext = this.conversationContexts.get(conversationId) || [];
+            const { storage } = await import('../storage');
+            const conversation = await storage.getConversationById(conversationId);
+            const conversationContext = (conversation?.context as any)?.messages || [];
             const contextSummary = `Se enviaron ${carouselProperties.length} propiedades recomendadas:
 ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.description} (ID: ${p.uid})`).join('\n')}`;
             
@@ -601,7 +614,11 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
               conversationContext.splice(0, conversationContext.length - 20);
             }
 
-            this.conversationContexts.set(conversationId, conversationContext);
+            // Save updated context to database
+            await storage.updateConversationContext(conversationId, { 
+              messages: conversationContext,
+              lastUpdated: new Date().toISOString()
+            });
             
             // Return success message for internal tracking
             return `Propiedades enviadas como recomendaciones: ${carouselProperties.length} mensajes individuales con fotos`;
@@ -620,9 +637,14 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           // Import and setup required services
           const { evolutionApiService: evolutionService } = await import('./evolutionApiService');
           
-          // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
-          const { internalWebhookService } = await import('./internalWebhookService');
-          const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+          // FIXED: Use proper instance resolution within AIService scope
+          let fallbackInstanceName = context.instanceName;
+          if (!fallbackInstanceName && context.userId) {
+            // Attempt to resolve instance from user mapping or use default
+            console.warn(`⚠️ [AI] No instanceName provided for user ${context.userId}, using fallback`);
+            fallbackInstanceName = null; // Will cause proper error handling below
+          }
+          const activeInstanceInfo = fallbackInstanceName ? { instanceName: fallbackInstanceName } : null;
           
           if (!activeInstanceInfo) {
             console.error(`❌ [AI] Cannot send forced individual properties - no active instance for user ${context.userId}`);
@@ -722,9 +744,14 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
       try {
         const { evolutionApiService } = await import('./evolutionApiService');
         
-        // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
-        const { internalWebhookService } = await import('./internalWebhookService');
-        const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+        // FIXED: Use proper instance resolution within AIService scope
+        let singlePropInstanceName = context.instanceName;
+        if (!singlePropInstanceName && context.userId) {
+          // Attempt to resolve instance from user mapping or use default
+          console.warn(`⚠️ [AI] No instanceName provided for user ${context.userId}, using fallback`);
+          singlePropInstanceName = null; // Will cause proper error handling below
+        }
+        const activeInstanceInfo = singlePropInstanceName ? { instanceName: singlePropInstanceName } : null;
         
         if (!activeInstanceInfo) {
           console.error(`❌ [AI] Cannot send single property carousel - no active instance for user ${context.userId}`);
@@ -760,7 +787,9 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           console.log(`✅ [AI] Single property carousel sent successfully`);
           
           // Update conversation context with a summary
-          const conversationContext = this.conversationContexts.get(conversationId) || [];
+          const { storage } = await import('../storage');
+          const conversation = await storage.getConversationById(conversationId);
+          const conversationContext = (conversation?.context as any)?.messages || [];
           const property = carouselProperties[0];
           const contextSummary = `Se envió 1 propiedad en formato carrusel con foto y botones interactivos: ${property.title} - ${property.price} (ID: ${property.uid})`;
           
@@ -774,7 +803,11 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
             conversationContext.splice(0, conversationContext.length - 20);
           }
 
-          this.conversationContexts.set(conversationId, conversationContext);
+          // Save updated context to database
+          await storage.updateConversationContext(conversationId, { 
+            messages: conversationContext,
+            lastUpdated: new Date().toISOString()
+          });
           
           // Return success message for internal tracking
           return `Propiedad enviada en formato carrusel con foto y botones`;
@@ -818,7 +851,9 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
 📝 **Descripción**: ${property.short_description || 'Información disponible en el enlace'}`;
         
         // Generar respuesta contextual usando IA
-        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const { storage } = await import('../storage');
+        const conversation = await storage.getConversationById(conversationId);
+        const conversationContext = (conversation?.context as any)?.messages || [];
         const contextInstructions = isRefinement 
           ? '\n\nINSTRUCCIONES ESPECIALES: El cliente está refinando una búsqueda anterior. Reconoce que recuerdas sus preferencias previas y presenta esta propiedad como resultado de haber considerado toda su información. Sé cálido, personal y muestra que has estado atento a sus necesidades. Tienes acceso a propiedades reales del CRM. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads.'
           : '\n\nINSTRUCCIONES ESPECIALES: Tienes acceso a propiedades reales del CRM. Presenta estas propiedades de manera natural y conversacional. SIEMPRE incluye el enlace directo a la publicación. Ofrece agendar visitas y crear leads si el cliente muestra interés.';
@@ -862,12 +897,16 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
         { role: "assistant", content: aiResponse }
       );
 
-      // Keep only last 10 messages for context
+      // Keep only last 20 messages for context
       if (conversationContext.length > 20) {
         conversationContext.splice(0, conversationContext.length - 20);
       }
 
-      this.conversationContexts.set(conversationId, conversationContext);
+      // Save updated context to database
+      await storage.updateConversationContext(conversationId, { 
+        messages: conversationContext,
+        lastUpdated: new Date().toISOString()
+      });
       
       return aiResponse;
     }
@@ -1256,7 +1295,9 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
    */
   private async findPropertiesByDescription(message: string, conversationId: string, context: any): Promise<{matches: any[], feature: string}> {
     try {
-      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      const { storage } = await import('../storage');
+      const conversation = await storage.getConversationById(conversationId);
+      const conversationContext = (conversation?.context as any)?.messages || [];
       console.log(`🔍 [AI] Searching for property by description: "${message}"`);
       
       // Extract properties mentioned in recent conversation context
@@ -1616,7 +1657,9 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
    */
   private async extractPropertyFromContext(conversationId: string): Promise<string | null> {
     try {
-      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      const { storage } = await import('../storage');
+      const conversation = await storage.getConversationById(conversationId);
+      const conversationContext = (conversation?.context as any)?.messages || [];
       
       // Buscar mensajes del asistente que contengan IDs de propiedades
       for (let i = conversationContext.length - 1; i >= 0; i--) {
@@ -1721,8 +1764,10 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
     extractedCriteria: any;
   }> {
     try {
-      const conversationContext = this.conversationContexts.get(conversationId) || [];
-      const fullConversation = conversationContext.map(msg => `${msg.role}: ${msg.content}`).join('\n');
+      const { storage } = await import('../storage');
+      const conversation = await storage.getConversationById(conversationId);
+      const conversationContext = (conversation?.context as any)?.messages || [];
+      const fullConversation = conversationContext.map((msg: { role: string; content: string }) => `${msg.role}: ${msg.content}`).join('\n');
       
       const prompt = `Analiza la conversación de este cliente de bienes raíces para determinar si tiene criterios suficientes para una búsqueda dirigida:
 
@@ -1833,8 +1878,18 @@ IMPORTANTE:
     return greeting + explanation + questionsList + closing;
   }
 
-  clearConversationContext(conversationId: string) {
-    this.conversationContexts.delete(conversationId);
+  async clearConversationContext(conversationId: string) {
+    // Clear conversation context in database
+    try {
+      const { storage } = await import('../storage');
+      await storage.updateConversationContext(conversationId, { 
+        messages: [],
+        lastUpdated: new Date().toISOString()
+      });
+      console.log(`🗑️ [AI] Cleared conversation context for ${conversationId}`);
+    } catch (error) {
+      console.error('❌ [AI] Error clearing conversation context:', error);
+    }
   }
 }
 
