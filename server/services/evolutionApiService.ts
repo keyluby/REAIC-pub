@@ -46,14 +46,67 @@ class EvolutionApiService {
   private instancesPath: string;
   
   constructor() {
-    // Use secure auth directory outside VCS (SECURITY: moved from './instances')
-    this.instancesPath = process.env.WHATSAPP_AUTH_DIR || path.join('/tmp', 'whatsapp_auth');
+    // Use persistent auth directory outside VCS (SECURITY: moved from '/tmp')
+    this.instancesPath = process.env.WHATSAPP_AUTH_DIR || path.join(process.cwd(), 'whatsapp_instances');
     this.ensureInstancesDirectory();
+    this.migrateFromTemporary();
   }
 
   private ensureInstancesDirectory() {
     if (!fs.existsSync(this.instancesPath)) {
       fs.mkdirSync(this.instancesPath, { recursive: true });
+    }
+  }
+
+  private migrateFromTemporary() {
+    const tempPath = path.join('/tmp', 'whatsapp_auth');
+    
+    if (fs.existsSync(tempPath)) {
+      console.log('🔄 [MIGRATION] Found existing credentials in /tmp, migrating to persistent storage...');
+      
+      try {
+        const tempDirs = fs.readdirSync(tempPath, { withFileTypes: true })
+          .filter(dirent => dirent.isDirectory())
+          .map(dirent => dirent.name);
+        
+        for (const instanceDir of tempDirs) {
+          const sourcePath = path.join(tempPath, instanceDir);
+          const destPath = path.join(this.instancesPath, instanceDir);
+          
+          if (!fs.existsSync(destPath)) {
+            console.log(`📁 [MIGRATION] Migrating instance: ${instanceDir}`);
+            
+            // Create destination directory
+            fs.mkdirSync(destPath, { recursive: true });
+            
+            // Copy all files from source to destination
+            const files = fs.readdirSync(sourcePath);
+            for (const file of files) {
+              const sourceFile = path.join(sourcePath, file);
+              const destFile = path.join(destPath, file);
+              
+              if (fs.statSync(sourceFile).isFile()) {
+                fs.copyFileSync(sourceFile, destFile);
+              }
+            }
+            
+            console.log(`✅ [MIGRATION] Successfully migrated ${instanceDir}`);
+          } else {
+            console.log(`⏭️ [MIGRATION] Instance ${instanceDir} already exists in persistent storage`);
+          }
+        }
+        
+        console.log('🎉 [MIGRATION] Credential migration completed successfully');
+        
+        // Optional: Clean up temp directory after successful migration
+        // fs.rmSync(tempPath, { recursive: true, force: true });
+        // console.log('🧹 [MIGRATION] Cleaned up temporary directory');
+        
+      } catch (error) {
+        console.error('❌ [MIGRATION] Failed to migrate credentials:', error);
+      }
+    } else {
+      console.log('✅ [MIGRATION] No temporary credentials found, using persistent storage');
     }
   }
 
