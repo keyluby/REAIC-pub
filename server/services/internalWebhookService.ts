@@ -260,6 +260,9 @@ class InternalWebhookService {
         assistantPersonality: settings?.assistantPersonality,
         customSystemPrompt: settings?.systemPrompt,
         language: settings?.language || 'es',
+        // Phone number for AI service
+        phoneNumber: phoneNumber,
+        userId: conversation.userId,
         // AlterEstate integration
         alterEstateEnabled: settings?.alterEstateEnabled || false,
         alterEstateToken: settings?.alterEstateToken,
