@@ -81,18 +81,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       console.log('🔧 [SETTINGS] Incoming settings data:', JSON.stringify(req.body, null, 2));
       
-      // Manual validation since we need to see what's failing
-      const validationResult = insertUserSettingsSchema.safeParse(req.body);
-      if (!validationResult.success) {
-        console.error('❌ [SETTINGS] Validation error:', validationResult.error.errors);
-        return res.status(400).json({
-          message: 'Validation error',
-          errors: validationResult.error.errors,
-          receivedData: req.body
-        });
+      // Process the data to handle date conversions
+      const processedData = { ...req.body };
+      
+      // Handle lastRateUpdate date conversion
+      if (processedData.lastRateUpdate) {
+        if (typeof processedData.lastRateUpdate === 'string') {
+          processedData.lastRateUpdate = new Date(processedData.lastRateUpdate);
+        }
       }
       
-      const settings = await storage.upsertUserSettings({ userId, ...req.body });
+      console.log('🔧 [SETTINGS] Processed data:', JSON.stringify(processedData, null, 2));
+      
+      const settings = await storage.upsertUserSettings({ userId, ...processedData });
       console.log('✅ [SETTINGS] Settings saved successfully for user:', userId);
       res.json(settings);
     } catch (error) {

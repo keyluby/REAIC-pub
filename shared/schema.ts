@@ -216,15 +216,7 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-}).partial().extend({
-  // Permitir que lastRateUpdate venga como string y convertirlo a Date
-  lastRateUpdate: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
-    if (typeof val === 'string') {
-      return new Date(val);
-    }
-    return val;
-  })
-});
+}).partial();
 
 export const insertWhatsappInstanceSchema = createInsertSchema(whatsappInstances).omit({
   id: true,
