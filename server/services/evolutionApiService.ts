@@ -663,35 +663,23 @@ class EvolutionApiService {
     // Limitar a máximo 6 propiedades recomendadas
     const limitedProperties = properties.slice(0, 6);
     
-    // Enviar cada propiedad como mensaje individual con foto
+    // Enviar cada propiedad como mensaje individual con botones interactivos
     for (let i = 0; i < limitedProperties.length; i++) {
       const property = limitedProperties[i];
       
       try {
-        // Construir caption completo con toda la información
-        const caption = this.buildCompletePropertyCaption(property);
-        
         console.log(`🖼️ [DEBUG] Property ${i + 1} image URL: ${property.imageUrl}`);
-        console.log(`📝 [DEBUG] Property ${i + 1} caption: ${caption.substring(0, 100)}...`);
         
-        // Verificar si la imagen URL es válida antes de enviar
-        if (!property.imageUrl || property.imageUrl.includes('placeholder')) {
-          console.log(`⚠️ [DEBUG] Property ${i + 1} has no valid image, sending text only`);
-          throw new Error('No valid image URL');
-        }
-        
-        // Enviar imagen con caption completo - Un mensaje por propiedad
-        const mediaResult = await this.sendMedia(
+        // Enviar propiedad con botones interactivos
+        const buttonResult = await this.sendPropertyWithButtons(
           instanceName,
           number,
-          property.imageUrl,
-          'image',
-          caption
+          property
         );
 
-        if (mediaResult.messageId) {
-          messageIds.push(mediaResult.messageId);
-          console.log(`✅ [DEBUG] Property ${i + 1} sent successfully with image`);
+        if (buttonResult.messageId) {
+          messageIds.push(buttonResult.messageId);
+          console.log(`✅ [DEBUG] Property ${i + 1} sent successfully with interactive buttons`);
         } else {
           console.log(`❌ [DEBUG] Property ${i + 1} failed to send - no message ID`);
         }
@@ -704,10 +692,16 @@ class EvolutionApiService {
       } catch (error) {
         console.error(`Error sending property recommendation ${i + 1}:`, error);
         
-        // Fallback: enviar como texto simple sin imagen
+        // Fallback: enviar como mensaje simple con imagen (método anterior)
         try {
-          const fallbackText = this.buildCompletePropertyCaption(property);
-          const fallbackResult = await this.sendMessage(instanceName, number, fallbackText);
+          const caption = this.buildCompletePropertyCaption(property);
+          const fallbackResult = await this.sendMedia(
+            instanceName,
+            number,
+            property.imageUrl,
+            'image',
+            caption
+          );
           if (fallbackResult.messageId) messageIds.push(fallbackResult.messageId);
         } catch (fallbackError) {
           console.error(`Fallback also failed for property ${i + 1}:`, fallbackError);
@@ -721,6 +715,91 @@ class EvolutionApiService {
       success: messageIds.length > 0,
       messageIds
     };
+  }
+
+  async sendPropertyWithButtons(instanceName: string, number: string, property: any): Promise<{ success: boolean; messageId?: string }> {
+    console.log(`🎯 [BUTTONS] Sending property with interactive buttons: ${property.title}`);
+    
+    try {
+      // Construir el mensaje con imagen y botones
+      const buttonMessage = {
+        number: number,
+        buttonMessage: {
+          text: this.buildPropertyButtonCaption(property),
+          buttons: [
+            {
+              buttonId: `details_${property.uid}`,
+              buttonText: 'Ver más detalles'
+            },
+            {
+              buttonId: `question_${property.uid}`,
+              buttonText: 'Tengo una Pregunta'
+            }
+          ],
+          imageMessage: {
+            image: {
+              url: property.imageUrl
+            }
+          }
+        }
+      };
+
+      console.log(`🎯 [BUTTONS] Button structure:`, {
+        text: buttonMessage.buttonMessage.text.substring(0, 50) + '...',
+        buttons: buttonMessage.buttonMessage.buttons.map(b => b.buttonText),
+        hasImage: !!buttonMessage.buttonMessage.imageMessage?.image?.url
+      });
+
+      const result = await this.sendButtonMessage(instanceName, buttonMessage);
+      
+      if (result.success) {
+        console.log(`✅ [BUTTONS] Property sent successfully with buttons: ${property.uid}`);
+      } else {
+        console.log(`❌ [BUTTONS] Failed to send property with buttons: ${property.uid}`);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`❌ [BUTTONS] Error sending property with buttons:`, error);
+      throw error;
+    }
+  }
+
+  private buildPropertyButtonCaption(property: any): string {
+    const propertyType = this.getPropertyTypeEmoji(property.title);
+    
+    // Título con emoji tipo de propiedad
+    let caption = `${propertyType} *${property.title}*\n`;
+    
+    // Precio con emoji
+    caption += `💰 ${property.price}\n`;
+    
+    // Extraer detalles técnicos de la descripción
+    const details = this.parsePropertyDetails(property.description);
+    
+    // Detalles técnicos con emojis
+    if (details.rooms) caption += `🏠 ${details.rooms} hab`;
+    if (details.bathrooms) caption += `${details.rooms ? ' • ' : ''}🚿 ${details.bathrooms} baños\n`;
+    else if (details.rooms) caption += '\n';
+    
+    // Área si está disponible
+    if (property.description.includes('m²')) {
+      const areaMatch = property.description.match(/(\d+)\s*m²/);
+      if (areaMatch) {
+        caption += `📐 ${areaMatch[1]}m²\n`;
+      }
+    }
+    
+    // Ubicación con emoji
+    if (details.location) {
+      caption += `📍 ${details.location}\n`;
+    }
+    
+    // Agregar call-to-action para los botones
+    caption += `\n¿Qué te gustaría hacer?`;
+
+    return caption;
   }
 
   private async sendPropertyButtons(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {

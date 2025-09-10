@@ -6,6 +6,7 @@ const pendingMediaQueue = new Map<string, any>();
 export class AIService {
   private openaiClient: OpenAI;
   private conversationContexts = new Map<string, any[]>();
+  private propertyContexts = new Map<string, string>();
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY || '';
@@ -1526,6 +1527,29 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       default:
         return false;
     }
+  }
+
+  /**
+   * Set property context for focused questions
+   */
+  setPropertyContext(conversationId: string, propertyId: string): void {
+    this.propertyContexts.set(conversationId, propertyId);
+    console.log(`🎯 [AI] Property context set for conversation ${conversationId}: ${propertyId}`);
+  }
+
+  /**
+   * Get property context for conversation
+   */
+  getPropertyContext(conversationId: string): string | undefined {
+    return this.propertyContexts.get(conversationId);
+  }
+
+  /**
+   * Clear property context for conversation
+   */
+  clearPropertyContext(conversationId: string): void {
+    this.propertyContexts.delete(conversationId);
+    console.log(`🗑️ [AI] Property context cleared for conversation ${conversationId}`);
   }
 
   /**

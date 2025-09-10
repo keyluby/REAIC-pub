@@ -201,28 +201,38 @@ class InternalWebhookService {
         console.log(`📝 [INTERNAL] Message content: "${messageData.message}"`);
         console.log(`📊 [INTERNAL] Message type: ${messageData.messageType}`);
         
-        // Procesar contenido multimedia si existe
-        let processedMessage = messageData.message;
+        // Check if this is a button response first
+        const isButtonResponse = await this.handleButtonResponse(
+          messageData, 
+          instanceName, 
+          conversation, 
+          dbInstance
+        );
         
-        if (messageData.mediaBuffer && messageData.messageType) {
-          processedMessage = await this.processMultimediaMessage(
-            messageData.message, 
-            messageData.mediaBuffer,
-            messageData.messageType,
-            messageData.mimeType
+        if (!isButtonResponse) {
+          // Procesar contenido multimedia si existe
+          let processedMessage = messageData.message;
+          
+          if (messageData.mediaBuffer && messageData.messageType) {
+            processedMessage = await this.processMultimediaMessage(
+              messageData.message, 
+              messageData.mediaBuffer,
+              messageData.messageType,
+              messageData.mimeType
+            );
+          }
+          
+          // Usar el buffer de mensajes con el contenido procesado
+          await messageBufferService.addMessageToBuffer(
+            conversation.id,
+            processedMessage,
+            messageData.messageKey,
+            userId,
+            async (combinedMessage: string) => {
+              await this.processWithAI(instanceName, messageData.remoteJid, combinedMessage, conversation.id, dbInstance.id);
+            }
           );
         }
-        
-        // Usar el buffer de mensajes con el contenido procesado
-        await messageBufferService.addMessageToBuffer(
-          conversation.id,
-          processedMessage,
-          messageData.messageKey,
-          userId,
-          async (combinedMessage: string) => {
-            await this.processWithAI(instanceName, messageData.remoteJid, combinedMessage, conversation.id, dbInstance.id);
-          }
-        );
       } else {
         console.log(`⏭️ [INTERNAL] Skipping AI processing - fromMe: ${messageData.fromMe}, message: "${messageData.message}"`);
       }
@@ -332,6 +342,291 @@ class InternalWebhookService {
       console.error('❌ [INTERNAL AI] Error processing AI response:', error);
       console.error('❌ [INTERNAL AI] Error stack:', error.stack);
     }
+  }
+
+  /**
+   * Handle button responses from interactive messages
+   */
+  private async handleButtonResponse(
+    messageData: any, 
+    instanceName: string, 
+    conversation: any, 
+    dbInstance: any
+  ): Promise<boolean> {
+    try {
+      // Check multiple possible formats for button responses
+      const buttonId = this.extractButtonId(messageData);
+      
+      if (!buttonId) {
+        return false; // Not a button response
+      }
+
+      console.log(`🔘 [INTERNAL] Button response detected: ${buttonId}`);
+      
+      // Parse button ID format: action_propertyId (e.g., "details_ABC123XYZ" or "question_ABC123XYZ")
+      const buttonParts = buttonId.split('_');
+      if (buttonParts.length !== 2) {
+        console.log(`⚠️ [INTERNAL] Invalid button ID format: ${buttonId}`);
+        return false;
+      }
+
+      const [action, propertyId] = buttonParts;
+      console.log(`🎯 [INTERNAL] Button action: ${action}, Property ID: ${propertyId}`);
+
+      // Get user settings for AlterEstate integration
+      const settings = await storage.getUserSettings(conversation.userId);
+      
+      if (!settings?.alterEstateEnabled || !settings.alterEstateToken) {
+        await this.sendErrorMessage(
+          instanceName, 
+          messageData.remoteJid,
+          'Para acceder a los detalles de propiedades, necesitas configurar AlterEstate CRM en tu cuenta.'
+        );
+        return true;
+      }
+
+      // Handle different button actions
+      switch (action) {
+        case 'details':
+          await this.handleDetailsButton(instanceName, messageData.remoteJid, propertyId, settings);
+          break;
+        
+        case 'question':
+          await this.handleQuestionButton(instanceName, messageData.remoteJid, propertyId, conversation.id, settings);
+          break;
+        
+        default:
+          console.log(`⚠️ [INTERNAL] Unknown button action: ${action}`);
+          return false;
+      }
+
+      return true; // Button response was handled
+      
+    } catch (error) {
+      console.error('❌ [INTERNAL] Error handling button response:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Extract button ID from various message formats
+   */
+  private extractButtonId(messageData: any): string | null {
+    // Check different possible locations for button ID
+    if (messageData.buttonResponseMessage?.selectedButtonId) {
+      return messageData.buttonResponseMessage.selectedButtonId;
+    }
+    
+    if (messageData.listResponseMessage?.singleSelectReply?.selectedRowId) {
+      return messageData.listResponseMessage.singleSelectReply.selectedRowId;
+    }
+    
+    if (messageData.selectedButtonId) {
+      return messageData.selectedButtonId;
+    }
+    
+    // Check if the message text contains our button patterns
+    const message = messageData.message || '';
+    if (message.includes('details_') || message.includes('question_')) {
+      const match = message.match(/(details|question)_([A-Z0-9]+)/);
+      if (match) {
+        return match[0];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Handle "Ver más detalles" button click
+   */
+  private async handleDetailsButton(
+    instanceName: string, 
+    remoteJid: string, 
+    propertyId: string,
+    settings: any
+  ): Promise<void> {
+    try {
+      console.log(`🔗 [INTERNAL] Processing details request for property: ${propertyId}`);
+      
+      // Import AlterEstate service
+      const { alterEstateService } = await import('./alterEstateService');
+      
+      // Get property details from AlterEstate
+      const propertyDetails = await alterEstateService.getPropertyDetail(
+        propertyId,
+        settings.alterEstateToken,
+        settings.alterEstateApiKey
+      );
+
+      if (!propertyDetails) {
+        await this.sendErrorMessage(
+          instanceName, 
+          remoteJid,
+          'No pude encontrar los detalles de esa propiedad. El enlace puede haber expirado.'
+        );
+        return;
+      }
+
+      // Send detailed property information
+      const detailsMessage = this.formatPropertyDetailsMessage(propertyDetails);
+      
+      // Import evolution API service  
+      const { evolutionApiService } = await import('./evolutionApiService');
+      
+      await evolutionApiService.sendMessage(
+        instanceName,
+        remoteJid.replace('@s.whatsapp.net', ''),
+        detailsMessage
+      );
+
+      // Send property URL if available
+      if (settings.realEstateWebsiteUrl && propertyDetails.uid) {
+        const baseUrl = settings.realEstateWebsiteUrl.endsWith('/') ? settings.realEstateWebsiteUrl : settings.realEstateWebsiteUrl + '/';
+        const propertyUrl = `${baseUrl}propiedad/${propertyDetails.uid}/`;
+        
+        await evolutionApiService.sendMessage(
+          instanceName,
+          remoteJid.replace('@s.whatsapp.net', ''),
+          `🔗 Ver propiedad completa: ${propertyUrl}`
+        );
+      }
+      
+      console.log(`✅ [INTERNAL] Property details sent for: ${propertyId}`);
+      
+    } catch (error) {
+      console.error('❌ [INTERNAL] Error handling details button:', error);
+      await this.sendErrorMessage(
+        instanceName, 
+        remoteJid,
+        'Hubo un error al obtener los detalles de la propiedad. Por favor intenta de nuevo.'
+      );
+    }
+  }
+
+  /**
+   * Handle "Tengo una Pregunta" button click
+   */
+  private async handleQuestionButton(
+    instanceName: string, 
+    remoteJid: string, 
+    propertyId: string,
+    conversationId: string,
+    settings: any
+  ): Promise<void> {
+    try {
+      console.log(`❓ [INTERNAL] Processing question request for property: ${propertyId}`);
+      
+      // Get AI service for context-aware response
+      const { aiService } = await import('./aiService');
+      
+      // Set property context for future questions
+      const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
+      const context = {
+        assistantName: settings?.assistantName || 'Asistente Inmobiliario',
+        assistantPersonality: settings?.assistantPersonality,
+        customSystemPrompt: settings?.customSystemPrompt,
+        language: settings?.language || 'es',
+        instanceName: instanceName,
+        phoneNumber: phoneNumber,
+        userId: settings.userId,
+        alterEstateEnabled: settings?.alterEstateEnabled || false,
+        alterEstateToken: settings?.alterEstateToken,
+        alterEstateApiKey: settings?.alterEstateApiKey,
+        userLocation: phoneNumber?.includes('1829') ? 'Santo Domingo' : undefined,
+        realEstateWebsiteUrl: settings?.realEstateWebsiteUrl,
+        focusedPropertyId: propertyId // Set the property as focus for questions
+      };
+
+      // Send a contextual prompt
+      const questionPrompt = `¡Perfecto! Estoy aquí para responder cualquier pregunta sobre la propiedad ${propertyId}. 
+
+¿Qué te gustaría saber? Puedo ayudarte con:
+• 📍 Ubicación y zona
+• 💰 Financiamiento y precios
+• 🏠 Características del inmueble
+• 📋 Documentación y trámites
+• 📅 Disponibilidad para visitar
+
+¡Pregúntame lo que necesites!`;
+
+      // Import evolution API service
+      const { evolutionApiService } = await import('./evolutionApiService');
+      
+      await evolutionApiService.sendMessage(
+        instanceName,
+        phoneNumber,
+        questionPrompt
+      );
+      
+      // Store the property context for future AI responses
+      aiService.setPropertyContext(conversationId, propertyId);
+      
+      console.log(`✅ [INTERNAL] Question context set for property: ${propertyId}`);
+      
+    } catch (error) {
+      console.error('❌ [INTERNAL] Error handling question button:', error);
+      await this.sendErrorMessage(
+        instanceName, 
+        remoteJid,
+        'Estoy listo para responder tus preguntas. ¿Qué te gustaría saber sobre esta propiedad?'
+      );
+    }
+  }
+
+  /**
+   * Send error message to user
+   */
+  private async sendErrorMessage(instanceName: string, remoteJid: string, message: string): Promise<void> {
+    try {
+      const { evolutionApiService } = await import('./evolutionApiService');
+      await evolutionApiService.sendMessage(
+        instanceName,
+        remoteJid.replace('@s.whatsapp.net', ''),
+        message
+      );
+    } catch (error) {
+      console.error('❌ Error sending error message:', error);
+    }
+  }
+
+  /**
+   * Format property details for message display
+   */
+  private formatPropertyDetailsMessage(property: any): string {
+    let message = `🏠 *DETALLES DE LA PROPIEDAD*\n\n`;
+    
+    message += `🏷️ *${property.title}*\n`;
+    message += `💰 *Precio:* ${property.price}\n`;
+    
+    if (property.description) {
+      message += `📋 *Descripción:* ${property.description}\n`;
+    }
+    
+    if (property.location) {
+      message += `📍 *Ubicación:* ${property.location}\n`;
+    }
+    
+    if (property.area) {
+      message += `📐 *Área:* ${property.area}m²\n`;
+    }
+    
+    if (property.rooms) {
+      message += `🛏️ *Habitaciones:* ${property.rooms}\n`;
+    }
+    
+    if (property.bathrooms) {
+      message += `🚿 *Baños:* ${property.bathrooms}\n`;
+    }
+    
+    if (property.features && property.features.length > 0) {
+      message += `✨ *Características:*\n`;
+      property.features.forEach((feature: string) => {
+        message += `• ${feature}\n`;
+      });
+    }
+    
+    return message;
   }
 
   /**
