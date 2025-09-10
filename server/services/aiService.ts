@@ -559,10 +559,10 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
           if (result.success) {
             console.log(`✅ [AI] Property recommendations sent successfully: ${result.messageIds.length} messages`);
             
-            // Update conversation context with a summary
+            // Update conversation context with enhanced property information
             const conversationContext = this.conversationContexts.get(conversationId) || [];
-            const contextSummary = `Se enviaron ${carouselProperties.length} propiedades recomendadas (una por mensaje con foto):
-${carouselProperties.map((p, i) => `${i + 1}. ${p.title} - ${p.price} (ID: ${p.uid})`).join('\n')}`;
+            const contextSummary = `Se enviaron ${carouselProperties.length} propiedades recomendadas:
+${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.description} (ID: ${p.uid})`).join('\n')}`;
             
             conversationContext.push(
               { role: "user", content: message },
@@ -1218,18 +1218,27 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       for (let i = conversationContext.length - 1; i >= 0 && i >= conversationContext.length - 10; i--) {
         const msg = conversationContext[i];
         if (msg.role === 'assistant' && msg.content) {
-          // Look for property IDs and associated information
-          const propertyMatches = msg.content.match(/\*\*ID\*\*:\s*([A-Z0-9]{8,12})[^]*?(?=\*\*ID\*\*|$)/g);
-          if (propertyMatches) {
-            for (const match of propertyMatches) {
-              const idMatch = match.match(/\*\*ID\*\*:\s*([A-Z0-9]{8,12})/);
-              if (idMatch) {
-                const propertyId = idMatch[1];
-                recentProperties.push({
-                  slug: propertyId,
-                  content: match.toLowerCase()
-                });
-              }
+          // Look for property IDs in multiple formats and associated information
+          const propertyPatterns = [
+            /\(ID:\s*([A-Z0-9]{8,12})\)/g,  // (ID: ABC123)
+            /\*\*ID\*\*:\s*([A-Z0-9]{8,12})/g,  // **ID**: ABC123
+            /ID:\s*([A-Z0-9]{8,12})/g  // ID: ABC123
+          ];
+          
+          for (const pattern of propertyPatterns) {
+            const matches = [...msg.content.matchAll(pattern)];
+            for (const match of matches) {
+              const propertyId = match[1];
+              // Get fuller context around the property ID
+              const startPos = Math.max(0, match.index! - 200);
+              const endPos = Math.min(msg.content.length, match.index! + 300);
+              const fullContext = msg.content.substring(startPos, endPos);
+              
+              recentProperties.push({
+                slug: propertyId,
+                content: fullContext.toLowerCase(),
+                position: recentProperties.length + 1
+              });
             }
           }
           
@@ -1263,10 +1272,8 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       
       console.log(`🔍 [AI] Extracted features from message:`, features);
       
-      // Find matching properties
-      const matches = recentProperties.filter(property => {
-        return features.some(feature => property.content.includes(feature));
-      });
+      // Find matching properties with smart contextual matching
+      const matches = this.smartPropertyMatching(recentProperties, features, message);
       
       console.log(`🎯 [AI] Found ${matches.length} matching properties`);
       
@@ -1284,10 +1291,32 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
   }
 
   /**
-   * Extraer características/features de un mensaje
+   * Extraer características/features de un mensaje incluyendo referencias contextuales
    */
   private extractPropertyFeatures(message: string): string[] {
     const features: string[] = [];
+    
+    // Referencias por posición/orden
+    const positionalRefs = [
+      'primera', 'primero', 'primer', 'first', '1', 'uno',
+      'segunda', 'segundo', 'second', '2', 'dos', 
+      'tercera', 'tercero', 'third', '3', 'tres',
+      'última', 'último', 'last', 'final'
+    ];
+    
+    for (const ref of positionalRefs) {
+      if (message.includes(ref)) {
+        features.push(ref);
+      }
+    }
+    
+    // Referencias demostrativas
+    const demonstrativeRefs = ['este', 'esta', 'esa', 'ese', 'aquel', 'aquella', 'la de', 'el de', 'this', 'that'];
+    for (const ref of demonstrativeRefs) {
+      if (message.includes(ref)) {
+        features.push(ref);
+      }
+    }
     
     // Features relacionadas con espacios exteriores
     if (message.includes('terraza') || message.includes('terrace')) {
@@ -1298,6 +1327,12 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
     }
     if (message.includes('jardín') || message.includes('jardin')) {
       features.push('jardín', 'jardin');
+    }
+    if (message.includes('piscina') || message.includes('pool')) {
+      features.push('piscina', 'pool');
+    }
+    if (message.includes('parqueo') || message.includes('parking') || message.includes('garaje')) {
+      features.push('parqueo', 'parking', 'garaje');
     }
     
     // Features relacionadas con número de habitaciones
@@ -1312,8 +1347,11 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       features.push(priceMatches[0]);
     }
     
-    // Features relacionadas con ubicación
-    const locations = ['santo domingo', 'punta cana', 'santiago', 'zona colonial', 'bella vista', 'cacique', 'hidalgos', 'monumenta'];
+    // Features relacionadas con ubicación específica
+    const locations = [
+      'santo domingo', 'punta cana', 'santiago', 'zona colonial', 'bella vista', 'cacique', 
+      'hidalgos', 'monumenta', 'naco', 'piantini', 'gazcue', 'ensanche', 'el millón', 'millon'
+    ];
     for (const location of locations) {
       if (message.includes(location)) {
         features.push(location);
@@ -1327,11 +1365,167 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
     if (message.includes('casa') || message.includes('house')) {
       features.push('casa', 'house');
     }
+    if (message.includes('penthouse') || message.includes('ático')) {
+      features.push('penthouse', 'ático');
+    }
+    
+    // Features relacionadas con características específicas
+    if (message.includes('más caro') || message.includes('más costoso') || message.includes('expensive')) {
+      features.push('precio_alto');
+    }
+    if (message.includes('más barato') || message.includes('económico') || message.includes('cheap')) {
+      features.push('precio_bajo');
+    }
+    if (message.includes('más grande') || message.includes('bigger') || message.includes('larger')) {
+      features.push('tamaño_grande');
+    }
+    if (message.includes('más pequeño') || message.includes('smaller')) {
+      features.push('tamaño_pequeño');
+    }
     if (message.includes('villa')) {
       features.push('villa');
     }
     
     return features;
+  }
+
+  /**
+   * Smart property matching que considera posición, referencias y características
+   */
+  private smartPropertyMatching(recentProperties: any[], features: string[], message: string): any[] {
+    const messageLower = message.toLowerCase();
+    let matches: any[] = [];
+
+    // 1. Prioridad: Referencias posicionales específicas
+    const positionalMatch = this.matchByPosition(recentProperties, messageLower);
+    if (positionalMatch) {
+      return [positionalMatch];
+    }
+
+    // 2. Referencias demostrativas con contexto
+    const demonstrativeMatch = this.matchByDemonstrative(recentProperties, messageLower, features);
+    if (demonstrativeMatch.length > 0) {
+      return demonstrativeMatch;
+    }
+
+    // 3. Características específicas (precio, ubicación, tipo)
+    matches = recentProperties.filter(property => {
+      return features.some(feature => {
+        // Match exacto para características importantes
+        if (['precio_alto', 'precio_bajo', 'tamaño_grande', 'tamaño_pequeño'].includes(feature)) {
+          return this.matchByComparative(property, feature, recentProperties);
+        }
+        return property.content.includes(feature);
+      });
+    });
+
+    // 4. Si no hay matches específicos, buscar por características generales
+    if (matches.length === 0) {
+      matches = recentProperties.filter(property => {
+        return features.some(feature => property.content.includes(feature));
+      });
+    }
+
+    return matches;
+  }
+
+  /**
+   * Matching por posición ordinal (primera, segunda, última, etc.)
+   */
+  private matchByPosition(properties: any[], message: string): any | null {
+    const positionMap: { [key: string]: number } = {
+      'primera': 1, 'primero': 1, 'primer': 1, 'first': 1, '1': 1, 'uno': 1,
+      'segunda': 2, 'segundo': 2, 'second': 2, '2': 2, 'dos': 2,
+      'tercera': 3, 'tercero': 3, 'third': 3, '3': 3, 'tres': 3,
+      'cuarta': 4, 'cuarto': 4, 'fourth': 4, '4': 4, 'cuatro': 4,
+      'quinta': 5, 'quinto': 5, 'fifth': 5, '5': 5, 'cinco': 5
+    };
+
+    for (const [keyword, position] of Object.entries(positionMap)) {
+      if (message.includes(keyword)) {
+        const property = properties.find(p => p.position === position);
+        if (property) {
+          console.log(`🎯 [AI] Found property by position: ${keyword} -> position ${position}`);
+          return property;
+        }
+      }
+    }
+
+    // Manejar "última" / "last"
+    if (message.includes('última') || message.includes('último') || message.includes('last') || message.includes('final')) {
+      const lastProperty = properties[properties.length - 1];
+      if (lastProperty) {
+        console.log(`🎯 [AI] Found last property`);
+        return lastProperty;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Matching por referencias demostrativas (este, esa, etc.)
+   */
+  private matchByDemonstrative(properties: any[], message: string, features: string[]): any[] {
+    const demonstratives = ['este', 'esta', 'esa', 'ese', 'aquel', 'aquella', 'la de', 'el de'];
+    
+    const hasDemonstrative = demonstratives.some(dem => message.includes(dem));
+    if (!hasDemonstrative) return [];
+
+    // Si hay demostrativo + característica específica, buscar la combinación
+    if (features.length > 1) {
+      const specificFeatures = features.filter(f => !demonstratives.includes(f));
+      return properties.filter(property => {
+        return specificFeatures.some(feature => property.content.includes(feature));
+      });
+    }
+
+    // Si solo hay demostrativo, devolver la más reciente
+    return properties.length > 0 ? [properties[0]] : [];
+  }
+
+  /**
+   * Matching por comparaciones (más caro, más grande, etc.)
+   */
+  private matchByComparative(property: any, feature: string, allProperties: any[]): boolean {
+    // Extraer precios para comparación
+    const prices = allProperties.map(p => {
+      const priceMatch = p.content.match(/(us\$|usd)\s*([\d,]+)/i);
+      return priceMatch ? parseFloat(priceMatch[2].replace(/,/g, '')) : 0;
+    });
+
+    const currentPriceMatch = property.content.match(/(us\$|usd)\s*([\d,]+)/i);
+    const currentPrice = currentPriceMatch ? parseFloat(currentPriceMatch[2].replace(/,/g, '')) : 0;
+
+    switch (feature) {
+      case 'precio_alto':
+        const maxPrice = Math.max(...prices);
+        return currentPrice === maxPrice;
+      case 'precio_bajo':
+        const minPrice = Math.min(...prices.filter(p => p > 0));
+        return currentPrice === minPrice;
+      case 'tamaño_grande':
+        // Buscar área en m²
+        const areas = allProperties.map(p => {
+          const areaMatch = p.content.match(/(\d+)\s*m²/i);
+          return areaMatch ? parseInt(areaMatch[1]) : 0;
+        });
+        const currentAreaMatch = property.content.match(/(\d+)\s*m²/i);
+        const currentArea = currentAreaMatch ? parseInt(currentAreaMatch[1]) : 0;
+        const maxArea = Math.max(...areas);
+        return currentArea === maxArea;
+      case 'tamaño_pequeño':
+        const areasSmall = allProperties.map(p => {
+          const areaMatch = p.content.match(/(\d+)\s*m²/i);
+          return areaMatch ? parseInt(areaMatch[1]) : 0;
+        });
+        const currentAreaSmallMatch = property.content.match(/(\d+)\s*m²/i);
+        const currentAreaSmall = currentAreaSmallMatch ? parseInt(currentAreaSmallMatch[1]) : 0;
+        const minArea = Math.min(...areasSmall.filter(a => a > 0));
+        return currentAreaSmall === minArea;
+      default:
+        return false;
+    }
   }
 
   /**
