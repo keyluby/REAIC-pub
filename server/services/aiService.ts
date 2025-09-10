@@ -5,7 +5,6 @@ const pendingMediaQueue = new Map<string, any>();
 
 export class AIService {
   private openaiClient: OpenAI;
-  private conversationContexts = new Map<string, any[]>();
   private propertyContexts = new Map<string, string>();
 
   constructor() {
@@ -37,7 +36,9 @@ export class AIService {
         }
         
         // SECOND: Detect if user is searching for properties or providing additional search criteria
-        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const { storage } = await import('../storage');
+        const conversation = await storage.getConversationById(conversationId);
+        const conversationContext = (conversation?.context as any)?.messages || [];
         const intent = await this.detectIntentWithContext(message, conversationContext);
         
         if ((intent.intent === 'search_property' || intent.intent === 'refine_search') && intent.confidence > 0.6) {
@@ -52,8 +53,11 @@ export class AIService {
         }
       }
       
-      // Get conversation context
-      const conversationContext = this.conversationContexts.get(conversationId) || [];
+      // CHANGED: Get conversation context from database instead of memory
+      const { storage } = await import('../storage');
+      const conversation = await storage.getConversationById(conversationId);
+      const conversationContext = (conversation?.context as any)?.messages || [];
+      console.log(`🗣️ [AI] Loaded ${conversationContext.length} context messages from database`);
       
       // Build system prompt
       const systemPrompt = this.buildSystemPrompt(context);
@@ -78,7 +82,7 @@ export class AIService {
       const aiResponse = response.choices[0].message.content || '';
       console.log(`✅ AI response received: "${aiResponse}"`);
 
-      // Update conversation context
+      // CHANGED: Update conversation context in database instead of memory
       conversationContext.push(
         { role: "user", content: message },
         { role: "assistant", content: aiResponse }
@@ -89,7 +93,12 @@ export class AIService {
         conversationContext.splice(0, conversationContext.length - 20);
       }
 
-      this.conversationContexts.set(conversationId, conversationContext);
+      // Save updated context to database
+      await storage.updateConversationContext(conversationId, { 
+        messages: conversationContext,
+        lastUpdated: new Date().toISOString()
+      });
+      console.log(`💾 [AI] Saved ${conversationContext.length} context messages to database`);
 
       return aiResponse;
     } catch (error: any) {
@@ -410,10 +419,12 @@ Responde en formato JSON:
       
       // Si es un refinamiento, combinar con contexto de búsquedas anteriores
       if (isRefinement) {
-        const conversationContext = this.conversationContexts.get(conversationId) || [];
+        const { storage } = await import('../storage');
+        const conversation = await storage.getConversationById(conversationId);
+        const conversationContext = (conversation?.context as any)?.messages || [];
         const previousSearches = conversationContext
-          .filter(msg => msg.role === 'user')
-          .map(msg => msg.content)
+          .filter((msg: any) => msg.role === 'user')
+          .map((msg: any) => msg.content)
           .join(' ');
         
         searchQuery = `${previousSearches} ${message}`;
@@ -431,7 +442,9 @@ Responde en formato JSON:
           const qualifyingResponse = await this.askQualifyingQuestions(qualificationStatus, context);
           
           // CRÍTICO: Actualizar contexto de conversación con la pregunta de calificación
-          const conversationContext = this.conversationContexts.get(conversationId) || [];
+          const { storage } = await import('../storage');
+          const conversation = await storage.getConversationById(conversationId);
+          const conversationContext = (conversation?.context as any)?.messages || [];
           conversationContext.push(
             { role: "user", content: message },
             { role: "assistant", content: qualifyingResponse }
@@ -442,7 +455,10 @@ Responde en formato JSON:
             conversationContext.splice(0, conversationContext.length - 20);
           }
           
-          this.conversationContexts.set(conversationId, conversationContext);
+          await storage.updateConversationContext(conversationId, { 
+            messages: conversationContext,
+            lastUpdated: new Date().toISOString()
+          });
           console.log(`💾 [AI] Updated conversation context with qualifying question`);
           
           return qualifyingResponse;
@@ -532,7 +548,17 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
         // Send properties as carousel via WhatsApp
         try {
           const { evolutionApiService } = await import('./evolutionApiService');
-          const instanceName = context.instanceName || `instance_${context.userId}`;
+          
+          // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
+          const { internalWebhookService } = await import('./internalWebhookService');
+          const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+          
+          if (!activeInstanceInfo) {
+            console.error(`❌ [AI] Cannot send property carousel - no active instance for user ${context.userId}`);
+            throw new Error(`No active WhatsApp instance available for user ${context.userId}`);
+          }
+          
+          const { instanceName } = activeInstanceInfo;
           
           // Extract phone number from conversationId - need to implement this properly
           let phoneNumber = context.phoneNumber;
@@ -549,7 +575,7 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             throw new Error('No phone number available');
           }
           
-          console.log(`📱 [AI] Sending carousel via ${instanceName} to ${phoneNumber}`);
+          console.log(`📱 [AI] Sending carousel via resolved instance ${instanceName} to ${phoneNumber}`);
           
           const result = await evolutionApiService.sendPropertyRecommendations(
             instanceName,
@@ -593,7 +619,17 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           
           // Import and setup required services
           const { evolutionApiService: evolutionService } = await import('./evolutionApiService');
-          const instanceName = context.instanceName || `instance_${context.userId}`;
+          
+          // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
+          const { internalWebhookService } = await import('./internalWebhookService');
+          const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+          
+          if (!activeInstanceInfo) {
+            console.error(`❌ [AI] Cannot send forced individual properties - no active instance for user ${context.userId}`);
+            return 'Error: No hay una instancia de WhatsApp activa disponible. Por favor verifica tu conexión de WhatsApp.';
+          }
+          
+          const { instanceName } = activeInstanceInfo;
           
           // Extract phone number from conversationId
           let phoneNumber = context.phoneNumber;
@@ -685,7 +721,17 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
       // Send single property as carousel via WhatsApp
       try {
         const { evolutionApiService } = await import('./evolutionApiService');
-        const instanceName = `instance_${context.userId}`;
+        
+        // FIXED: Use dynamic instance resolution instead of hardcoded instanceName
+        const { internalWebhookService } = await import('./internalWebhookService');
+        const activeInstanceInfo = await internalWebhookService.resolveActiveInstance(context.userId);
+        
+        if (!activeInstanceInfo) {
+          console.error(`❌ [AI] Cannot send single property carousel - no active instance for user ${context.userId}`);
+          throw new Error(`No active WhatsApp instance available for user ${context.userId}`);
+        }
+        
+        const { instanceName } = activeInstanceInfo;
         
         // Extract phone number from conversationId
         let phoneNumber = context.phoneNumber;
@@ -702,7 +748,7 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           throw new Error('No phone number available');
         }
         
-        console.log(`📱 [AI] Sending single property carousel via ${instanceName} to ${phoneNumber}`);
+        console.log(`📱 [AI] Sending single property carousel via resolved instance ${instanceName} to ${phoneNumber}`);
         
         const result = await evolutionApiService.sendPropertyRecommendations(
           instanceName,

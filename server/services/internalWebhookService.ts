@@ -167,9 +167,9 @@ class InternalWebhookService {
       }
       console.log(`✅ [INTERNAL] Database instance found: ${dbInstance.id}`);
 
-      // Buscar o crear conversación
+      // CHANGED: Use user-scoped conversation resolution instead of instance-scoped
       const phoneNumber = messageData.remoteJid.replace('@s.whatsapp.net', '');
-      let conversation = await storage.getConversationByPhone(dbInstance.id, phoneNumber);
+      let conversation = await storage.getConversationByUserAndPhone(userId, phoneNumber);
       
       if (!conversation) {
         console.log(`🆕 [INTERNAL] Creating new conversation for phone: ${phoneNumber}`);
@@ -182,6 +182,12 @@ class InternalWebhookService {
         console.log(`✅ [INTERNAL] New conversation created: ${conversation.id}`);
       } else {
         console.log(`✅ [INTERNAL] Existing conversation found: ${conversation.id}`);
+        
+        // CHANGED: Update conversation to use current active instance
+        if (conversation.whatsappInstanceId !== dbInstance.id) {
+          console.log(`🔄 [INTERNAL] Updating conversation to use current active instance: ${dbInstance.id}`);
+          await storage.updateConversationInstance(conversation.id, dbInstance.id);
+        }
       }
 
       await storage.createMessage({
@@ -229,7 +235,7 @@ class InternalWebhookService {
             messageData.messageKey,
             userId,
             async (combinedMessage: string) => {
-              await this.processWithAI(instanceName, messageData.remoteJid, combinedMessage, conversation.id, dbInstance.id);
+              await this.processWithAI(messageData.remoteJid, combinedMessage, conversation.id, userId);
             }
           );
         }
@@ -242,18 +248,58 @@ class InternalWebhookService {
     }
   }
 
-  private async processWithAI(instanceName: string, remoteJid: string, message: string, conversationId: string, whatsappInstanceId: string) {
+  // Helper method to resolve active instance for user
+  private async resolveActiveInstance(userId: string): Promise<{instanceName: string, instanceId: string} | null> {
+    try {
+      const activeInstance = await storage.getActiveWhatsappInstance(userId);
+      if (!activeInstance) {
+        console.error(`❌ [DYNAMIC] No active WhatsApp instance found for user ${userId}`);
+        return null;
+      }
+      
+      // Verify instance is still connected
+      const instanceStatus = await evolutionApiService.getInstanceStatus(activeInstance.instanceName);
+      if (!instanceStatus || instanceStatus.status !== 'CONNECTED') {
+        console.error(`❌ [DYNAMIC] Active instance ${activeInstance.instanceName} is not connected`);
+        return null;
+      }
+      
+      return {
+        instanceName: activeInstance.instanceName,
+        instanceId: activeInstance.id
+      };
+    } catch (error) {
+      console.error(`❌ [DYNAMIC] Error resolving active instance for user ${userId}:`, error);
+      return null;
+    }
+  }
+
+  private async processWithAI(remoteJid: string, message: string, conversationId: string, userId: string) {
     try {
       console.log(`🚀 [INTERNAL AI] Starting AI processing`);
-      console.log(`🚀 [INTERNAL AI] Instance: ${instanceName}`);
       console.log(`🚀 [INTERNAL AI] RemoteJid: ${remoteJid}`);
       console.log(`🚀 [INTERNAL AI] Message: "${message}"`);
       console.log(`🚀 [INTERNAL AI] ConversationId: ${conversationId}`);
+      
+      // CHANGED: Dynamically resolve active instance for user
+      const activeInstanceInfo = await this.resolveActiveInstance(userId);
+      if (!activeInstanceInfo) {
+        throw new Error(`No active WhatsApp instance available for user ${userId}`);
+      }
+      
+      const { instanceName, instanceId } = activeInstanceInfo;
+      console.log(`🎯 [DYNAMIC] Resolved active instance: ${instanceName} (${instanceId})`);
       
       // Obtener conversación para obtener userId
       const conversation = await storage.getConversationById(conversationId);
       if (!conversation) {
         throw new Error(`Conversation ${conversationId} not found`);
+      }
+      
+      // Update conversation to use current active instance if different
+      if (conversation.whatsappInstanceId !== instanceId) {
+        console.log(`🔄 [DYNAMIC] Updating conversation to use current active instance: ${instanceId}`);
+        await storage.updateConversationInstance(conversationId, instanceId);
       }
 
       // Obtener configuración del usuario
@@ -273,7 +319,7 @@ class InternalWebhookService {
         // WhatsApp instance details for AI service
         instanceName: instanceName,
         phoneNumber: phoneNumber,
-        userId: conversation.userId,
+        userId: userId,
         // AlterEstate integration
         alterEstateEnabled: settings?.alterEstateEnabled || false,
         alterEstateToken: settings?.alterEstateToken,
@@ -299,12 +345,21 @@ class InternalWebhookService {
       const pendingMedia = AIService.getPendingMedia(conversationId);
       
       if (pendingMedia && context.alterEstateToken) {
-        if (pendingMedia.type === 'carousel') {
-          console.log('🎠 [INTERNAL AI] Pending carousel detected, sending property cards...');
-          await this.sendPropertyCarousel(pendingMedia.properties, instanceName, phoneNumber, conversationId, whatsappInstanceId);
+        // FIXED: Resolve active instance for pending media
+        const activeInstanceInfo = await this.resolveActiveInstance(userId);
+        if (!activeInstanceInfo) {
+          console.error(`❌ [INTERNAL AI] Cannot send pending media - no active instance for user ${userId}, skipping media but continuing with text response`);
         } else {
-          console.log('📸 [INTERNAL AI] Pending media detected, processing...');
-          await this.sendPropertyMediaFromQueue(pendingMedia, instanceName, phoneNumber, conversationId, whatsappInstanceId);
+        
+          const { instanceName: resolvedInstanceName, instanceId: resolvedInstanceId } = activeInstanceInfo;
+          
+          if (pendingMedia.type === 'carousel') {
+            console.log('🎠 [INTERNAL AI] Pending carousel detected, sending property cards...');
+            await this.sendPropertyCarousel(pendingMedia.properties, resolvedInstanceName, phoneNumber, conversationId, resolvedInstanceId);
+          } else {
+            console.log('📸 [INTERNAL AI] Pending media detected, processing...');
+            await this.sendPropertyMediaFromQueue(pendingMedia, resolvedInstanceName, phoneNumber, conversationId, resolvedInstanceId);
+          }
         }
       }
 
@@ -314,22 +369,35 @@ class InternalWebhookService {
         // Usar respuestas humanizadas
         await messageBufferService.humanizeResponse(
           aiResponse,
-          conversation.userId,
+          userId,
           async (chunk: string) => {
-            // Enviar cada chunk a través del servicio interno
-            const sendResult = await evolutionApiService.sendMessage(instanceName, phoneNumber, chunk);
-            console.log(`📤 [INTERNAL AI] Chunk send result:`, sendResult);
-            
-            // Guardar cada chunk en la base de datos
-            await storage.createMessage({
-              conversationId,
-              whatsappInstanceId,
-              messageId: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              fromMe: true,
-              messageType: 'text',
-              content: chunk,
-              timestamp: new Date(),
-            });
+            try {
+              // FIXED: Use dynamically resolved instance for each chunk with fallback
+              let activeInstanceInfo = await this.resolveActiveInstance(userId);
+              if (!activeInstanceInfo) {
+                console.error(`❌ [INTERNAL AI] Cannot resolve active instance for user ${userId}, falling back to original instance ${instanceName}`);
+                // Fallback to the original instance passed to this method
+                activeInstanceInfo = { instanceName, instanceId };
+              }
+              
+              const { instanceName: resolvedInstanceName, instanceId: resolvedInstanceId } = activeInstanceInfo;
+              const sendResult = await evolutionApiService.sendMessage(resolvedInstanceName, phoneNumber, chunk);
+              console.log(`📤 [INTERNAL AI] Chunk sent via resolved instance ${resolvedInstanceName}:`, sendResult);
+              
+              // Guardar cada chunk en la base de datos
+              await storage.createMessage({
+                conversationId,
+                whatsappInstanceId: resolvedInstanceId,
+                messageId: `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                fromMe: true,
+                messageType: 'text',
+                content: chunk,
+                timestamp: new Date(),
+              });
+            } catch (chunkError) {
+              console.error(`❌ [INTERNAL AI] Error sending chunk: "${chunk.substring(0, 50)}...":`, chunkError);
+              // Log error but don't throw to prevent disrupting other chunks
+            }
           }
         );
 
@@ -378,7 +446,7 @@ class InternalWebhookService {
       
       if (!settings?.alterEstateEnabled || !settings.alterEstateToken) {
         await this.sendErrorMessage(
-          instanceName, 
+          conversation.userId,
           messageData.remoteJid,
           'Para acceder a los detalles de propiedades, necesitas configurar AlterEstate CRM en tu cuenta.'
         );
@@ -388,11 +456,11 @@ class InternalWebhookService {
       // Handle different button actions
       switch (action) {
         case 'details':
-          await this.handleDetailsButton(instanceName, messageData.remoteJid, propertyId, settings);
+          await this.handleDetailsButton(conversation.userId, messageData.remoteJid, propertyId, settings);
           break;
         
         case 'question':
-          await this.handleQuestionButton(instanceName, messageData.remoteJid, propertyId, conversation.id, settings);
+          await this.handleQuestionButton(conversation.userId, messageData.remoteJid, propertyId, conversation.id, settings);
           break;
         
         default:
@@ -441,13 +509,21 @@ class InternalWebhookService {
    * Handle "Ver más detalles" button click
    */
   private async handleDetailsButton(
-    instanceName: string, 
+    userId: string, 
     remoteJid: string, 
     propertyId: string,
     settings: any
   ): Promise<void> {
     try {
       console.log(`🔗 [INTERNAL] Processing details request for property: ${propertyId}`);
+      
+      // CHANGED: Resolve active instance dynamically
+      const activeInstanceInfo = await this.resolveActiveInstance(userId);
+      if (!activeInstanceInfo) {
+        await this.sendErrorMessage(userId, remoteJid, 'No hay una instancia de WhatsApp activa disponible.');
+        return;
+      }
+      const { instanceName } = activeInstanceInfo;
       
       // Import AlterEstate service
       const { alterEstateService } = await import('./alterEstateService');
@@ -461,7 +537,7 @@ class InternalWebhookService {
 
       if (!propertyDetails) {
         await this.sendErrorMessage(
-          instanceName, 
+          userId, 
           remoteJid,
           'No pude encontrar los detalles de esa propiedad. El enlace puede haber expirado.'
         );
@@ -497,7 +573,7 @@ class InternalWebhookService {
     } catch (error) {
       console.error('❌ [INTERNAL] Error handling details button:', error);
       await this.sendErrorMessage(
-        instanceName, 
+        userId, 
         remoteJid,
         'Hubo un error al obtener los detalles de la propiedad. Por favor intenta de nuevo.'
       );
@@ -508,7 +584,7 @@ class InternalWebhookService {
    * Handle "Tengo una Pregunta" button click
    */
   private async handleQuestionButton(
-    instanceName: string, 
+    userId: string, 
     remoteJid: string, 
     propertyId: string,
     conversationId: string,
@@ -516,6 +592,14 @@ class InternalWebhookService {
   ): Promise<void> {
     try {
       console.log(`❓ [INTERNAL] Processing question request for property: ${propertyId}`);
+      
+      // CHANGED: Resolve active instance dynamically
+      const activeInstanceInfo = await this.resolveActiveInstance(userId);
+      if (!activeInstanceInfo) {
+        await this.sendErrorMessage(userId, remoteJid, 'No hay una instancia de WhatsApp activa disponible.');
+        return;
+      }
+      const { instanceName } = activeInstanceInfo;
       
       // Get AI service for context-aware response
       const { aiService } = await import('./aiService');
@@ -529,7 +613,7 @@ class InternalWebhookService {
         language: settings?.language || 'es',
         instanceName: instanceName,
         phoneNumber: phoneNumber,
-        userId: settings.userId,
+        userId: userId,
         alterEstateEnabled: settings?.alterEstateEnabled || false,
         alterEstateToken: settings?.alterEstateToken,
         alterEstateApiKey: settings?.alterEstateApiKey,
@@ -567,7 +651,7 @@ class InternalWebhookService {
     } catch (error) {
       console.error('❌ [INTERNAL] Error handling question button:', error);
       await this.sendErrorMessage(
-        instanceName, 
+        userId, 
         remoteJid,
         'Estoy listo para responder tus preguntas. ¿Qué te gustaría saber sobre esta propiedad?'
       );
@@ -575,10 +659,18 @@ class InternalWebhookService {
   }
 
   /**
-   * Send error message to user
+   * Send error message to user with dynamic instance resolution
    */
-  private async sendErrorMessage(instanceName: string, remoteJid: string, message: string): Promise<void> {
+  private async sendErrorMessage(userId: string, remoteJid: string, message: string): Promise<void> {
     try {
+      // FIXED: Already uses dynamic instance resolution correctly
+      const activeInstanceInfo = await this.resolveActiveInstance(userId);
+      if (!activeInstanceInfo) {
+        console.error(`❌ [ERROR] Cannot send error message - no active instance for user ${userId}`);
+        return;
+      }
+      
+      const { instanceName } = activeInstanceInfo;
       const { evolutionApiService } = await import('./evolutionApiService');
       await evolutionApiService.sendMessage(
         instanceName,
@@ -731,7 +823,7 @@ class InternalWebhookService {
     try {
       console.log(`🎠 [INTERNAL AI] Sending property carousel with ${properties.length} properties`);
       
-      // Enviar mensaje introductorio
+      // FIXED: Use the passed instanceName (already resolved by caller)
       await evolutionApiService.sendMessage(
         instanceName,
         phoneNumber,

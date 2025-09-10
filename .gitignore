@@ -14,6 +14,13 @@ whatsapp_instances/
 *app-state-sync*.json
 *sender-key*.json
 *auth_info*.json
+# Additional WhatsApp patterns for comprehensive protection
+*/creds.json
+*/session-*.json
+*/pre-key-*.json
+*/app-state-sync-*.json
+**/instances/**/*.json
+**/whatsapp_instances/**/*.json
 
 # Environment and secrets
 .env

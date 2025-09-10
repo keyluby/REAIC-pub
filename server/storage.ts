@@ -53,6 +53,7 @@ export interface IStorage {
   getUserConversations(userId: string): Promise<Conversation[]>;
   updateConversationStatus(id: string, status: string): Promise<void>;
   updateConversationContext(id: string, context: any): Promise<void>;
+  updateConversationInstance(id: string, whatsappInstanceId: string): Promise<void>;
   
   // Messages
   createMessage(message: InsertMessage): Promise<Message>;
@@ -296,6 +297,13 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(conversations)
       .set({ context, lastMessageAt: new Date() })
+      .where(eq(conversations.id, id));
+  }
+
+  async updateConversationInstance(id: string, whatsappInstanceId: string): Promise<void> {
+    await db
+      .update(conversations)
+      .set({ whatsappInstanceId, lastMessageAt: new Date() })
       .where(eq(conversations.id, id));
   }
 
