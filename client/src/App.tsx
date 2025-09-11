@@ -25,24 +25,26 @@ function Router() {
   }
 
   return (
-    <Switch>
-      {!isAuthenticated ? (
-        <>
-          <Route path="/" component={Landing} />
-          <Route component={Landing} />
-        </>
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/conversations" component={Conversations} />
-          <Route path="/properties" component={Properties} />
-          <Route path="/leads" component={Leads} />
-          <Route path="/appointments" component={Appointments} />
-          <Route path="/settings" component={Settings} />
-          <Route component={NotFound} />
-        </>
-      )}
-    </Switch>
+    <div className="min-h-screen">
+      <Switch>
+        {!isAuthenticated ? (
+          <>
+            <Route path="/" component={Landing} />
+            <Route path="*" component={Landing} />
+          </>
+        ) : (
+          <>
+            <Route path="/" component={Home} />
+            <Route path="/conversations" component={Conversations} />
+            <Route path="/properties" component={Properties} />
+            <Route path="/leads" component={Leads} />
+            <Route path="/appointments" component={Appointments} />
+            <Route path="/settings" component={Settings} />
+            <Route path="*" component={NotFound} />
+          </>
+        )}
+      </Switch>
+    </div>
   );
 }
 

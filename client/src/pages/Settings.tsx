@@ -242,14 +242,7 @@ export default function SettingsPage() {
         alterEstateToken: formData.alterEstateToken
       });
 
-      // Safe JSON parsing to prevent white screen
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch (jsonError) {
-        console.error('JSON parsing error:', jsonError);
-        responseData = { message: 'Invalid response format from server' };
-      }
+      const responseData = await response.json();
       console.log('Read token test response:', responseData);
       
       setReadTokenTest({ 
@@ -298,14 +291,7 @@ export default function SettingsPage() {
         alterEstateApiKey: formData.alterEstateApiKey
       });
 
-      // Safe JSON parsing to prevent white screen
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch (jsonError) {
-        console.error('JSON parsing error:', jsonError);
-        responseData = { message: 'Invalid response format from server' };
-      }
+      const responseData = await response.json();
       console.log('API key test response:', responseData);
       
       setApiKeyTest({ 
@@ -356,14 +342,7 @@ export default function SettingsPage() {
         alterEstateCompanyId: formData.alterEstateCompanyId
       });
 
-      // Safe JSON parsing to prevent white screen
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch (jsonError) {
-        console.error('JSON parsing error:', jsonError);
-        responseData = { message: 'Invalid response format from server' };
-      }
+      const responseData = await response.json();
 
       setConnectionTest({ 
         isLoading: false, 
