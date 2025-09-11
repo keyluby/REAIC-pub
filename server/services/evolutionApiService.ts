@@ -599,7 +599,8 @@ class EvolutionApiService {
       if (messageData.buttonMessage.imageMessage?.image?.url) {
         try {
           buttonMessage.headerType = 4; // IMAGE_TYPE
-          (buttonMessage as any).imageMessage = {
+          // Correct format for Baileys button messages with images
+          (buttonMessage as any).image = {
             url: messageData.buttonMessage.imageMessage.image.url
           };
         } catch (imageError) {
