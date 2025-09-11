@@ -47,14 +47,14 @@ export default function Conversations() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: conversations, isLoading: conversationsLoading } = useQuery({
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery({
     queryKey: ["/api/conversations"],
     enabled: isAuthenticated,
     refetchInterval: 5000, // Poll every 5 seconds for conversation updates
     refetchIntervalInBackground: true,
   });
 
-  const { data: messages, isLoading: messagesLoading } = useQuery({
+  const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["/api/conversations", selectedConversation, "messages"],
     enabled: !!selectedConversation && isAuthenticated,
     refetchInterval: 2000, // Poll every 2 seconds for new messages
@@ -128,7 +128,7 @@ export default function Conversations() {
   };
 
   // Get current conversation info
-  const currentConversation = conversations?.find((c: any) => c.id === selectedConversation);
+  const currentConversation = (conversations as any[]).find((c: any) => c.id === selectedConversation);
   const isCurrentConversationEscalated = currentConversation?.isEscalated || false;
 
   // Auto-scroll to bottom when new messages arrive
@@ -147,10 +147,10 @@ export default function Conversations() {
     }
   }, [selectedConversation]);
 
-  const filteredConversations = conversations?.filter((conv: any) =>
+  const filteredConversations = (conversations as any[]).filter((conv: any) =>
     conv.clientName?.toLowerCase().includes(searchText.toLowerCase()) ||
     conv.clientPhone?.includes(searchText)
-  ) || [];
+  );
 
   if (isLoading || conversationsLoading) {
     return (
@@ -187,9 +187,9 @@ export default function Conversations() {
 
   return (
     <MainLayout>
-      <div className="flex h-full max-h-screen">
-        {/* Sidebar - Lista de conversaciones */}
-        <div className="w-80 border-r bg-background flex flex-col">
+      <div className="h-full max-h-full flex overflow-hidden">
+      {/* Sidebar - Lista de conversaciones */}
+      <div className="w-80 border-r bg-background flex flex-col">
           {/* Header del sidebar */}
           <div className="p-4 border-b">
             <div className="flex items-center justify-between mb-4">
@@ -324,7 +324,7 @@ export default function Conversations() {
               <div className="p-4 border-b bg-background flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   {(() => {
-                    const selectedConv = conversations?.find((c: any) => c.id === selectedConversation);
+                    const selectedConv = (conversations as any[]).find((c: any) => c.id === selectedConversation);
                     if (!selectedConv) return null;
                     
                     const initials = selectedConv.clientName 
@@ -376,7 +376,7 @@ export default function Conversations() {
                       <p className="text-sm text-muted-foreground">Cargando mensajes...</p>
                     </div>
                   </div>
-                ) : !messages || messages.length === 0 ? (
+                ) : (messages as any[]).length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <Bot className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -388,7 +388,7 @@ export default function Conversations() {
                   </div>
                 ) : (
                   <div className="p-4 space-y-4">
-                    {messages.map((message: any) => (
+                    {(messages as any[]).map((message: any) => (
                       <div
                         key={message.id}
                         className={`flex items-end space-x-2 ${message.fromMe ? 'flex-row-reverse space-x-reverse' : ''}`}
