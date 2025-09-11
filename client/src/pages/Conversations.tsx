@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import MainLayout from "@/components/Layout/MainLayout";
@@ -30,6 +30,8 @@ export default function Conversations() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [searchText, setSearchText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -48,11 +50,15 @@ export default function Conversations() {
   const { data: conversations, isLoading: conversationsLoading } = useQuery({
     queryKey: ["/api/conversations"],
     enabled: isAuthenticated,
+    refetchInterval: 5000, // Poll every 5 seconds for conversation updates
+    refetchIntervalInBackground: true,
   });
 
   const { data: messages, isLoading: messagesLoading } = useQuery({
     queryKey: ["/api/conversations", selectedConversation, "messages"],
     enabled: !!selectedConversation && isAuthenticated,
+    refetchInterval: 2000, // Poll every 2 seconds for new messages
+    refetchIntervalInBackground: true,
   });
 
   const sendMessageMutation = useMutation({
@@ -124,6 +130,22 @@ export default function Conversations() {
   // Get current conversation info
   const currentConversation = conversations?.find((c: any) => c.id === selectedConversation);
   const isCurrentConversationEscalated = currentConversation?.isEscalated || false;
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current && messages) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  // Scroll to bottom when conversation changes
+  useEffect(() => {
+    if (selectedConversation && messagesEndRef.current) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [selectedConversation]);
 
   const filteredConversations = conversations?.filter((conv: any) =>
     conv.clientName?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -346,7 +368,7 @@ export default function Conversations() {
               </div>
 
               {/* Mensajes */}
-              <div className="flex-1 overflow-auto bg-muted/30">
+              <div ref={messagesContainerRef} className="flex-1 overflow-auto bg-muted/30">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
@@ -360,7 +382,7 @@ export default function Conversations() {
                       <Bot className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-foreground mb-2">Conversación iniciada</h3>
                       <p className="text-muted-foreground">
-                        Los mensajes aparecerán aquí
+                        Los mensajes aparecerán aquí automáticamente
                       </p>
                     </div>
                   </div>
@@ -370,6 +392,7 @@ export default function Conversations() {
                       <div
                         key={message.id}
                         className={`flex items-end space-x-2 ${message.fromMe ? 'flex-row-reverse space-x-reverse' : ''}`}
+                        data-testid={`message-${message.id}`}
                       >
                         {/* Avatar */}
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0">
@@ -390,14 +413,43 @@ export default function Conversations() {
                             ? 'bg-green-500 text-white' 
                             : 'bg-white border shadow-sm text-foreground'
                         }`}>
-                          <p className="text-sm">{message.content}</p>
-                          {message.mediaUrl && (
-                            <img 
-                              src={message.mediaUrl} 
-                              alt="Mensaje multimedia" 
-                              className="mt-2 rounded max-w-full h-auto"
-                            />
+                          {/* Texto del mensaje */}
+                          {message.content && (
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                           )}
+                          
+                          {/* Medios (imágenes, audio, etc.) */}
+                          {message.mediaUrl && (
+                            <div className="mt-2">
+                              {message.messageType === 'audioMessage' ? (
+                                <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded">
+                                  <button 
+                                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-800"
+                                    onClick={() => {
+                                      const audio = new Audio(message.mediaUrl);
+                                      audio.play().catch(e => console.error('Error playing audio:', e));
+                                    }}
+                                    data-testid={`audio-play-${message.id}`}
+                                  >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-xs">Reproducir audio</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <img 
+                                  src={message.mediaUrl} 
+                                  alt="Imagen del mensaje" 
+                                  className="rounded max-w-full h-auto cursor-pointer hover:opacity-90"
+                                  onClick={() => window.open(message.mediaUrl, '_blank')}
+                                  loading="lazy"
+                                />
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Timestamp */}
                           <p className={`text-xs mt-1 ${
                             message.fromMe ? 'text-green-100' : 'text-muted-foreground'
                           }`}>
@@ -409,6 +461,16 @@ export default function Conversations() {
                         </div>
                       </div>
                     ))}
+                    
+                    {/* Indicador de nuevos mensajes */}
+                    <div className="flex justify-center py-2">
+                      <div className="text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                        Actualizando en tiempo real ✨
+                      </div>
+                    </div>
+                    
+                    {/* Elemento para auto-scroll */}
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </div>
