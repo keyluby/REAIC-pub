@@ -1194,26 +1194,26 @@ export default function SettingsPage() {
                   
                   
                   {/* Mostrar contenido siempre que haya datos, sin importar la estructura */}
-                  {!readTokenTest.hasError && readTokenTest.result && (readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo) && (
+                  {!readTokenTest.hasError && readTokenTest.result && (readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo) && (
                     <div className="space-y-4">
                       {/* Propiedad extraída automáticamente */}
                       <div className="bg-white dark:bg-gray-800 rounded-lg border overflow-hidden">
                         {/* Header de la propiedad */}
                         <div className="p-4 border-b border-gray-200 dark:border-gray-600">
                           <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                            {(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).name}
+                            {(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.name || 'Propiedad de prueba'}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).operation} • {(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).type}
+                            {(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.operation || 'N/A'} • {(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.type || 'N/A'}
                           </div>
                         </div>
                         
                         {/* Imagen destacada */}
-                        {(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).featuredImage && (
+                        {(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.featuredImage && (
                           <div className="relative h-48 bg-gray-100 dark:bg-gray-700">
                             <img
-                              src={(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).featuredImage}
-                              alt={(readTokenTest.result.testResult?.propertyInfo || readTokenTest.result.propertyInfo).name}
+                              src={(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.featuredImage}
+                              alt={(readTokenTest.result?.testResult?.propertyInfo || readTokenTest.result?.propertyInfo)?.name || 'Propiedad'}
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
@@ -1232,11 +1232,11 @@ export default function SettingsPage() {
                         )}
                         
                         {/* Galería de imágenes */}
-                        {readTokenTest.result.testResult.propertyInfo.images && readTokenTest.result.testResult.propertyInfo.images.length > 0 && (
+                        {readTokenTest.result?.testResult?.propertyInfo?.images && readTokenTest.result.testResult.propertyInfo.images.length > 0 && (
                           <div className="p-3">
                             <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                               <span className="mr-2">📸</span>
-                              Galería ({readTokenTest.result.testResult.propertyInfo.totalImages} imágenes)
+                              Galería ({readTokenTest.result?.testResult?.propertyInfo?.totalImages || readTokenTest.result.testResult.propertyInfo.images.length} imágenes)
                             </div>
                             <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                               {readTokenTest.result.testResult.propertyInfo.images.slice(0, 6).map((image: any, index: number) => (
@@ -1438,7 +1438,7 @@ export default function SettingsPage() {
                   
                   <h4 className="font-medium text-sm mb-2">🔑 API de Escritura</h4>
                   
-                  {!apiKeyTest.hasError && apiKeyTest.result.testResult?.leadInfo && (
+                  {!apiKeyTest.hasError && apiKeyTest.result?.testResult?.leadInfo && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border">
                       <div className="space-y-2 text-xs">
                         <div><strong>Lead ID:</strong> {apiKeyTest.result.testResult.leadInfo.id}</div>
