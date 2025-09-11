@@ -307,6 +307,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(conversations.id, id));
   }
 
+  async updateConversationEscalation(id: string, isEscalated: boolean): Promise<void> {
+    await db
+      .update(conversations)
+      .set({ isEscalated, lastMessageAt: new Date() })
+      .where(eq(conversations.id, id));
+  }
+
+  async updateConversationLastMessage(id: string): Promise<void> {
+    await db
+      .update(conversations)
+      .set({ lastMessageAt: new Date() })
+      .where(eq(conversations.id, id));
+  }
+
+  async getWhatsappInstanceById(id: string): Promise<WhatsappInstance | undefined> {
+    const [instance] = await db.select().from(whatsappInstances).where(eq(whatsappInstances.id, id));
+    return instance;
+  }
+
   // Messages
   async createMessage(messageData: InsertMessage): Promise<Message> {
     const [message] = await db

@@ -923,6 +923,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Send message to conversation (manual agent control)
+  app.post('/api/conversations/:id/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { message, type = 'text' } = req.body;
+      const userId = req.user.claims.sub;
+
+      if (!message || !message.trim()) {
+        return res.status(400).json({ message: "Message content is required" });
+      }
+
+      // Verify conversation belongs to user
+      const conversation = await storage.getConversationById(id);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Get WhatsApp instance
+      const instance = await storage.getWhatsappInstanceById(conversation.whatsappInstanceId);
+      if (!instance) {
+        return res.status(404).json({ message: "WhatsApp instance not found" });
+      }
+
+      // Send message via WhatsApp
+      const { evolutionApiService } = await import('./services/evolutionApiService');
+      await evolutionApiService.sendMessage(
+        instance.instanceName, 
+        conversation.clientPhone, 
+        message.trim()
+      );
+
+      // Save message to database
+      const messageRecord = await storage.createMessage({
+        conversationId: id,
+        whatsappInstanceId: conversation.whatsappInstanceId,
+        messageId: `manual_${Date.now()}`,
+        fromMe: true,
+        messageType: type,
+        content: message.trim(),
+        timestamp: new Date(),
+      });
+
+      // Update conversation last message time
+      await storage.updateConversationLastMessage(id);
+
+      console.log(`✅ [MANUAL] Message sent by agent to conversation ${id}`);
+      res.json({ 
+        success: true, 
+        message: "Message sent successfully",
+        messageRecord 
+      });
+
+    } catch (error) {
+      console.error("Error sending manual message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // Toggle AI escalation for conversation (manual control)
+  app.post('/api/conversations/:id/escalate', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { escalated } = req.body;
+      const userId = req.user.claims.sub;
+
+      // Verify conversation belongs to user
+      const conversation = await storage.getConversationById(id);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      // Update escalation status
+      await storage.updateConversationEscalation(id, escalated);
+      
+      const action = escalated ? "escalated to manual control" : "returned to AI control";
+      console.log(`🔄 [ESCALATION] Conversation ${id} ${action} by user ${userId}`);
+
+      res.json({ 
+        success: true, 
+        message: `Conversation ${action}`,
+        isEscalated: escalated
+      });
+
+    } catch (error) {
+      console.error("Error updating conversation escalation:", error);
+      res.status(500).json({ message: "Failed to update escalation status" });
+    }
+  });
+
   // CRM routes
   app.get('/api/crm/properties', isAuthenticated, crmController.getProperties);
   app.get('/api/crm/properties/:slug', isAuthenticated, crmController.getPropertyDetail);

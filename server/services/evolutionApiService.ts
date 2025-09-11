@@ -718,25 +718,30 @@ class EvolutionApiService {
     // Limitar a máximo 6 propiedades recomendadas
     const limitedProperties = properties.slice(0, 6);
     
-    // Enviar cada propiedad como mensaje individual con botones interactivos
+    // Enviar cada propiedad como mensaje individual con imagen y enlace (sin botones)
     for (let i = 0; i < limitedProperties.length; i++) {
       const property = limitedProperties[i];
       
       try {
-        console.log(`🖼️ [DEBUG] Property ${i + 1} image URL: ${property.imageUrl}`);
+        console.log(`🖼️ [SIMPLE] Property ${i + 1} image URL: ${property.imageUrl}`);
         
-        // Enviar propiedad con botones interactivos
-        const buttonResult = await this.sendPropertyWithButtons(
+        // Construir caption completo con enlace
+        const caption = this.buildCompletePropertyCaption(property);
+        
+        // Enviar imagen con caption directamente (método simplificado)
+        const result = await this.sendMedia(
           instanceName,
           number,
-          property
+          property.imageUrl,
+          'image',
+          caption
         );
-
-        if (buttonResult.messageId) {
-          messageIds.push(buttonResult.messageId);
-          console.log(`✅ [DEBUG] Property ${i + 1} sent successfully with interactive buttons`);
+        
+        if (result.messageId) {
+          messageIds.push(result.messageId);
+          console.log(`✅ [SIMPLE] Property ${i + 1} sent successfully with image and link`);
         } else {
-          console.log(`❌ [DEBUG] Property ${i + 1} failed to send - no message ID`);
+          console.log(`❌ [SIMPLE] Property ${i + 1} failed to send - no message ID`);
         }
 
         // Pausa entre propiedades para mejor experiencia
@@ -747,19 +752,17 @@ class EvolutionApiService {
       } catch (error) {
         console.error(`Error sending property recommendation ${i + 1}:`, error);
         
-        // Fallback: enviar como mensaje simple con imagen (método anterior)
+        // Fallback: enviar como mensaje de texto con enlace
         try {
-          const caption = this.buildCompletePropertyCaption(property);
-          const fallbackResult = await this.sendMedia(
+          const textCaption = this.buildCompletePropertyCaption(property);
+          const fallbackResult = await this.sendMessage(
             instanceName,
             number,
-            property.imageUrl,
-            'image',
-            caption
+            textCaption
           );
           if (fallbackResult.messageId) messageIds.push(fallbackResult.messageId);
         } catch (fallbackError) {
-          console.error(`Fallback also failed for property ${i + 1}:`, fallbackError);
+          console.error(`Fallback text also failed for property ${i + 1}:`, fallbackError);
         }
       }
     }
