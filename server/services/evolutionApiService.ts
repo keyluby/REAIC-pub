@@ -484,13 +484,10 @@ class EvolutionApiService {
       const property = properties[i];
       
       try {
-        // Preparar el caption con información de la propiedad
-        const caption = `*${property.title}*\n\n` +
-          `💰 ${property.price}\n` +
-          `📍 ${property.description}\n\n` +
-          `🆔 ID: ${property.uid}`;
+        // Preparar el caption mejorado con información detallada
+        const caption = this.buildCarouselPropertyCaption(property, i + 1, properties.length);
 
-        // Enviar imagen con caption
+        // Enviar imagen con caption mejorado
         const mediaResult = await this.sendMedia(
           instanceName,
           number,
@@ -970,32 +967,191 @@ class EvolutionApiService {
     return { success: messageIds.length > 0, messageIds };
   }
 
+  /**
+   * Construir caption completo y humanizado según especificaciones AlterEstate
+   * Incluye información detallada y formato profesional
+   */
   private buildCompletePropertyCaption(property: any): string {
     const propertyType = this.getPropertyTypeEmoji(property.title);
     
-    // Título con emoji tipo de propiedad
+    // TÍTULO CON CONTEXTO
     let caption = `${propertyType} *${property.title}*\n`;
     
-    // Precio con emoji
-    caption += `💰 ${property.price}\n`;
+    // PRECIO DESTACADO con contexto
+    const priceInfo = this.formatPriceWithContext(property);
+    caption += `💰 ${priceInfo}\n`;
     
-    // Extraer detalles técnicos de la descripción
-    const details = this.parsePropertyDetails(property.description);
-    
-    // Detalles técnicos con emojis
-    if (details.rooms) caption += `🏠 ${details.rooms} hab`;
-    if (details.bathrooms) caption += `${details.rooms ? ' • ' : ''}🚿 ${details.bathrooms} baños\n`;
-    else if (details.rooms) caption += '\n';
-    
-    // Ubicación con emoji
-    if (details.location) {
-      caption += `📍 ${details.location}\n`;
+    // ESPECIFICACIONES TÉCNICAS DETALLADAS
+    const technicalSpecs = this.buildTechnicalSpecifications(property);
+    if (technicalSpecs) {
+      caption += `\n${technicalSpecs}\n`;
     }
     
-    // Enlace para ver detalles
-    caption += `🔗 Ver detalles: ${property.propertyUrl}`;
+    // UBICACIÓN Y REFERENCIAS
+    const locationInfo = this.buildLocationDetails(property);
+    if (locationInfo) {
+      caption += `\n📍 ${locationInfo}\n`;
+    }
+    
+    // CARACTERÍSTICAS DESTACADAS
+    const features = this.extractKeyFeatures(property);
+    if (features.length > 0) {
+      caption += `\n✨ *Características destacadas:*\n`;
+      features.slice(0, 3).forEach(feature => {
+        caption += `• ${feature}\n`;
+      });
+    }
+    
+    // INFORMACIÓN COMERCIAL
+    const commercialInfo = this.buildCommercialContext(property);
+    if (commercialInfo) {
+      caption += `\n${commercialInfo}\n`;
+    }
+    
+    // LLAMADA A LA ACCIÓN
+    caption += `\n🔗 Ver detalles completos: ${property.propertyUrl}`;
+    caption += `\n\n💬 *¿Te interesa esta propiedad?* Puedo darte más información, fotos adicionales o agendar una visita.`;
 
     return caption;
+  }
+
+  /**
+   * Formatear precio con contexto y comparaciones
+   */
+  private formatPriceWithContext(property: any): string {
+    let priceText = property.price;
+    
+    // Agregar contexto para diferentes tipos de operación
+    if (property.forRent) {
+      priceText += ' /mes';
+    } else if (property.forSale) {
+      priceText += ' en venta';
+    }
+    
+    // Agregar información de financiamiento si está disponible
+    if (property.financing || property.mortgage) {
+      priceText += ' | 🏦 Financiamiento disponible';
+    }
+    
+    return priceText;
+  }
+
+  /**
+   * Construir especificaciones técnicas detalladas
+   */
+  private buildTechnicalSpecifications(property: any): string {
+    const specs = [];
+    
+    // Extraer información técnica mejorada
+    const details = this.parsePropertyDetails(property.description);
+    
+    if (details.rooms) {
+      specs.push(`🛏️ ${details.rooms} habitaciones`);
+    }
+    
+    if (details.bathrooms) {
+      specs.push(`🚿 ${details.bathrooms} baños`);
+    }
+    
+    // Área si está disponible
+    if (property.area || details.area) {
+      specs.push(`📐 ${property.area || details.area}`);
+    }
+    
+    // Parqueo si está disponible
+    if (property.parking || details.parking) {
+      specs.push(`🚗 ${property.parking || details.parking} parqueos`);
+    }
+    
+    return specs.length > 0 ? specs.join(' • ') : '';
+  }
+
+  /**
+   * Construir información de ubicación detallada
+   */
+  private buildLocationDetails(property: any): string {
+    const locationParts = [];
+    
+    // Usar información parseada de la descripción
+    const details = this.parsePropertyDetails(property.description);
+    
+    if (details.location) {
+      locationParts.push(details.location);
+    } else if (property.neighborhood || property.sector) {
+      locationParts.push(property.neighborhood || property.sector);
+    }
+    
+    // Agregar referencias si están disponibles
+    if (property.references) {
+      locationParts.push(`Referencias: ${property.references}`);
+    }
+    
+    return locationParts.join(' • ');
+  }
+
+  /**
+   * Extraer características clave de la propiedad
+   */
+  private extractKeyFeatures(property: any): string[] {
+    const features = [];
+    
+    // Características comunes extraídas de la descripción
+    const description = (property.description || '').toLowerCase();
+    
+    if (description.includes('piscina') || description.includes('pool')) {
+      features.push('🏊‍♀️ Piscina');
+    }
+    
+    if (description.includes('gym') || description.includes('gimnasio')) {
+      features.push('🏋️‍♂️ Gimnasio');
+    }
+    
+    if (description.includes('seguridad') || description.includes('security')) {
+      features.push('🔒 Seguridad 24/7');
+    }
+    
+    if (description.includes('terraza') || description.includes('balcon')) {
+      features.push('🌅 Terraza/Balcón');
+    }
+    
+    if (description.includes('vista') || description.includes('view')) {
+      features.push('🌆 Excelente vista');
+    }
+    
+    if (description.includes('amueblado') || description.includes('furnished')) {
+      features.push('🛋️ Amueblado');
+    }
+    
+    if (description.includes('parking') || description.includes('garaje')) {
+      features.push('🚗 Parqueo incluido');
+    }
+    
+    return features;
+  }
+
+  /**
+   * Construir contexto comercial (disponibilidad, condiciones, etc.)
+   */
+  private buildCommercialContext(property: any): string {
+    const context = [];
+    
+    if (property.furnished) {
+      context.push('🛋️ Disponible amueblado');
+    }
+    
+    if (property.status && property.status !== 'Disponible') {
+      context.push(`📋 Estado: ${property.status}`);
+    }
+    
+    if (property.publishedDate) {
+      const publishDate = new Date(property.publishedDate);
+      const daysSince = Math.floor((Date.now() - publishDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSince < 7) {
+        context.push('🆕 Publicación reciente');
+      }
+    }
+    
+    return context.length > 0 ? context.join(' • ') : '';
   }
 
   private getPropertyTypeEmoji(title: string): string {
@@ -1009,24 +1165,173 @@ class EvolutionApiService {
     return '🏡';
   }
 
-  private parsePropertyDetails(description: string): { rooms?: string; bathrooms?: string; location?: string } {
-    const details: { rooms?: string; bathrooms?: string; location?: string } = {};
+  /**
+   * Análisis mejorado de detalles de propiedad con más información extraída
+   */
+  private parsePropertyDetails(description: string): { 
+    rooms?: string; 
+    bathrooms?: string; 
+    location?: string; 
+    area?: string;
+    parking?: string;
+    features?: string[];
+  } {
+    const details: { 
+      rooms?: string; 
+      bathrooms?: string; 
+      location?: string; 
+      area?: string;
+      parking?: string;
+      features?: string[];
+    } = {};
     
-    if (description.includes('hab')) {
-      const match = description.match(/(\d+)\s*hab/);
-      if (match) details.rooms = match[1];
+    // Habitaciones - patrones más amplios
+    const roomPatterns = [
+      /(\d+)\s*hab/i,
+      /(\d+)\s*habitacion/i,
+      /(\d+)\s*bedroom/i,
+      /(\d+)\s*dormitorio/i
+    ];
+    
+    for (const pattern of roomPatterns) {
+      const match = description.match(pattern);
+      if (match) {
+        details.rooms = match[1];
+        break;
+      }
     }
     
-    if (description.includes('baño')) {
-      const match = description.match(/(\d+)\s*baño/);
-      if (match) details.bathrooms = match[1];
+    // Baños - patrones más amplios
+    const bathPatterns = [
+      /(\d+)\s*baño/i,
+      /(\d+)\s*bathroom/i,
+      /(\d+)\s*baños/i,
+      /(\d+)\s*baths/i
+    ];
+    
+    for (const pattern of bathPatterns) {
+      const match = description.match(pattern);
+      if (match) {
+        details.bathrooms = match[1];
+        break;
+      }
     }
 
-    // Extraer ubicación (después de •)
-    const locationMatch = description.split('•').pop()?.trim();
-    if (locationMatch) details.location = locationMatch;
+    // Área - extraer diferentes formatos
+    const areaPatterns = [
+      /(\d+)\s*m²/i,
+      /(\d+)\s*mt²/i,
+      /(\d+)\s*metros/i,
+      /(\d+)\s*m2/i
+    ];
+    
+    for (const pattern of areaPatterns) {
+      const match = description.match(pattern);
+      if (match) {
+        details.area = `${match[1]} m²`;
+        break;
+      }
+    }
+
+    // Parqueo
+    const parkingPatterns = [
+      /(\d+)\s*parqueo/i,
+      /(\d+)\s*parking/i,
+      /(\d+)\s*garaje/i,
+      /(\d+)\s*garage/i
+    ];
+    
+    for (const pattern of parkingPatterns) {
+      const match = description.match(pattern);
+      if (match) {
+        details.parking = match[1];
+        break;
+      }
+    }
+
+    // Ubicación - mejorar extracción
+    const locationPatterns = [
+      description.split('•').pop()?.trim(),
+      description.split(',').pop()?.trim(),
+      description.split('-').pop()?.trim()
+    ];
+    
+    for (const location of locationPatterns) {
+      if (location && location.length > 3 && location.length < 50) {
+        details.location = location;
+        break;
+      }
+    }
+
+    // Características adicionales
+    const features = [];
+    const featureKeywords = {
+      'piscina': '🏊‍♀️ Piscina',
+      'pool': '🏊‍♀️ Piscina',
+      'gimnasio': '🏋️‍♂️ Gimnasio',
+      'gym': '🏋️‍♂️ Gimnasio',
+      'terraza': '🌅 Terraza',
+      'balcon': '🌅 Balcón',
+      'vista': '🌆 Vista',
+      'amueblado': '🛋️ Amueblado',
+      'furnished': '🛋️ Amueblado',
+      'seguridad': '🔒 Seguridad'
+    };
+    
+    const descLower = description.toLowerCase();
+    for (const [keyword, feature] of Object.entries(featureKeywords)) {
+      if (descLower.includes(keyword)) {
+        features.push(feature);
+      }
+    }
+    
+    if (features.length > 0) {
+      details.features = features;
+    }
 
     return details;
+  }
+
+  /**
+   * Construir caption optimizado para carousel de propiedades
+   * Más conciso pero informativo según especificaciones
+   */
+  private buildCarouselPropertyCaption(property: any, index: number, total: number): string {
+    const propertyType = this.getPropertyTypeEmoji(property.title);
+    
+    // Título con numeración del carousel
+    let caption = `${propertyType} *${property.title}* (${index}/${total})\n\n`;
+    
+    // Precio destacado
+    caption += `💰 ${property.price}\n`;
+    
+    // Especificaciones técnicas esenciales
+    const details = this.parsePropertyDetails(property.description);
+    const specs = [];
+    
+    if (details.rooms) specs.push(`🛏️ ${details.rooms} hab`);
+    if (details.bathrooms) specs.push(`🚿 ${details.bathrooms} baños`);
+    if (details.area) specs.push(`📐 ${details.area}`);
+    
+    if (specs.length > 0) {
+      caption += specs.join(' • ') + '\n';
+    }
+    
+    // Ubicación concisa
+    if (details.location) {
+      caption += `📍 ${details.location}\n`;
+    }
+    
+    // Una característica destacada principal
+    const features = this.extractKeyFeatures(property);
+    if (features.length > 0) {
+      caption += `✨ ${features[0]}\n`;
+    }
+    
+    // ID para referencia
+    caption += `\n🆔 Ref: ${property.uid}`;
+    
+    return caption;
   }
 
   private chunkArray<T>(array: T[], size: number): T[][] {
