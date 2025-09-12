@@ -1756,12 +1756,16 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
   }
 
   /**
-   * Evaluar si el cliente ha proporcionado criterios suficientes para una búsqueda dirigida
+   * Evaluar calificación del cliente usando sistema de 7 pasos (Sección 2 especificaciones)
+   * 1. Información Personal 2. Objetivo 3. Presupuesto 4. Ubicación 
+   * 5. Especificaciones 6. Amenidades 7. Contacto
    */
   private async assessClientQualification(message: string, conversationId: string): Promise<{
     isQualified: boolean;
     missingCriteria: string[];
     extractedCriteria: any;
+    qualificationStep: number;
+    completedSteps: string[];
   }> {
     try {
       const { storage } = await import('../storage');
@@ -1769,111 +1773,307 @@ Presenta esta propiedad de manera natural y conversacional. Destaca las caracter
       const conversationContext = (conversation?.context as any)?.messages || [];
       const fullConversation = conversationContext.map((msg: { role: string; content: string }) => `${msg.role}: ${msg.content}`).join('\n');
       
-      const prompt = `Analiza la conversación de este cliente de bienes raíces para determinar si tiene criterios suficientes para una búsqueda dirigida:
+      const prompt = `Analiza la conversación completa para evaluar la calificación del cliente según los 7 pasos del sistema AlterEstate:
 
 Conversación completa:
 ${fullConversation}
 Mensaje actual: "${message}"
 
-Criterios ESENCIALES para búsqueda dirigida:
-1. Presupuesto aproximado (rango mínimo/máximo)
-2. Número de habitaciones (preferido)
-3. Zona específica o sectores preferidos
-4. Tipo de operación (compra/alquiler) - si no está claro asumir compra
+SISTEMA DE CALIFICACIÓN DE 7 PASOS:
 
-Criterios ADICIONALES útiles:
-- Número de baños
-- Área aproximada en m²
-- Amenidades específicas
-- Urgencia de la búsqueda
+1. INFORMACIÓN PERSONAL:
+   - Nombre o forma de dirigirse al cliente
+   - Situación familiar (soltero, familia, pareja)
+   - Contexto personal básico
+
+2. OBJETIVO DE LA BÚSQUEDA:
+   - Tipo de operación: compra/alquiler/inversión
+   - Propósito: vivienda propia, inversión, Airbnb, familia
+   - Urgencia: inmediata, flexible, exploratoria
+
+3. PRESUPUESTO Y FINANCIACIÓN:
+   - Rango de presupuesto (mínimo/máximo)
+   - Moneda (USD/DOP)
+   - Método de pago (contado, financiamiento)
+
+4. UBICACIÓN PREFERIDA:
+   - Zonas específicas o sectores
+   - Proximidad a servicios (escuelas, trabajo, transporte)
+   - Flexibilidad geográfica
+
+5. ESPECIFICACIONES TÉCNICAS:
+   - Número de habitaciones
+   - Número de baños
+   - Área aproximada
+   - Parqueos necesarios
+
+6. AMENIDADES Y SERVICIOS:
+   - Amenidades prioritarias (piscina, gym, seguridad)
+   - Servicios comunitarios
+   - Características especiales
+
+7. CONTACTO Y SEGUIMIENTO:
+   - Disponibilidad para visitas
+   - Método de contacto preferido
+   - Timeline para decisión
+
+CALIFICACIÓN:
+- CALIFICADO: Pasos 2, 3, 4, 5 completados (mínimo para búsqueda efectiva)
+- PARCIALMENTE CALIFICADO: 2-3 pasos completados
+- NO CALIFICADO: 0-1 pasos completados
 
 Responde en JSON:
 {
   "isQualified": boolean,
+  "qualificationStep": number_1_to_7,
+  "completedSteps": ["step1", "step2", "step3"],
   "missingCriteria": ["criterio1", "criterio2"],
   "extractedCriteria": {
-    "operation": "compra|alquiler|null",
-    "property_type": "apartamento|casa|local|null",
-    "budget_min": number_or_null,
-    "budget_max": number_or_null,
-    "currency": "USD|DOP|null",
-    "rooms": number_or_null,
-    "bathrooms": number_or_null,
-    "zones": ["zona1", "zona2"] or ["cualquier_zona"] or null,
-    "area_min": number_or_null,
-    "area_max": number_or_null
+    "personalInfo": {
+      "name": "string_or_null",
+      "familySituation": "soltero|familia|pareja|null"
+    },
+    "searchObjective": {
+      "operation": "compra|alquiler|inversion|null",
+      "purpose": "vivienda_propia|inversion|airbnb|familiar|null",
+      "urgency": "inmediata|flexible|exploratoria|null"
+    },
+    "budget": {
+      "min": number_or_null,
+      "max": number_or_null,
+      "currency": "USD|DOP|null",
+      "paymentMethod": "contado|financiamiento|null"
+    },
+    "location": {
+      "zones": ["zona1", "zona2"] or ["cualquier_zona"] or null,
+      "proximity": ["escuelas", "trabajo"] or null,
+      "flexibility": "especifica|flexible|null"
+    },
+    "specifications": {
+      "rooms": number_or_null,
+      "bathrooms": number_or_null,
+      "area_min": number_or_null,
+      "area_max": number_or_null,
+      "parking": number_or_null
+    },
+    "amenities": {
+      "priority": ["piscina", "gym", "seguridad"] or null,
+      "community": ["parque", "centro_comercial"] or null
+    },
+    "contact": {
+      "availability": "mananas|tardes|fines_semana|null",
+      "timeline": "inmediato|semanas|meses|null"
+    }
   }
 }
 
-IMPORTANTE: 
-- Solo marcar isQualified=true si tiene al menos: presupuesto, habitaciones Y zona (específica o cualquier zona).
-- Si el cliente dice "cualquier zona de [ciudad]" o "en toda la ciudad", extraer como zones: ["cualquier_zona"] y SÍ CONSIDERAR COMO ZONA VÁLIDA para proceder con búsqueda.
-- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad", "cualquier zona"
-- Si zones contiene ["cualquier_zona"], NO incluir "zones" en missingCriteria.`;
+IMPORTANTE:
+- isQualified=true solo si completedSteps incluye al menos: "step2", "step3", "step4", "step5"
+- qualificationStep = próximo paso a completar (1-7)
+- Si zones contiene ["cualquier_zona"], NO incluir ubicación en missingCriteria
+- Extraer información específica de toda la conversación, no solo el mensaje actual
+- REGLA CRÍTICA: Si el cliente dice "cualquier zona de [ciudad]", "en toda la ciudad", "cualquier zona", "no importa la zona", etc., extraer como zones: ["cualquier_zona"] y considerar ubicación como COMPLETADA
+- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad", "cualquier zona", "no importa donde"`;
 
       const response = await this.openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        max_tokens: 800,
-        temperature: 0.3,
+        max_tokens: 1200,
+        temperature: 0.2,
       });
 
-      return JSON.parse(response.choices[0].message.content || '{"isQualified": false, "missingCriteria": ["presupuesto", "habitaciones", "zona"], "extractedCriteria": {}}');
+      const result = JSON.parse(response.choices[0].message.content || '{"isQualified": false, "qualificationStep": 1, "completedSteps": [], "missingCriteria": ["objetivo", "presupuesto", "ubicacion", "especificaciones"], "extractedCriteria": {}}');
+      
+      // RETROCOMPATIBILIDAD: Crear mapping plano para código existente
+      const legacyExtractedCriteria = {
+        operation: result.extractedCriteria?.searchObjective?.operation || null,
+        property_type: result.extractedCriteria?.specifications?.propertyType || null,
+        budget_min: result.extractedCriteria?.budget?.min || null,
+        budget_max: result.extractedCriteria?.budget?.max || null,
+        currency: result.extractedCriteria?.budget?.currency || null,
+        rooms: result.extractedCriteria?.specifications?.rooms || null,
+        bathrooms: result.extractedCriteria?.specifications?.bathrooms || null,
+        zones: result.extractedCriteria?.location?.zones || null,
+        area_min: result.extractedCriteria?.specifications?.area_min || null,
+        area_max: result.extractedCriteria?.specifications?.area_max || null,
+        parking: result.extractedCriteria?.specifications?.parking || null
+      };
+
+      // REGLA CRÍTICA: "cualquier zona" es válida - no incluir en missingCriteria
+      if (legacyExtractedCriteria.zones && legacyExtractedCriteria.zones.includes("cualquier_zona")) {
+        result.missingCriteria = result.missingCriteria.filter((criteria: string) => criteria !== "ubicacion" && criteria !== "zona");
+        console.log('✅ [AI] "Cualquier zona" detected - removing location from missing criteria');
+      }
+
+      // Fusionar datos nuevos y legacy para compatibilidad completa
+      result.extractedCriteria = {
+        ...result.extractedCriteria,
+        ...legacyExtractedCriteria // Campos legacy para retrocompatibilidad
+      };
+      
+      console.log(`🎯 [AI] Qualification assessment: Step ${result.qualificationStep}/7, Qualified: ${result.isQualified}, Completed: ${result.completedSteps.join(', ')}`);
+      
+      return result;
     } catch (error) {
-      console.error('Error assessing client qualification:', error);
+      console.error('❌ [AI] Error assessing client qualification:', error);
       return {
         isQualified: false,
-        missingCriteria: ["presupuesto", "habitaciones", "zona"],
-        extractedCriteria: {}
+        qualificationStep: 1,
+        completedSteps: [],
+        missingCriteria: ["objetivo", "presupuesto", "ubicacion", "especificaciones"],
+        extractedCriteria: {
+          // Campos legacy para retrocompatibilidad
+          operation: null,
+          property_type: null,
+          budget_min: null,
+          budget_max: null,
+          currency: null,
+          rooms: null,
+          bathrooms: null,
+          zones: null,
+          area_min: null,
+          area_max: null,
+          parking: null
+        }
       };
     }
   }
 
   /**
-   * Hacer preguntas de calificación profesionales basadas en lo que falta
+   * Generar preguntas de calificación inteligentes según el paso actual del sistema de 7 pasos
    */
   private async askQualifyingQuestions(qualificationStatus: any, context: any): Promise<string> {
-    const { missingCriteria, extractedCriteria } = qualificationStatus;
+    const { qualificationStep, completedSteps, missingCriteria, extractedCriteria } = qualificationStatus;
     
-    // Construir preguntas inteligentes basadas en lo que ya tenemos
+    console.log(`🎯 [AI] Generating qualification questions for step ${qualificationStep}, completed: ${completedSteps.join(', ')}`);
+    
+    // Construir reconocimiento de información ya proporcionada
+    let acknowledgment = "";
     let questions = [];
-    let currentInfo = "";
     
-    // Mostrar lo que ya sabemos
-    if (extractedCriteria.property_type) {
-      currentInfo += `Perfecto, veo que buscas ${extractedCriteria.property_type}`;
-      if (extractedCriteria.operation) {
-        currentInfo += ` para ${extractedCriteria.operation}`;
+    // RECONOCIMIENTO DE INFORMACIÓN COMPLETADA (usando campos legacy para compatibilidad)
+    if (completedSteps.includes("step1") && extractedCriteria.personalInfo?.name) {
+      acknowledgment = `¡Hola ${extractedCriteria.personalInfo.name}! `;
+    } else if (completedSteps.length > 0) {
+      acknowledgment = "¡Perfecto! ";
+    }
+    
+    // Usar campos legacy para compatibilidad con código existente
+    if (extractedCriteria.operation || extractedCriteria.searchObjective?.operation) {
+      const operation = extractedCriteria.operation || extractedCriteria.searchObjective?.operation;
+      acknowledgment += `Veo que buscas una propiedad para ${operation}`;
+      if (extractedCriteria.property_type) {
+        acknowledgment += ` (${extractedCriteria.property_type})`;
       }
-      currentInfo += ". ";
+      acknowledgment += ". ";
     }
     
-    // Preguntar por presupuesto si falta
-    if (missingCriteria.includes("presupuesto")) {
-      questions.push("💰 ¿Cuál es tu presupuesto aproximado? (puedes darme un rango, ej: entre 100k-200k USD)");
+    // GENERAR PREGUNTAS SEGÚN EL PASO ACTUAL
+    switch (qualificationStep) {
+      case 1: // Información Personal
+        questions = [
+          "👋 ¿Cómo te gusta que te llame?",
+          "👨‍👩‍👧‍👦 ¿Buscas para ti solo/a, en pareja, o para la familia?"
+        ];
+        break;
+        
+      case 2: // Objetivo de la Búsqueda  
+        if (!extractedCriteria.operation && !extractedCriteria.searchObjective?.operation) {
+          questions.push("🎯 ¿Estás buscando para comprar, alquilar, o es una inversión?");
+        }
+        if (!extractedCriteria.searchObjective?.purpose) {
+          questions.push("🏡 ¿Es para vivienda propia, inversión, o tienes algún propósito específico?");
+        }
+        if (!extractedCriteria.searchObjective?.urgency) {
+          questions.push("⏰ ¿Qué tan urgente es? ¿Necesitas algo inmediato o puedes tomarte tiempo?");
+        }
+        break;
+        
+      case 3: // Presupuesto y Financiación
+        if (!extractedCriteria.budget_max && !extractedCriteria.budget?.max) {
+          questions.push("💰 ¿Cuál es tu presupuesto aproximado? (puedes darme un rango, ej: entre 150k-250k USD)");
+        }
+        if (!extractedCriteria.currency && !extractedCriteria.budget?.currency) {
+          questions.push("💵 ¿Prefieres manejar el presupuesto en USD o pesos dominicanos?");
+        }
+        if (!extractedCriteria.budget?.paymentMethod) {
+          questions.push("🏦 ¿Planeas pagar de contado o necesitarías financiamiento?");
+        }
+        break;
+        
+      case 4: // Ubicación Preferida
+        if (!extractedCriteria.zones && !extractedCriteria.location?.zones) {
+          questions.push("📍 ¿En qué zona o sector te gustaría? (ej: Piantini, Naco, Evaristo Morales, o dime si tienes flexibilidad)");
+        }
+        if (!extractedCriteria.location?.proximity) {
+          questions.push("🎯 ¿Es importante estar cerca de algún lugar específico? (trabajo, escuelas, centros comerciales)");
+        }
+        break;
+        
+      case 5: // Especificaciones Técnicas
+        if (!extractedCriteria.rooms && !extractedCriteria.specifications?.rooms) {
+          questions.push("🛏️ ¿Cuántas habitaciones necesitas?");
+        }
+        if (!extractedCriteria.bathrooms && !extractedCriteria.specifications?.bathrooms) {
+          questions.push("🚿 ¿Cuántos baños prefieres?");
+        }
+        if (!extractedCriteria.area_min && !extractedCriteria.specifications?.area_min) {
+          questions.push("📐 ¿Tienes alguna preferencia de área en m²? (ej: mínimo 80m², entre 100-150m²)");
+        }
+        if (!extractedCriteria.parking && !extractedCriteria.specifications?.parking) {
+          questions.push("🚗 ¿Necesitas parqueo? ¿Cuántos espacios?");
+        }
+        break;
+        
+      case 6: // Amenidades y Servicios
+        questions = [
+          "🏊‍♀️ ¿Qué amenidades son importantes para ti? (piscina, gym, área social, seguridad 24/7)",
+          "🏪 ¿Te interesa estar cerca de servicios específicos? (supermercados, farmacias, restaurantes)"
+        ];
+        break;
+        
+      case 7: // Contacto y Seguimiento
+        questions = [
+          "📅 ¿Cuándo tienes disponibilidad para ver propiedades? (mañanas, tardes, fines de semana)",
+          "⏳ ¿En qué timeframe te gustaría tomar una decisión? (días, semanas, meses)"
+        ];
+        break;
+        
+      default:
+        // Preguntas generales si no hay paso específico
+        if (missingCriteria.includes("presupuesto")) {
+          questions.push("💰 ¿Cuál es tu presupuesto aproximado?");
+        }
+        if (missingCriteria.includes("especificaciones")) {
+          questions.push("🏠 ¿Cuántas habitaciones y baños necesitas?");
+        }
+        if (missingCriteria.includes("ubicacion")) {
+          questions.push("📍 ¿En qué zona te gustaría?");
+        }
+        break;
     }
     
-    // Preguntar por habitaciones si falta
-    if (missingCriteria.includes("habitaciones")) {
-      questions.push("🏠 ¿Cuántas habitaciones necesitas?");
+    // CONSTRUIR RESPUESTA FINAL
+    const greeting = acknowledgment || "¡Excelente! Me encanta ayudarte a encontrar la propiedad perfecta. ";
+    
+    let explanation = "";
+    if (qualificationStep <= 3) {
+      explanation = "Para ofrecerte las mejores opciones, necesito conocer algunos detalles importantes:\n\n";
+    } else if (qualificationStep <= 5) {
+      explanation = "Vamos por buen camino. Ahora necesito algunos detalles técnicos:\n\n";
+    } else {
+      explanation = "Ya casi terminamos. Solo faltan algunos detalles finales:\n\n";
     }
     
-    // Preguntar por zona si falta
-    if (missingCriteria.includes("zona")) {
-      questions.push(`📍 ¿En qué zona o sector específico te gustaría? (ej: Evaristo Morales, Piantini, Arroyo Hondo, etc.)`);
-    }
-    
-    // Preguntar por baños si no se ha mencionado
-    if (!extractedCriteria.bathrooms && questions.length < 3) {
-      questions.push("🚿 ¿Cuántos baños prefieres?");
-    }
-    
-    // Respuesta profesional y cálida
-    const greeting = currentInfo || "¡Excelente! Me encanta ayudarte a encontrar la propiedad perfecta. ";
-    const explanation = "Para mostrarte las mejores opciones que realmente se ajusten a tus necesidades, necesito conocer algunos detalles importantes:\n\n";
     const questionsList = questions.slice(0, 3).map((q, i) => `${i + 1}. ${q}`).join('\n');
-    const closing = "\n\nCon esta información podré ofrecerte propiedades que realmente valgan la pena tu tiempo. 😊";
+    
+    let closing = "";
+    if (qualificationStep <= 3) {
+      closing = "\n\n¡Con esta información podré mostrarte propiedades que realmente valgan la pena! 😊";
+    } else {
+      closing = "\n\n¡Ya casi estamos listos para encontrar tu propiedad ideal! 🎯";
+    }
     
     return greeting + explanation + questionsList + closing;
   }

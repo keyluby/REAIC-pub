@@ -1117,45 +1117,60 @@ export class AlterEstateService {
   }
 
   /**
-   * Analizar consulta usando IA para extraer criterios más precisos
+   * Analizar consulta usando IA para extraer criterios precisos - Especificación Sección 3
+   * Implementa análisis avanzado según casos prácticos de la sección 8
    */
   private async analyzeQueryWithAI(query: string): Promise<PropertyFilters> {
     try {
       const { OpenAI } = await import('openai');
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       
-      const prompt = `Analiza esta consulta de búsqueda de propiedades inmobiliarias y extrae TODOS los criterios específicos posibles:
+      const prompt = `Analiza esta consulta de búsqueda de propiedades inmobiliarias y extrae TODOS los criterios específicos posibles según las especificaciones AlterEstate CRM:
 
 Consulta: "${query}"
 
-Extrae criterios para formar filtros API precisos. Considera contexto dominicano.
+INTERPRETACIÓN INTELIGENTE DE CONSULTAS (Ejemplos Sección 8):
+
+1. DETECCIÓN DE CONTEXTO ESPECIAL:
+   - "para mí solo", "soltero", "estudio" → apartments, max 2 hab
+   - "para familia", "familiar" → min 3 hab
+   - "para Airbnb", "turismo", "inversión" → ready properties, amenidades
+   - "casa con piscina" → house + amenities filter
+   - "algo económico" → value_max más bajo del rango
+
+2. UBICACIÓN FLEXIBLE:
+   - "cualquier zona", "toda la ciudad", "no importa donde" → usar "cualquier_zona"
+   - "cerca del trabajo", "zona céntrica" → incluir en search
+   - Sectores específicos: extraer nombres exactos
+
+3. INTERPRETACIÓN DE PRECIOS:
+   - "hasta 200k" = value_max: 200000
+   - "desde 150k" = value_min: 150000  
+   - "entre 100-200k" = value_min: 100000, value_max: 200000
+   - "presupuesto 300k" = value_max: 300000
+   - "30 millones" = 30,000,000
 
 CATEGORÍAS DE PROPIEDADES:
-1 = Apartamentos
-2 = Casas  
-3 = Edificios
-4 = Solares
+1 = Apartamentos (apt, apto, apartamento)
+2 = Casas (casa, house)
+3 = Edificios 
+4 = Solares (terreno, lote)
 5 = Hoteles
 6 = Locales Comerciales
-7 = Naves Industriales
-10 = Penthouse
+7 = Naves Industriales  
+10 = Penthouse (ático)
 13 = Villas
 14 = Lofts
 17 = Townhouses
 
 TIPOS DE OPERACIÓN:
-1 = Venta/Compra
-2 = Alquiler
+1 = Venta/Compra (comprar, venta, invertir)
+2 = Alquiler (alquilar, rentar, arrendar)
 
-UBICACIONES ESPECÍFICAS DOMINICANAS:
-- Santo Domingo y sectores: Piantini, Naco, Bella Vista, Evaristo Morales, Gazcue, Zona Colonial, Distrito Nacional, etc.
+UBICACIONES DOMINICANAS ESPECÍFICAS:
+- Santo Domingo: Piantini, Naco, Bella Vista, Evaristo Morales, Gazcue, Zona Colonial, Distrito Nacional, Los Prados, Arroyo Hondo, Cacicazgos
 - Santiago, Punta Cana, Puerto Plata, La Romana
-
-IMPORTANTE PARA PRECIOS:
-- Si menciona "hasta X", "presupuesto de X", "máximo X" = usar value_max
-- Si menciona "desde X", "mínimo X", "a partir de X" = usar value_min
-- Si dice "30 millones" = 30,000,000 (agregar los ceros)
-- Para pesos dominicanos usar "DOP", para dólares "USD"
+- IMPORTANTE: Si dice "cualquier zona", "toda la ciudad", "no importa" → usar "cualquier_zona"
 
 Responde en JSON:
 {
@@ -1168,9 +1183,10 @@ Responde en JSON:
   "value_min": number_o_null,
   "value_max": number_o_null,
   "currency": "USD_o_DOP_o_null",
-  "search": "ubicacion_especifica_o_null",
-  "property_area_min": number_o_null,
-  "property_area_max": number_o_null
+  "search": "ubicacion_especifica_o_cualquier_zona",
+  "area_min": number_o_null,
+  "area_max": number_o_null,
+  "condition": number_o_null
 }`;
 
       const response = await openai.chat.completions.create({
