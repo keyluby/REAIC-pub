@@ -108,6 +108,183 @@ const PropertyAnalysisSchema = z.object({
   condition: z.coerce.number().nullable().optional()
 }).passthrough();
 
+const PropertyRecommendationSchema = z.object({
+  recommendations: z.array(
+    z.object({
+      propertyId: z.string(),
+      matchScore: z.coerce.number().min(0).max(1),
+      reasons: z.array(z.string()).default([]),
+      highlights: z.string().optional()
+    })
+  ).default([])
+}).passthrough();
+
+// Define alias mappings for field normalization
+const FIELD_ALIASES = {
+  // personalInfo aliases
+  'personal': 'personalInfo',
+  'personal_info': 'personalInfo',
+  
+  // amenities aliases 
+  'priority': 'required',
+  'priorities': 'required',
+  'must_have': 'required',
+  'nice_to_have': 'preferred',
+  'wants': 'preferred',
+  
+  // budget aliases
+  'min_budget': 'min',
+  'max_budget': 'max',
+  'budget_min': 'min', 
+  'budget_max': 'max',
+  
+  // location aliases
+  'areas': 'zones',
+  'neighborhoods': 'zones',
+  
+  // specification aliases
+  'bedrooms': 'rooms',
+  'baths': 'bathrooms',
+  'parking_spots': 'parking'
+};
+
+/**
+ * Centralized function to parse OpenAI JSON responses with Zod validation and field normalization
+ * @param jsonString - Raw JSON string from OpenAI
+ * @param schema - Zod schema for validation
+ * @param aliases - Optional custom aliases for field normalization
+ * @returns {data, issues, raw} - Parsed data, validation issues, and raw response
+ */
+function parseAndNormalize<T>(
+  jsonString: string | null | undefined, 
+  schema: z.ZodType<T>, 
+  aliases: Record<string, string> = {}
+): { data: T | null; issues: string[]; raw: any } {
+  const issues: string[] = [];
+  let raw: any = null;
+  
+  // Step 1: Parse JSON
+  try {
+    if (!jsonString || jsonString.trim() === '') {
+      issues.push('Empty or null JSON string received');
+      return { data: null, issues, raw: null };
+    }
+    
+    raw = JSON.parse(jsonString);
+    console.log('✅ [parseAndNormalize] JSON parsed successfully');
+  } catch (parseError) {
+    issues.push(`JSON parsing failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+    console.error('❌ [parseAndNormalize] JSON parsing failed:', parseError);
+    return { data: null, issues, raw: null };
+  }
+  
+  // Step 2: Normalize field aliases
+  const combinedAliases = { ...FIELD_ALIASES, ...aliases };
+  const normalizedData = normalizeAliases(raw, combinedAliases);
+  
+  if (normalizedData !== raw) {
+    console.log('🔄 [parseAndNormalize] Field aliases normalized');
+  }
+  
+  // Step 3: Validate with Zod schema
+  const validationResult = schema.safeParse(normalizedData);
+  
+  if (!validationResult.success) {
+    const errorMessages = validationResult.error.errors.map(err => 
+      `${err.path.join('.')}: ${err.message}`
+    );
+    issues.push(...errorMessages);
+    
+    console.error('❌ [parseAndNormalize] Schema validation failed:', errorMessages);
+    
+    // Try to recover partial valid data
+    const partialData = recoverPartialData(normalizedData, schema, issues);
+    return { data: partialData, issues, raw };
+  }
+  
+  console.log('✅ [parseAndNormalize] Schema validation passed');
+  return { data: validationResult.data, issues, raw };
+}
+
+/**
+ * Recursively normalize field aliases in an object
+ */
+function normalizeAliases(obj: any, aliases: Record<string, string>): any {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => normalizeAliases(item, aliases));
+  }
+  
+  const normalized: any = {};
+  
+  for (const [key, value] of Object.entries(obj)) {
+    // Check if this key has an alias
+    const normalizedKey = aliases[key] || key;
+    
+    // Recursively normalize nested objects
+    if (value && typeof value === 'object') {
+      normalized[normalizedKey] = normalizeAliases(value, aliases);
+    } else {
+      normalized[normalizedKey] = value;
+    }
+  }
+  
+  return normalized;
+}
+
+/**
+ * Attempt to recover partial valid data from failed validation
+ */
+function recoverPartialData<T>(data: any, schema: z.ZodType<T>, issues: string[]): T | null {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+  
+  // For objects with optional fields, try to keep valid fields
+  try {
+    const recovered: any = {};
+    
+    // Try to preserve simple valid fields
+    for (const [key, value] of Object.entries(data)) {
+      try {
+        // Test individual fields when possible
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          recovered[key] = value;
+        } else if (Array.isArray(value)) {
+          // Keep arrays of primitives
+          const primitiveArray = value.filter(item => 
+            typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+          );
+          if (primitiveArray.length > 0) {
+            recovered[key] = primitiveArray;
+          }
+        } else if (value && typeof value === 'object') {
+          // For nested objects, try partial recovery
+          recovered[key] = value;
+        }
+      } catch {
+        // Skip invalid fields
+        continue;
+      }
+    }
+    
+    // Try parsing the recovered data
+    const recoveryResult = schema.safeParse(recovered);
+    if (recoveryResult.success) {
+      issues.push('Partial data recovery successful');
+      return recoveryResult.data;
+    }
+    
+  } catch (recoveryError) {
+    issues.push(`Partial recovery failed: ${recoveryError instanceof Error ? recoveryError.message : 'Unknown error'}`);
+  }
+  
+  return null;
+}
+
 export class AIService {
   private openaiClient: OpenAI;
   private propertyContexts = new Map<string, string>();
@@ -344,25 +521,38 @@ Responde en formato JSON con esta estructura:
         temperature: 0.7,
       });
 
-      // Parse and validate JSON response
-      try {
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error('Empty response from OpenAI');
+      // Parse and validate using centralized function
+      const parseResult = parseAndNormalize(
+        response.choices[0].message.content,
+        PropertyRecommendationSchema,
+        // Custom aliases for property recommendations
+        {
+          'property_id': 'propertyId',
+          'match_score': 'matchScore',
+          'score': 'matchScore',
+          'recommendation_reasons': 'reasons'
         }
-        const result = JSON.parse(content);
+      );
+
+      if (!parseResult.data) {
+        console.error('❌ [AI] Property recommendations centralized parsing failed:', parseResult.issues);
+        console.warn('🔧 [AI] Using fallback recommendations format');
         
-        // Basic validation for recommendations
-        if (!result.recommendations || !Array.isArray(result.recommendations)) {
-          console.warn('⚠️ [AI] Invalid recommendations format, using fallback');
-          return { recommendations: [] };
+        // Try to recover basic recommendations structure from raw data
+        if (parseResult.raw?.recommendations && Array.isArray(parseResult.raw.recommendations)) {
+          return { recommendations: parseResult.raw.recommendations.filter((rec: any) => rec && typeof rec === 'object') };
         }
         
-        return result;
-      } catch (parseError) {
-        console.error('❌ [AI] Failed to parse recommendations JSON:', parseError);
         return { recommendations: [] };
       }
+
+      // Log any parsing warnings
+      if (parseResult.issues.length > 0) {
+        console.log('⚠️ [AI] Property recommendations parsing warnings:', parseResult.issues.join(', '));
+      }
+
+      console.log(`✅ [AI] Generated ${parseResult.data.recommendations.length} property recommendations`);
+      return parseResult.data;
     } catch (error) {
       console.error('Error generating property recommendations:', error);
       throw new Error('Failed to generate property recommendations');
@@ -462,33 +652,32 @@ Responde en formato JSON:
         temperature: 0.7,
       });
 
-      // Parse and validate with Zod
-      try {
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error('Empty response from OpenAI');
-        }
-        const rawResult = JSON.parse(content);
-        
-        // Validate with Zod schema
-        const validationResult = IntentDetectionSchema.safeParse(rawResult);
-        
-        if (!validationResult.success) {
-          console.error('❌ [AI] Intent detection schema validation failed:', validationResult.error.errors);
-          // Return safe fallback with partial recovery
-          return {
-            intent: rawResult.intent || "ask_question",
-            confidence: (typeof rawResult.confidence === 'number' && rawResult.confidence >= 0 && rawResult.confidence <= 1) 
-              ? rawResult.confidence : 0.5,
-            entities: rawResult.entities || {}
-          };
-        }
+      // Parse and validate using centralized function
+      const parseResult = parseAndNormalize(
+        response.choices[0].message.content,
+        IntentDetectionSchema
+      );
 
-        return validationResult.data;
-      } catch (parseError) {
-        console.error('❌ [AI] Failed to parse intent detection JSON:', parseError);
-        return { intent: "ask_question", confidence: 0.5, entities: {} };
+      if (!parseResult.data) {
+        console.error('❌ [AI] Intent detection centralized parsing failed:', parseResult.issues);
+        // Return safe fallback based on raw data if available
+        const fallbackIntent = parseResult.raw?.intent || "ask_question";
+        const fallbackConfidence = (typeof parseResult.raw?.confidence === 'number' && 
+          parseResult.raw.confidence >= 0 && parseResult.raw.confidence <= 1) 
+          ? parseResult.raw.confidence : 0.5;
+        return {
+          intent: fallbackIntent,
+          confidence: fallbackConfidence,
+          entities: parseResult.raw?.entities || {}
+        };
       }
+
+      // Log any parsing warnings
+      if (parseResult.issues.length > 0) {
+        console.log('⚠️ [AI] Intent detection parsing warnings:', parseResult.issues.join(', '));
+      }
+
+      return parseResult.data;
     } catch (error) {
       console.error('Error detecting intent:', error);
       return { intent: "ask_question", confidence: 0.5 };
@@ -550,33 +739,32 @@ Responde en formato JSON:
         temperature: 0.7,
       });
 
-      // Parse and validate with Zod
-      try {
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error('Empty response from OpenAI');
-        }
-        const rawResult = JSON.parse(content);
-        
-        // Validate with Zod schema
-        const validationResult = IntentDetectionSchema.safeParse(rawResult);
-        
-        if (!validationResult.success) {
-          console.error('❌ [AI] Intent detection with context schema validation failed:', validationResult.error.errors);
-          // Return safe fallback with partial recovery
-          return {
-            intent: rawResult.intent || "ask_question",
-            confidence: (typeof rawResult.confidence === 'number' && rawResult.confidence >= 0 && rawResult.confidence <= 1) 
-              ? rawResult.confidence : 0.5,
-            entities: rawResult.entities || {}
-          };
-        }
+      // Parse and validate using centralized function
+      const parseResult = parseAndNormalize(
+        response.choices[0].message.content,
+        IntentDetectionSchema
+      );
 
-        return validationResult.data;
-      } catch (parseError) {
-        console.error('❌ [AI] Failed to parse intent detection with context JSON:', parseError);
-        return { intent: "ask_question", confidence: 0.5, entities: {} };
+      if (!parseResult.data) {
+        console.error('❌ [AI] Intent detection with context centralized parsing failed:', parseResult.issues);
+        // Return safe fallback based on raw data if available
+        const fallbackIntent = parseResult.raw?.intent || "ask_question";
+        const fallbackConfidence = (typeof parseResult.raw?.confidence === 'number' && 
+          parseResult.raw.confidence >= 0 && parseResult.raw.confidence <= 1) 
+          ? parseResult.raw.confidence : 0.5;
+        return {
+          intent: fallbackIntent,
+          confidence: fallbackConfidence,
+          entities: parseResult.raw?.entities || {}
+        };
       }
+
+      // Log any parsing warnings
+      if (parseResult.issues.length > 0) {
+        console.log('⚠️ [AI] Intent detection with context parsing warnings:', parseResult.issues.join(', '));
+      }
+
+      return parseResult.data;
     } catch (error) {
       console.error('Error detecting intent with context:', error);
       return { intent: "ask_question", confidence: 0.5 };
@@ -2058,51 +2246,37 @@ IMPORTANTE:
         temperature: 0.2,
       });
 
-      // Parse and validate JSON response with Zod
-      let rawResult: any;
-      try {
-        const content = response.choices[0].message.content;
-        if (!content) {
-          throw new Error('Empty response from OpenAI');
+      // Parse and validate JSON response using centralized function
+      const parseResult = parseAndNormalize(
+        response.choices[0].message.content,
+        QualificationStepSchema,
+        // Custom aliases specific to qualification
+        {
+          'personal': 'personalInfo',
+          'personal_info': 'personalInfo',
+          'objective': 'searchObjective',
+          'search_objective': 'searchObjective'
         }
-        rawResult = JSON.parse(content);
-      } catch (parseError) {
-        console.error('❌ [AI] Failed to parse JSON response:', parseError);
-        return this.createFallbackQualificationResult();
-      }
+      );
 
-      // Validate with Zod schema
-      const validationResult = QualificationStepSchema.safeParse(rawResult);
-      
       let result: any;
-      if (!validationResult.success) {
-        console.error('❌ [AI] Schema validation failed:', validationResult.error.errors);
-        console.log('🔧 [AI] Using fallback with partial data recovery');
-        
-        // Intento de recuperación parcial de datos válidos
+      if (!parseResult.data) {
+        console.error('❌ [AI] Centralized parsing failed:', parseResult.issues);
+        console.log('🔧 [AI] Using fallback qualification result');
         result = this.createFallbackQualificationResult();
-        if (rawResult && typeof rawResult === 'object') {
-          // Recuperar campos que sí sean válidos
-          if (rawResult.missingCriteria && Array.isArray(rawResult.missingCriteria)) {
-            result.missingCriteria = rawResult.missingCriteria;
-          }
-          if (typeof rawResult.qualificationStep === 'number' && rawResult.qualificationStep >= 1 && rawResult.qualificationStep <= 7) {
-            result.qualificationStep = rawResult.qualificationStep;
-          }
-          if (Array.isArray(rawResult.completedSteps)) {
-            result.completedSteps = rawResult.completedSteps.filter((s: any) => typeof s === 'string');
-          }
-          if (typeof rawResult.isQualified === 'boolean') {
-            result.isQualified = rawResult.isQualified;
-          }
-          // Recuperar extractedCriteria parcialmente si existe
-          if (rawResult.extractedCriteria && typeof rawResult.extractedCriteria === 'object') {
-            result.extractedCriteria = { ...result.extractedCriteria, ...rawResult.extractedCriteria };
-          }
+        
+        // Log parsing issues for debugging
+        if (parseResult.issues.length > 0) {
+          console.log('🔍 [AI] Parsing issues:', parseResult.issues.join(', '));
         }
       } else {
-        result = validationResult.data;
-        console.log('✅ [AI] Schema validation passed');
+        result = parseResult.data;
+        console.log('✅ [AI] Centralized parsing and validation passed');
+        
+        // Log any normalization issues if present
+        if (parseResult.issues.length > 0) {
+          console.log('⚠️ [AI] Parsing warnings:', parseResult.issues.join(', '));
+        }
       }
       
       // RETROCOMPATIBILIDAD: Crear mapping plano para código existente con campos correctos
