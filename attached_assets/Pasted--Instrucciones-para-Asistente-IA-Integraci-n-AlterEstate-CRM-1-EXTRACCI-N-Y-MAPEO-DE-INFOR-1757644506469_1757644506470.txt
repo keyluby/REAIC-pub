@@ -1,0 +1,346 @@
+# Instrucciones para Asistente IA - Integración AlterEstate CRM
+
+## 1. EXTRACCIÓN Y MAPEO DE INFORMACIÓN CLAVE
+
+### A. INFORMACIÓN BÁSICA DE LA PROPIEDAD
+
+**Campos principales para mostrar:**
+- `name` / `basicInfo.title`: Título de la propiedad
+- `short_description`: Descripción resumida (ideal para presentaciones iniciales)
+- `description`: Descripción completa (para detalles específicos)
+- `category.name`: Tipo de propiedad (Apartamentos, Casas, Villas, etc.)
+- `condition_read`: Estado de la propiedad (Listo, En Construcción, etc.)
+
+### B. INFORMACIÓN COMERCIAL (PRECIOS)
+
+**Para propiedades en venta:**
+- `commercialInfo.salePrice` o `sale_price`: Precio de venta
+- `commercialInfo.currency` o `currency_sale`: Moneda del precio
+- `forSale`: Confirma si está en venta
+
+**Para propiedades en alquiler:**
+- `commercialInfo.rentPrice` o `rent_price`: Precio de alquiler mensual
+- `currency_rent`: Moneda del alquiler
+- `forRent`: Confirma si está en alquiler
+- `maintenance_fee`: Cuota de mantenimiento (importante en alquileres)
+
+**Para propiedades amuebladas:**
+- `furnished_price`: Precio amueblada
+- `furnished_sale_price`: Precio venta amueblada
+- `furnished`: Boolean si está amueblada
+
+### C. ESPECIFICACIONES TÉCNICAS
+
+**Estructura:**
+- `room`: Número de habitaciones
+- `bathroom`: Número de baños
+- `half_bathrooms`: Medios baños
+- `parkinglot`: Espacios de parqueo
+- `property_area`: Área de construcción
+- `property_area_measurer`: Unidad de medida (Mt2)
+- `terrain_area`: Área del terreno
+- `floor_level`: Piso donde se ubica
+- `total_floors`: Total de pisos del edificio
+
+### D. UBICACIÓN GEOGRÁFICA
+
+**Jerarquía de ubicación:**
+- `locationInfo.city` o `city`: Ciudad
+- `locationInfo.province` o `province`: Provincia
+- `locationInfo.sector` o `sector`: Sector/vecindario
+- `city_id` y `sector_id`: IDs para filtros API
+- `locationInfo.address`: Dirección específica
+- `locationInfo.references`: Referencias de ubicación
+
+### E. AMENIDADES Y CARACTERÍSTICAS
+
+**Arrays de características:**
+- `amenities`: Lista completa de amenidades
+- `technicalDetails.amenities`: Versión técnica de amenidades
+- `tags`: Etiquetas adicionales
+
+**Amenidades comunes importantes:**
+- Piscina, Gimnasio, Casa Club
+- Seguridad 24h, Portón eléctrico
+- Balcón, Terraza exclusiva
+- Área de juegos infantiles
+- Parqueos, Ascensor
+
+### F. INFORMACIÓN DE CONTACTO
+
+**Agente asignado:**
+- `agents[0].full_name`: Nombre completo del agente
+- `agents[0].phone`: Teléfono del agente
+- `agents[0].email`: Email del agente
+- `agents[0].position`: Cargo del agente
+- `agents[0].bio`: Biografía del agente
+
+### G. MULTIMEDIA
+
+**Imágenes y medios:**
+- `featured_image`: Imagen principal
+- `gallery_image`: Galería de imágenes
+- `multimedia.featuredImage`: Imagen destacada alternativa
+- `virtual_tour`: Tour virtual
+- `youtubeiframe`: Video de YouTube
+
+### H. PROYECTOS INMOBILIARIOS
+
+**Para desarrollos (is_project_v2: true):**
+- `project_values`: Rangos de precios, habitaciones, etc.
+- `variations`: Diferentes modelos/unidades disponibles
+- `delivery_date`: Fecha de entrega
+- `year_construction`: Año de construcción
+
+## 2. LÓGICA DE RECOLECCIÓN DE INFORMACIÓN DEL USUARIO
+
+### A. PARÁMETROS ESENCIALES A RECOPILAR
+
+**Obligatorios antes de consultar la API:**
+1. **Tipo de operación**: Compra (listing_type=1) o Alquiler (listing_type=2)
+2. **Ubicación**: Ciudad (city_id) y preferiblemente sector (sector)
+3. **Tipo de propiedad**: category_id (1=Apartamentos, 2=Casas, 13=Villas, etc.)
+
+**Altamente recomendados:**
+4. **Habitaciones**: rooms_min y rooms_max
+5. **Baños**: bath_min y bath_max
+6. **Presupuesto**: value_min, value_max y currency
+
+**Opcionales pero valiosos:**
+7. **Parqueos**: parking_min, parking_max
+8. **Área**: area_min, area_max (en m²)
+9. **Estado**: condition (9=Listo, 5=En Construcción)
+10. **Amenidades específicas**: features (IDs específicos)
+
+### B. FLUJO DE CONVERSACIÓN RECOMENDADO
+
+**Paso 1**: Identificar intención (comprar/alquilar)
+**Paso 2**: Confirmar ubicación (ciudad y sector si es posible)
+**Paso 3**: Determinar tipo de propiedad
+**Paso 4**: Especificaciones básicas (habitaciones, baños)
+**Paso 5**: Rango de presupuesto
+**Paso 6**: Preferencias adicionales (parqueos, amenidades)
+**Paso 7**: Ejecutar búsqueda en API
+
+## 3. PARÁMETROS DE CONSULTA API
+
+### URL Base:
+```
+GET https://secure.alterestate.com/api/v1/properties/filter/
+```
+
+### Headers requeridos:
+```
+aetoken: tu_token_publico
+```
+
+### Parámetros clave para la consulta:
+
+```javascript
+{
+  // Ubicación
+  city: 156, // ID de ciudad (usar /api/v1/cities/ para obtener)
+  sector: 1687, // ID de sector (usar /api/v1/sectors/ para obtener)
+  search: "Naco", // Búsqueda por nombre de sector
+  
+  // Tipo y operación
+  listing_type: 1, // 1=Venta, 2=Alquiler
+  category: 1, // 1=Apartamentos, 2=Casas, 13=Villas, etc.
+  condition: 9, // 9=Listo, 5=En Construcción
+  
+  // Especificaciones
+  rooms_min: 2,
+  rooms_max: 4,
+  bath_min: 2,
+  bath_max: 3,
+  parking_min: 1,
+  area_min: 80,
+  area_max: 150,
+  
+  // Presupuesto
+  value_min: 50000,
+  value_max: 100000,
+  currency: "USD", // USD, DOP, MXN, etc.
+  
+  // Ordenamiento
+  sort: "us_saleprice" // o "-us_saleprice" para descendente
+}
+```
+
+## 4. PRESENTACIÓN DE RESULTADOS
+
+### A. FORMATO DE RESPUESTA INICIAL
+
+Cuando muestres propiedades, incluye:
+1. **Título de la propiedad** (`name`)
+2. **Ubicación**: `sector`, `city`
+3. **Especificaciones**: habitaciones, baños, parqueos
+4. **Precio** con moneda
+5. **Estado** de la propiedad
+6. **Imagen principal** si disponible
+7. **Descripción corta** (`short_description`)
+
+### B. INFORMACIÓN DETALLADA (CUANDO SE SOLICITE)
+
+Para detalles específicos, incluye:
+- Área construida y del terreno
+- Lista completa de amenidades
+- Información del agente
+- Galería de imágenes
+- Descripción completa
+- Información adicional relevante
+
+## 5. VALIDACIONES IMPORTANTES
+
+### A. CAMPOS CONDICIONALES
+
+- **Proyectos**: Si `is_project_v2` es true, usar `project_values` para rangos
+- **Mantenimiento**: Para alquileres, siempre mencionar `maintenance_fee`
+- **Monedas**: Convertir automáticamente usando las tasas internas de AlterEstate
+- **Pisos**: Solo mostrar `floor_level` si no es null
+
+### B. CAMPOS ALTERNATIVOS
+
+Muchos datos pueden estar en campos duplicados:
+- Precio: `sale_price` o `commercialInfo.salePrice`
+- Ubicación: `city` o `locationInfo.city`
+- Descripción: `description` o `basicInfo.description`
+
+## 6. RESPUESTAS HUMANIZADAS
+
+### A. TONOS RECOMENDADOS
+
+- **Empático**: "Entiendo que buscas un hogar para tu familia..."
+- **Consultivo**: "Basándome en tus necesidades, te recomiendo..."
+- **Detallado**: "Esta propiedad cuenta con..."
+- **Motivacional**: "Esta oportunidad podría ser perfecta para ti porque..."
+
+### B. PERSONALIZACIÓN
+
+- Adaptar el lenguaje al presupuesto del cliente
+- Destacar amenidades que coincidan con necesidades expresadas
+- Mencionar ventajas de ubicación específicas
+- Ofrecer alternativas cuando no hay coincidencias exactas
+
+## 8. EJEMPLOS PRÁCTICOS DE INTERPRETACIÓN
+
+### A. CASOS DE LENGUAJE NATURAL → PARÁMETROS API
+
+**Ejemplo 1:**
+- **Usuario dice**: "Busco algo para alquilar en Naco, no muy grande, para mí solo, hasta 25 mil pesos"
+- **Interpretación**:
+  ```javascript
+  {
+    listing_type: 2, // Alquiler
+    search: "Naco", // Búsqueda por sector
+    category: 1, // Apartamentos (inferido)
+    rooms_max: 2, // "no muy grande" + "para mí solo"
+    value_max: 25000,
+    currency: "DOP"
+  }
+  ```
+
+**Ejemplo 2:**
+- **Usuario dice**: "Quiero comprar una casa para mi familia, zona este de Santiago, con piscina"
+- **Interpretación**:
+  ```javascript
+  {
+    listing_type: 1, // Venta
+    city_name: "Santiago", // Búsqueda por ciudad
+    category: 2, // Casas
+    rooms_min: 3, // Familia implica 3+ habitaciones
+    features: [74] // ID de piscina
+  }
+  ```
+
+**Ejemplo 3:**
+- **Usuario dice**: "Algo en Punta Cana para Airbnb, buena inversión"
+- **Interpretación**:
+  ```javascript
+  {
+    listing_type: 1, // Venta (inversión)
+    city_name: "Punta Cana",
+    category: 1, // Apartamentos típicos para Airbnb
+    condition: 9, // Listo (importante para inversión inmediata)
+    features: [74, 73], // Piscina, gym (amenidades para turistas)
+    sort: "-us_saleprice" // Mostrar opciones premium primero
+  }
+  ```
+
+### B. MANEJO DE INFORMACIÓN INCOMPLETA
+
+**Escenario**: Usuario dice "Quiero algo bonito"
+- **Respuesta AI**: "Me alegra que busques una nueva propiedad. Para ayudarte mejor, ¿estarías buscando para comprar o alquilar? ¿Y en qué ciudad o zona te gustaría vivir?"
+
+**Escenario**: Usuario dice "Apartamento de 3 cuartos"
+- **Respuesta AI**: "Perfecto, apartamento de 3 habitaciones. ¿Esto sería para comprar o alquilar? ¿Y tienes alguna zona preferida en mente?"
+
+**Escenario**: Usuario da información parcial: "Casa en Santo Domingo para alquilar"
+- **Respuesta AI**: "Excelente, casa en alquiler en Santo Domingo. ¿Tienes algún sector específico en mente como Naco, Bella Vista, Piantini, o alguna zona particular? ¿Y cuántas habitaciones necesitarías aproximadamente?"
+
+### C. VALIDACIÓN ANTES DE BÚSQUEDA
+
+```javascript
+function validateSearchReadiness(userData) {
+  const required = {
+    operation: userData.listing_type,
+    location: userData.city || userData.city_name || userData.search,
+    property_type: userData.category
+  };
+  
+  const missing = Object.entries(required)
+    .filter(([key, value]) => !value)
+    .map(([key]) => key);
+    
+  if (missing.length === 0) {
+    return { ready: true, can_search: true };
+  }
+  
+  return {
+    ready: false,
+    missing: missing,
+    next_question: generateNextQuestion(missing, userData)
+  };
+}
+```
+
+### D. OPTIMIZACIÓN DE RESULTADOS
+
+**Cuando hay muchos resultados (>20):**
+- Mostrar 3-5 mejores opciones
+- Preguntar si desea refinar criterios
+- Ofrecer filtros adicionales
+
+**Cuando hay pocos resultados (<3):**
+- Mostrar todas las opciones disponibles
+- Sugerir ampliar criterios (área de búsqueda, presupuesto, etc.)
+- Ofrecer opciones "casi perfectas" con pequeñas diferencias
+
+**Cuando no hay resultados:**
+- Sugerir ajustes específicos y realistas
+- Ofrecer propiedades similares en ubicaciones cercanas
+- Recomendar contactar directamente al agente para futuras oportunidades
+
+## EJEMPLO DE IMPLEMENTACIÓN
+
+```javascript
+// Ejemplo de lógica de validación antes de API call
+function validateSearchCriteria(userInput) {
+  const required = ['operation_type', 'city', 'property_type'];
+  const recommended = ['rooms', 'budget_range'];
+  
+  const missing = required.filter(field => !userInput[field]);
+  
+  if (missing.length > 0) {
+    return {
+      ready: false,
+      missing: missing,
+      message: "Necesito saber más detalles para ayudarte mejor..."
+    };
+  }
+  
+  return { ready: true };
+}
+```
+
+Este framework asegura que tu Asistente IA pueda extraer máximo valor de los datos de AlterEstate y brindar una experiencia personalizada y eficiente a los usuarios interesados en propiedades.

@@ -1284,33 +1284,180 @@ Responde en JSON:
   }
 
   /**
-   * Formatear propiedades para respuesta de IA
+   * Extraer información clave de una propiedad según especificaciones AlterEstate
+   */
+  extractPropertyInfo(property: any): any {
+    const extracted = {
+      // A. INFORMACIÓN BÁSICA DE LA PROPIEDAD
+      basicInfo: {
+        title: property.name || property.basicInfo?.title,
+        shortDescription: property.short_description,
+        description: property.description || property.basicInfo?.description,
+        categoryName: property.category?.name,
+        conditionRead: property.condition_read,
+        uid: property.uid,
+        slug: property.slug
+      },
+
+      // B. INFORMACIÓN COMERCIAL (PRECIOS)
+      commercialInfo: {
+        // Venta
+        salePrice: property.sale_price || property.commercialInfo?.salePrice,
+        currencySale: property.currency_sale || property.commercialInfo?.currency,
+        forSale: property.forSale !== false, // Por defecto true si no se especifica
+        
+        // Alquiler
+        rentPrice: property.rent_price || property.commercialInfo?.rentPrice,
+        currencyRent: property.currency_rent,
+        forRent: property.forRent || false,
+        maintenanceFee: property.maintenance_fee,
+        
+        // Amueblada
+        furnishedPrice: property.furnished_price,
+        furnishedSalePrice: property.furnished_sale_price,
+        furnished: property.furnished || false
+      },
+
+      // C. ESPECIFICACIONES TÉCNICAS
+      technicalSpecs: {
+        rooms: property.room,
+        bathrooms: property.bathroom,
+        halfBathrooms: property.half_bathrooms,
+        parking: property.parkinglot,
+        propertyArea: property.property_area,
+        propertyAreaMeasurer: property.property_area_measurer || 'Mt2',
+        terrainArea: property.terrain_area,
+        terrainAreaMeasurer: property.terrain_area_measurer || 'Mt2',
+        terraceArea: property.terrace_area,
+        floorLevel: property.floor_level,
+        totalFloors: property.total_floors
+      },
+
+      // D. UBICACIÓN GEOGRÁFICA
+      locationInfo: {
+        city: property.city || property.locationInfo?.city,
+        province: property.province || property.locationInfo?.province,
+        sector: property.sector || property.locationInfo?.sector,
+        cityId: property.city_id,
+        sectorId: property.sector_id,
+        address: property.locationInfo?.address,
+        references: property.locationInfo?.references
+      },
+
+      // E. AMENIDADES Y CARACTERÍSTICAS
+      amenitiesInfo: {
+        amenities: property.amenities || property.technicalDetails?.amenities || [],
+        tags: property.tags || []
+      },
+
+      // F. INFORMACIÓN DE CONTACTO
+      contactInfo: {
+        agents: (property.agents || []).map((agent: any) => ({
+          fullName: agent.full_name,
+          phone: agent.phone,
+          email: agent.email,
+          position: agent.position,
+          bio: agent.bio
+        }))
+      },
+
+      // G. MULTIMEDIA
+      multimedia: {
+        featuredImage: property.featured_image || property.multimedia?.featuredImage,
+        galleryImages: property.gallery_image || [],
+        virtualTour: property.virtual_tour,
+        youtubeIframe: property.youtubeiframe
+      },
+
+      // H. PROYECTOS INMOBILIARIOS
+      projectInfo: {
+        isProject: property.is_project_v2 || false,
+        projectValues: property.project_values,
+        variations: property.variations,
+        deliveryDate: property.delivery_date,
+        yearConstruction: property.year_construction
+      }
+    };
+
+    return extracted;
+  }
+
+  /**
+   * Formatear propiedades para respuesta de IA con información completa
    */
   formatPropertiesForAI(properties: AlterEstateProperty[]): string {
     if (properties.length === 0) {
-      return 'No encontré propiedades que coincidan con tus criterios. ¿Te gustaría ajustar tu búsqueda?';
+      return 'No encontré propiedades que coincidan con tus criterios. ¿Te gustaría ajustar tu búsqueda o ampliar los filtros de búsqueda?';
     }
     
     const formatted = properties.map((property, index) => {
-      const price = new Intl.NumberFormat('es-DO', {
-        style: 'currency',
-        currency: property.currency_sale || 'USD'
-      }).format(property.sale_price);
+      const info = this.extractPropertyInfo(property);
       
-      const rooms = property.room ? `${property.room} hab` : '';
-      const baths = property.bathroom ? `${property.bathroom} baños` : '';
-      const area = property.property_area ? `${property.property_area}m²` : '';
-      const details = [rooms, baths, area].filter(Boolean).join(', ');
+      // Formatear precio con lógica mejorada
+      let priceInfo = '';
       
-      return `${index + 1}. **${property.name}** ${this.getCategoryEmoji(property.category.id)}
-   - **Precio**: ${price}
-   - **Ubicación**: ${property.sector}, ${property.city}
-   ${details ? `- **Características**: ${details}` : ''}
-   ${property.short_description ? `- **Descripción**: ${property.short_description}` : ''}
-   - **ID**: ${property.uid}`;
+      if (info.commercialInfo.salePrice) {
+        const formattedPrice = new Intl.NumberFormat('es-DO', {
+          style: 'currency',
+          currency: info.commercialInfo.currencySale || 'USD'
+        }).format(info.commercialInfo.salePrice);
+        priceInfo = `💰 **Venta**: ${formattedPrice}`;
+      }
+      
+      if (info.commercialInfo.rentPrice) {
+        const formattedRent = new Intl.NumberFormat('es-DO', {
+          style: 'currency',
+          currency: info.commercialInfo.currencyRent || 'DOP'
+        }).format(info.commercialInfo.rentPrice);
+        priceInfo += priceInfo ? ` / **Alquiler**: ${formattedRent}` : `💰 **Alquiler**: ${formattedRent}`;
+        
+        if (info.commercialInfo.maintenanceFee) {
+          priceInfo += ` (+ Mant: $${info.commercialInfo.maintenanceFee.toLocaleString()})`;
+        }
+      }
+      
+      if (!priceInfo) {
+        priceInfo = '💰 **Precio**: A consultar';
+      }
+
+      // Especificaciones técnicas
+      const specs = [];
+      if (info.technicalSpecs.rooms) specs.push(`🛏️ ${info.technicalSpecs.rooms} hab`);
+      if (info.technicalSpecs.bathrooms) specs.push(`🚿 ${info.technicalSpecs.bathrooms} baños`);
+      if (info.technicalSpecs.halfBathrooms) specs.push(`🚿 ${info.technicalSpecs.halfBathrooms} medio baño`);
+      if (info.technicalSpecs.parking) specs.push(`🚗 ${info.technicalSpecs.parking} parqueos`);
+      if (info.technicalSpecs.propertyArea) specs.push(`📐 ${info.technicalSpecs.propertyArea}${info.technicalSpecs.propertyAreaMeasurer}`);
+      
+      const specsText = specs.length ? `\n   📋 **Características**: ${specs.join(', ')}` : '';
+
+      // Ubicación completa
+      const locationParts = [info.locationInfo.sector, info.locationInfo.city, info.locationInfo.province].filter(Boolean);
+      const location = locationParts.length ? locationParts.join(', ') : 'Ubicación no especificada';
+
+      // Estado de la propiedad
+      const condition = info.basicInfo.conditionRead ? `\n   ✅ **Estado**: ${info.basicInfo.conditionRead}` : '';
+
+      // Información del agente
+      let agentInfo = '';
+      if (info.contactInfo.agents.length > 0) {
+        const agent = info.contactInfo.agents[0];
+        agentInfo = `\n   👤 **Agente**: ${agent.fullName}`;
+        if (agent.phone) agentInfo += ` • ${agent.phone}`;
+      }
+
+      return `${index + 1}. **${info.basicInfo.title}** ${this.getCategoryEmoji(property.category?.id)}
+   ${priceInfo}
+   📍 **Ubicación**: ${location}${specsText}${condition}${agentInfo}
+   ${info.basicInfo.shortDescription ? `\n   📝 ${info.basicInfo.shortDescription}` : ''}
+   🆔 **ID**: ${info.basicInfo.uid}`;
     }).join('\n\n');
     
-    return formatted + '\n\n¿Te interesa alguna de estas propiedades? Puedo enviarte más detalles, fotos o programar una visita.';
+    const resultCount = properties.length;
+    const conclusion = resultCount > 3 
+      ? `\n\n📊 Encontré ${resultCount} propiedades. ¿Te interesa alguna específicamente? Puedo enviarte más detalles, fotos, o ayudarte a refinar la búsqueda.`
+      : '\n\n¿Te interesa alguna de estas propiedades? Puedo enviarte más detalles, fotos o programar una visita. 📸✨';
+    
+    return formatted + conclusion;
   }
 
   /**
