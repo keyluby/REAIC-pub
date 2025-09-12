@@ -1,7 +1,112 @@
 import OpenAI from "openai";
+import { z } from 'zod';
 
 // Queue para media pendientes de envío
 const pendingMediaQueue = new Map<string, any>();
+
+// Schemas de validación para respuestas de OpenAI
+const QualificationStepSchema = z.object({
+  extractedCriteria: z.object({
+    // SCHEMA ALIGNMENT: Match exact prompt field names to prevent data loss
+    personalInfo: z.object({
+      name: z.string().nullable().optional(),
+      familySituation: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().nullable().optional(),
+      age: z.coerce.number().nullable().optional(),
+      occupation: z.string().nullable().optional(),
+      familySize: z.coerce.number().nullable().optional(),
+      preferredContact: z.string().nullable().optional()
+    }).optional(),
+    searchObjective: z.object({
+      operation: z.string().nullable().optional(),
+      purpose: z.string().nullable().optional(),
+      urgency: z.string().nullable().optional(),
+      timeline: z.string().nullable().optional(),
+      property_type: z.string().nullable().optional()
+    }).optional(),
+    budget: z.object({
+      min: z.coerce.number().nullable().optional(),
+      max: z.coerce.number().nullable().optional(),
+      currency: z.string().nullable().optional(),
+      paymentMethod: z.string().nullable().optional(),
+      financing: z.boolean().nullable().optional(),
+      downPayment: z.coerce.number().nullable().optional(),
+      monthlyPayment: z.coerce.number().nullable().optional()
+    }).optional(),
+    location: z.object({
+      zones: z.array(z.string()).nullable().optional(),
+      proximity: z.array(z.string()).nullable().optional(),
+      flexibility: z.string().nullable().optional(),
+      neighborhood: z.string().nullable().optional(),
+      commutePriorities: z.array(z.string()).nullable().optional(),
+      proximityNeeds: z.array(z.string()).nullable().optional()
+    }).optional(),
+    specifications: z.object({
+      rooms: z.coerce.number().nullable().optional(),
+      bathrooms: z.coerce.number().nullable().optional(),
+      area_min: z.coerce.number().nullable().optional(),
+      area_max: z.coerce.number().nullable().optional(),
+      parking: z.coerce.number().nullable().optional(),
+      floors: z.coerce.number().nullable().optional()
+    }).optional(),
+    amenities: z.object({
+      priority: z.array(z.string()).nullable().optional(),
+      community: z.array(z.string()).nullable().optional(),
+      required: z.array(z.string()).nullable().optional(),
+      preferred: z.array(z.string()).nullable().optional(),
+      lifestyle: z.array(z.string()).nullable().optional()
+    }).optional(),
+    contact: z.object({
+      availability: z.string().nullable().optional(),
+      timeline: z.string().nullable().optional(),
+      bestContactTime: z.string().nullable().optional(),
+      preferredCommunication: z.string().nullable().optional(),
+      urgencyLevel: z.string().nullable().optional(),
+      nextSteps: z.array(z.string()).nullable().optional()
+    }).optional()
+  }).optional(),
+  missingCriteria: z.array(z.string()).default([]),
+  qualificationStep: z.coerce.number().min(1).max(7).default(1),
+  completedSteps: z.array(z.string()).default([]), // String array per prompt specification
+  isQualified: z.boolean().default(false),
+  nextQuestion: z.string().nullable().optional(),
+  confidence: z.coerce.number().min(0).max(1).default(0),
+  // Campos legacy para retrocompatibilidad con coercion
+  operation: z.string().nullable().optional(),
+  property_type: z.string().nullable().optional(),
+  budget_min: z.coerce.number().nullable().optional(),
+  budget_max: z.coerce.number().nullable().optional(),
+  rooms: z.coerce.number().nullable().optional(),
+  bathrooms: z.coerce.number().nullable().optional(),
+  zones: z.array(z.string()).nullable().optional(),
+  area_min: z.coerce.number().nullable().optional(),
+  area_max: z.coerce.number().nullable().optional(),
+  parking: z.coerce.number().nullable().optional()
+}).passthrough(); // Preserve unknown keys for forward compatibility
+
+const IntentDetectionSchema = z.object({
+  intent: z.string(),
+  confidence: z.number().min(0).max(1),
+  entities: z.record(z.any()).optional(),
+  reasoning: z.string().optional()
+});
+
+const PropertyAnalysisSchema = z.object({
+  listing_type: z.coerce.number().nullable().optional(),
+  category: z.coerce.number().nullable().optional(),
+  rooms_min: z.coerce.number().nullable().optional(),
+  rooms_max: z.coerce.number().nullable().optional(),
+  bath_min: z.coerce.number().nullable().optional(),
+  bath_max: z.coerce.number().nullable().optional(),
+  value_min: z.coerce.number().nullable().optional(),
+  value_max: z.coerce.number().nullable().optional(),
+  currency: z.string().nullable().optional(),
+  search: z.string().nullable().optional(),
+  area_min: z.coerce.number().nullable().optional(),
+  area_max: z.coerce.number().nullable().optional(),
+  condition: z.coerce.number().nullable().optional()
+}).passthrough();
 
 export class AIService {
   private openaiClient: OpenAI;
@@ -239,7 +344,25 @@ Responde en formato JSON con esta estructura:
         temperature: 0.7,
       });
 
-      return JSON.parse(response.choices[0].message.content || '{"recommendations": []}');
+      // Parse and validate JSON response
+      try {
+        const content = response.choices[0].message.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+        const result = JSON.parse(content);
+        
+        // Basic validation for recommendations
+        if (!result.recommendations || !Array.isArray(result.recommendations)) {
+          console.warn('⚠️ [AI] Invalid recommendations format, using fallback');
+          return { recommendations: [] };
+        }
+        
+        return result;
+      } catch (parseError) {
+        console.error('❌ [AI] Failed to parse recommendations JSON:', parseError);
+        return { recommendations: [] };
+      }
     } catch (error) {
       console.error('Error generating property recommendations:', error);
       throw new Error('Failed to generate property recommendations');
@@ -339,7 +462,33 @@ Responde en formato JSON:
         temperature: 0.7,
       });
 
-      return JSON.parse(response.choices[0].message.content || '{"intent": "ask_question", "confidence": 0.5}');
+      // Parse and validate with Zod
+      try {
+        const content = response.choices[0].message.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+        const rawResult = JSON.parse(content);
+        
+        // Validate with Zod schema
+        const validationResult = IntentDetectionSchema.safeParse(rawResult);
+        
+        if (!validationResult.success) {
+          console.error('❌ [AI] Intent detection schema validation failed:', validationResult.error.errors);
+          // Return safe fallback with partial recovery
+          return {
+            intent: rawResult.intent || "ask_question",
+            confidence: (typeof rawResult.confidence === 'number' && rawResult.confidence >= 0 && rawResult.confidence <= 1) 
+              ? rawResult.confidence : 0.5,
+            entities: rawResult.entities || {}
+          };
+        }
+
+        return validationResult.data;
+      } catch (parseError) {
+        console.error('❌ [AI] Failed to parse intent detection JSON:', parseError);
+        return { intent: "ask_question", confidence: 0.5, entities: {} };
+      }
     } catch (error) {
       console.error('Error detecting intent:', error);
       return { intent: "ask_question", confidence: 0.5 };
@@ -401,7 +550,33 @@ Responde en formato JSON:
         temperature: 0.7,
       });
 
-      return JSON.parse(response.choices[0].message.content || '{"intent": "ask_question", "confidence": 0.5}');
+      // Parse and validate with Zod
+      try {
+        const content = response.choices[0].message.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+        const rawResult = JSON.parse(content);
+        
+        // Validate with Zod schema
+        const validationResult = IntentDetectionSchema.safeParse(rawResult);
+        
+        if (!validationResult.success) {
+          console.error('❌ [AI] Intent detection with context schema validation failed:', validationResult.error.errors);
+          // Return safe fallback with partial recovery
+          return {
+            intent: rawResult.intent || "ask_question",
+            confidence: (typeof rawResult.confidence === 'number' && rawResult.confidence >= 0 && rawResult.confidence <= 1) 
+              ? rawResult.confidence : 0.5,
+            entities: rawResult.entities || {}
+          };
+        }
+
+        return validationResult.data;
+      } catch (parseError) {
+        console.error('❌ [AI] Failed to parse intent detection with context JSON:', parseError);
+        return { intent: "ask_question", confidence: 0.5, entities: {} };
+      }
     } catch (error) {
       console.error('Error detecting intent with context:', error);
       return { intent: "ask_question", confidence: 0.5 };
@@ -1883,12 +2058,57 @@ IMPORTANTE:
         temperature: 0.2,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || '{"isQualified": false, "qualificationStep": 1, "completedSteps": [], "missingCriteria": ["objetivo", "presupuesto", "ubicacion", "especificaciones"], "extractedCriteria": {}}');
+      // Parse and validate JSON response with Zod
+      let rawResult: any;
+      try {
+        const content = response.choices[0].message.content;
+        if (!content) {
+          throw new Error('Empty response from OpenAI');
+        }
+        rawResult = JSON.parse(content);
+      } catch (parseError) {
+        console.error('❌ [AI] Failed to parse JSON response:', parseError);
+        return this.createFallbackQualificationResult();
+      }
+
+      // Validate with Zod schema
+      const validationResult = QualificationStepSchema.safeParse(rawResult);
       
-      // RETROCOMPATIBILIDAD: Crear mapping plano para código existente
+      let result: any;
+      if (!validationResult.success) {
+        console.error('❌ [AI] Schema validation failed:', validationResult.error.errors);
+        console.log('🔧 [AI] Using fallback with partial data recovery');
+        
+        // Intento de recuperación parcial de datos válidos
+        result = this.createFallbackQualificationResult();
+        if (rawResult && typeof rawResult === 'object') {
+          // Recuperar campos que sí sean válidos
+          if (rawResult.missingCriteria && Array.isArray(rawResult.missingCriteria)) {
+            result.missingCriteria = rawResult.missingCriteria;
+          }
+          if (typeof rawResult.qualificationStep === 'number' && rawResult.qualificationStep >= 1 && rawResult.qualificationStep <= 7) {
+            result.qualificationStep = rawResult.qualificationStep;
+          }
+          if (Array.isArray(rawResult.completedSteps)) {
+            result.completedSteps = rawResult.completedSteps.filter((s: any) => typeof s === 'string');
+          }
+          if (typeof rawResult.isQualified === 'boolean') {
+            result.isQualified = rawResult.isQualified;
+          }
+          // Recuperar extractedCriteria parcialmente si existe
+          if (rawResult.extractedCriteria && typeof rawResult.extractedCriteria === 'object') {
+            result.extractedCriteria = { ...result.extractedCriteria, ...rawResult.extractedCriteria };
+          }
+        }
+      } else {
+        result = validationResult.data;
+        console.log('✅ [AI] Schema validation passed');
+      }
+      
+      // RETROCOMPATIBILIDAD: Crear mapping plano para código existente con campos correctos
       const legacyExtractedCriteria = {
         operation: result.extractedCriteria?.searchObjective?.operation || null,
-        property_type: result.extractedCriteria?.specifications?.propertyType || null,
+        property_type: result.extractedCriteria?.searchObjective?.property_type || null,
         budget_min: result.extractedCriteria?.budget?.min || null,
         budget_max: result.extractedCriteria?.budget?.max || null,
         currency: result.extractedCriteria?.budget?.currency || null,
@@ -1917,27 +2137,42 @@ IMPORTANTE:
       return result;
     } catch (error) {
       console.error('❌ [AI] Error assessing client qualification:', error);
-      return {
-        isQualified: false,
-        qualificationStep: 1,
-        completedSteps: [],
-        missingCriteria: ["objetivo", "presupuesto", "ubicacion", "especificaciones"],
-        extractedCriteria: {
-          // Campos legacy para retrocompatibilidad
-          operation: null,
-          property_type: null,
-          budget_min: null,
-          budget_max: null,
-          currency: null,
-          rooms: null,
-          bathrooms: null,
-          zones: null,
-          area_min: null,
-          area_max: null,
-          parking: null
-        }
-      };
+      return this.createFallbackQualificationResult();
     }
+  }
+
+  /**
+   * Crear resultado de calificación con valores fallback seguros
+   */
+  private createFallbackQualificationResult(): any {
+    return {
+      isQualified: false,
+      qualificationStep: 1,
+      completedSteps: [],
+      missingCriteria: ["objetivo", "presupuesto", "ubicacion", "especificaciones"],
+      extractedCriteria: {
+        // Estructura nueva (nested) - usando nombres correctos del prompt
+        personalInfo: {},
+        searchObjective: {},
+        budget: {},
+        location: {},
+        specifications: {},
+        amenities: {},
+        contact: {},
+        // Campos legacy para retrocompatibilidad
+        operation: null,
+        property_type: null,
+        budget_min: null,
+        budget_max: null,
+        currency: null,
+        rooms: null,
+        bathrooms: null,
+        zones: null,
+        area_min: null,
+        area_max: null,
+        parking: null
+      }
+    };
   }
 
   /**
@@ -1952,7 +2187,7 @@ IMPORTANTE:
     let acknowledgment = "";
     let questions = [];
     
-    // RECONOCIMIENTO DE INFORMACIÓN COMPLETADA (usando campos legacy para compatibilidad)
+    // RECONOCIMIENTO DE INFORMACIÓN COMPLETADA (usando campos correctos del schema)
     if (completedSteps.includes("step1") && extractedCriteria.personalInfo?.name) {
       acknowledgment = `¡Hola ${extractedCriteria.personalInfo.name}! `;
     } else if (completedSteps.length > 0) {

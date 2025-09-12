@@ -41,4 +41,8 @@ logs/
 tmp/
 temp/
 .cache/
-.tmp/
+.tmp/# Ignore WhatsApp authentication files (security)
+instances/
+whatsapp_instances/
+*.creds.json
+auth_info_baileys/
