@@ -1297,39 +1297,37 @@ class EvolutionApiService {
    * Más conciso pero informativo según especificaciones
    */
   private buildCarouselPropertyCaption(property: any, index: number, total: number): string {
-    const propertyType = this.getPropertyTypeEmoji(property.title);
+    // Formato premium basado en la imagen de referencia del usuario
     
-    // Título con numeración del carousel
-    let caption = `${propertyType} *${property.title}* (${index}/${total})\n\n`;
+    // Título con precio integrado (sin numeración para limpieza visual)
+    let caption = `🏢 *${property.title}*\n`;
     
-    // Precio destacado
+    // Precio secundario con emoji específico
     caption += `💰 ${property.price}\n`;
     
-    // Especificaciones técnicas esenciales
+    // Especificaciones técnicas con emojis mejorados (estilo imagen referencia)
     const details = this.parsePropertyDetails(property.description);
-    const specs = [];
     
-    if (details.rooms) specs.push(`🛏️ ${details.rooms} hab`);
-    if (details.bathrooms) specs.push(`🚿 ${details.bathrooms} baños`);
-    if (details.area) specs.push(`📐 ${details.area}`);
-    
-    if (specs.length > 0) {
+    if (details.rooms || details.bathrooms) {
+      caption += `🏠 `;
+      const specs = [];
+      if (details.rooms) specs.push(`${details.rooms} hab`);
+      if (details.bathrooms) specs.push(`❤️ ${details.bathrooms} baños`);
       caption += specs.join(' • ') + '\n';
     }
     
-    // Ubicación concisa
+    // Área en línea separada para mayor legibilidad
+    if (details.area) {
+      caption += `📐 ${details.area}\n`;
+    }
+    
+    // Ubicación en línea separada (más limpio)
     if (details.location) {
       caption += `📍 ${details.location}\n`;
     }
     
-    // Una característica destacada principal
-    const features = this.extractKeyFeatures(property);
-    if (features.length > 0) {
-      caption += `✨ ${features[0]}\n`;
-    }
-    
-    // ID para referencia
-    caption += `\n🆔 Ref: ${property.uid}`;
+    // Link directo al final (estilo imagen referencia)
+    caption += `🔗 Ver detalles: ${property.propertyUrl}`;
     
     return caption;
   }

@@ -777,6 +777,7 @@ Responde en formato JSON:
   private async processPropertySearch(message: string, context: any, conversationId: string, isRefinement: boolean = false): Promise<string> {
     try {
       const { alterEstateService } = await import('./alterEstateService');
+      const { getMCPClient } = await import('./mcpClient');
       
       let searchQuery = message;
       
@@ -830,13 +831,119 @@ Responde en formato JSON:
         console.log(`✅ [AI] Client qualified, proceeding with targeted search`);
       }
       
-      // Buscar propiedades reales usando AlterEstate
-      console.log('🔍 [AI] Searching real properties in AlterEstate');
-      const properties = await alterEstateService.intelligentPropertySearch(
-        context.alterEstateToken,
-        searchQuery,
-        context.userLocation
-      );
+      // NUEVO: Buscar propiedades usando MCP con inteligencia mejorada
+      console.log('🎯 [MCP-AI] Starting intelligent property search via MCP');
+      
+      // Inicializar cliente MCP con configuración del usuario
+      const { storage } = await import('../storage');
+      const userSettings = await storage.getUserSettings(context.userId);
+      const mcpClient = getMCPClient(context.userId, context.alterEstateToken, userSettings);
+      
+      // Extraer criterios de la búsqueda usando la calificación existente
+      const qualificationStatus = await this.assessClientQualification(searchQuery, conversationId);
+      const criteria = qualificationStatus.extractedCriteria;
+      
+      console.log('🎯 [MCP-AI] Extracted criteria for MCP:', JSON.stringify(criteria, null, 2));
+      
+      // Convertir criterios al formato MCP
+      const mcpCriteria: any = {};
+      
+      // Tipo de propiedad
+      if (criteria.property_type) {
+        mcpCriteria.propertyType = criteria.property_type.toLowerCase();
+      }
+      
+      // Operación (venta/alquiler)
+      if (criteria.operation || criteria.searchObjective?.operation) {
+        const operation = criteria.operation || criteria.searchObjective?.operation;
+        mcpCriteria.operation = operation.toLowerCase().includes('alquil') ? 'rent' : 'sale';
+      }
+      
+      // Presupuesto con conversión automática de moneda
+      if (criteria.budget_min || criteria.budget_max || criteria.budget?.min || criteria.budget?.max) {
+        mcpCriteria.budget = {
+          min: criteria.budget_min || criteria.budget?.min,
+          max: criteria.budget_max || criteria.budget?.max,
+          currency: criteria.currency || 'RD$' // Detectar automáticamente moneda
+        };
+      }
+      
+      // Ubicación
+      if (criteria.zones || criteria.location?.zones || context.userLocation) {
+        const zones = criteria.zones || criteria.location?.zones || [context.userLocation];
+        mcpCriteria.location = {
+          zones: Array.isArray(zones) ? zones : [zones],
+          city: context.userLocation || 'Santo Domingo',
+          flexibility: 'flexible'
+        };
+      }
+      
+      // Especificaciones técnicas
+      if (criteria.rooms || criteria.bathrooms || criteria.area_min || criteria.area_max) {
+        mcpCriteria.specifications = {
+          rooms: criteria.rooms,
+          bathrooms: criteria.bathrooms,
+          areaMin: criteria.area_min,
+          areaMax: criteria.area_max,
+          parking: criteria.parking
+        };
+      }
+      
+      console.log('🚀 [MCP-AI] Calling MCP getRecommendations with criteria:', JSON.stringify(mcpCriteria, null, 2));
+      
+      let properties: any[] = [];
+      
+      try {
+        // ESTRATEGIA PRIMARIA: Usar MCP para recomendaciones inteligentes
+        const mcpResponse = await mcpClient.getRecommendations(mcpCriteria);
+        
+        console.log(`✅ [MCP-AI] MCP returned ${mcpResponse.recommendations.length} recommendations`);
+        console.log(`🧠 [MCP-AI] MCP rationale: ${mcpResponse.rationale}`);
+        
+        // Convertir respuesta MCP al formato esperado por el código existente
+        properties = mcpResponse.recommendations.map((rec: any, index: number) => ({
+          cid: index + 1, // Campo requerido por AlterEstateProperty
+          uid: rec.uid,
+          slug: rec.slug,
+          name: rec.title,
+          sale_price: rec.priceUSD,
+          currency_sale: 'USD',
+          room: rec.specifications.rooms,
+          bathroom: rec.specifications.bathrooms,
+          property_area: rec.specifications.area,
+          sector: rec.location.split(',')[0]?.trim(),
+          city: rec.location.split(',')[1]?.trim() || rec.location,
+          featured_image: rec.imageUrl,
+          category: { id: rec.isProject ? 3 : 1, name: rec.isProject ? 'Proyecto' : 'Propiedad', name_en: rec.isProject ? 'Project' : 'Property' },
+          listing_type: [{ id: mcpCriteria.operation === 'rent' ? 2 : 1, listing: mcpCriteria.operation === 'rent' ? 'Alquiler' : 'Venta' }], // Campo requerido
+          short_description: `${rec.reasons.join(', ')} | Score: ${rec.score}`
+        }));
+        
+      } catch (mcpError) {
+        console.warn(`⚠️ [MCP-FALLBACK] MCP failed, using alterEstateService fallback:`, mcpError.message);
+        
+        // ESTRATEGIA FALLBACK: Usar alterEstateService original con conversión de moneda
+        properties = await alterEstateService.intelligentPropertySearch(
+          context.alterEstateToken,
+          searchQuery,
+          context.userLocation
+        );
+        
+        console.log(`🔄 [FALLBACK] AlterEstateService returned ${properties.length} properties`);
+        
+        // Aplicar conversión de moneda automática si es necesario
+        if (mcpCriteria.budget?.currency === 'RD$') {
+          console.log(`💱 [FALLBACK] Applying currency conversion from RD$ to USD for fallback results`);
+          properties = properties.map(prop => ({
+            ...prop,
+            sale_price: prop.sale_price ? Math.round(prop.sale_price / 62) : prop.sale_price, // Conversión RD$ a USD
+            currency_sale: 'USD',
+            short_description: prop.short_description ? 
+              prop.short_description + ' | Precio convertido automáticamente a USD' : 
+              'Precio convertido automáticamente de RD$ a USD'
+          }));
+        }
+      }
       
       if (properties.length === 0) {
         console.log(`❌ [AI] No properties found, providing helpful suggestions`);

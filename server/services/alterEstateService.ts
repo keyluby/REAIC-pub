@@ -1641,16 +1641,36 @@ Responde en JSON:
       const city = property.city || '';
       const location = [sector, city].filter(Boolean).join(', ') || 'Ubicación no especificada';
       
-      // Título más descriptivo
+      // Título más descriptivo con precio integrado (estilo premium)
       const propertyType = property.category?.name || 'Propiedad';
-      const title = property.name || `${propertyType} en ${sector || city || 'Zona Exclusiva'}`;
+      const baseTitle = property.name || `${propertyType} en ${sector || city || 'Zona Exclusiva'}`;
+      
+      // Título con precio integrado al estilo de la imagen de referencia
+      const title = `🏢 ${baseTitle} ${formattedPrice}`;
 
-      // Descripción enriquecida con emojis
-      let description = '';
-      if (rooms > 0) description += `🛏️ ${rooms} hab`;
-      if (bathrooms > 0) description += `${rooms > 0 ? ' • ' : ''}🚿 ${bathrooms} baños`;
-      if (area) description += `${(rooms > 0 || bathrooms > 0) ? ' • ' : ''}📐 ${area}m²`;
+      // Descripción con formato premium según imagen de referencia
+      let description = `💰 Precio a consultar`;
+      
+      // Especificaciones técnicas con emojis mejorados
+      if (rooms > 0 || bathrooms > 0) {
+        description += `\n🏠 `;
+        const specs = [];
+        if (rooms > 0) specs.push(`${rooms} hab`);
+        if (bathrooms > 0) specs.push(`❤️ ${bathrooms} baños`);
+        description += specs.join(' • ');
+      }
+      
+      // Área en línea separada
+      if (area) {
+        description += `\n📐 ${area}m²`;
+      }
+      
+      // Ubicación en línea separada
       description += `\n📍 ${location}`;
+      
+      // Link al final
+      const propertyUrl = this.getPropertyPublicUrl(property.slug, userWebsiteUrl);
+      description += `\n🔗 Ver detalles: ${propertyUrl}`;
 
       return {
         imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
