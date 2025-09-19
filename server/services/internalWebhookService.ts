@@ -235,7 +235,7 @@ class InternalWebhookService {
             messageData.messageKey,
             userId,
             async (combinedMessage: string) => {
-              await this.processWithAI(messageData.remoteJid, combinedMessage, conversation.id, userId);
+              await this.processWithAI(messageData.remoteJid, combinedMessage, conversation.id, userId, instanceName);
             }
           );
         }
@@ -249,40 +249,69 @@ class InternalWebhookService {
   }
 
   // Helper method to resolve active instance for user
-  private async resolveActiveInstance(userId: string): Promise<{instanceName: string, instanceId: string} | null> {
+  private async resolveActiveInstance(userId: string, preferredInstanceName?: string): Promise<{instanceName: string, instanceId: string} | null> {
     try {
+      // Step 1: Try to get the current active instance
       const activeInstance = await storage.getActiveWhatsappInstance(userId);
-      if (!activeInstance) {
-        console.error(`❌ [DYNAMIC] No active WhatsApp instance found for user ${userId}`);
-        return null;
+      if (activeInstance) {
+        // Verify instance is still connected
+        const instanceStatus = await evolutionApiService.getInstanceStatus(activeInstance.instanceName);
+        if (instanceStatus && instanceStatus.status === 'CONNECTED') {
+          return {
+            instanceName: activeInstance.instanceName,
+            instanceId: activeInstance.id
+          };
+        }
+        console.log(`⚠️ [DYNAMIC] Active instance ${activeInstance.instanceName} is not connected, looking for fallback`);
       }
       
-      // Verify instance is still connected
-      const instanceStatus = await evolutionApiService.getInstanceStatus(activeInstance.instanceName);
-      if (!instanceStatus || instanceStatus.status !== 'CONNECTED') {
-        console.error(`❌ [DYNAMIC] Active instance ${activeInstance.instanceName} is not connected`);
-        return null;
+      // Step 2: If no active instance or it's not connected, try preferred instance
+      if (preferredInstanceName) {
+        const preferredInstance = await storage.getWhatsappInstance(preferredInstanceName);
+        if (preferredInstance && preferredInstance.userId === userId) {
+          const instanceStatus = await evolutionApiService.getInstanceStatus(preferredInstanceName);
+          if (instanceStatus && instanceStatus.status === 'CONNECTED') {
+            console.log(`🔄 [DYNAMIC] Setting preferred instance ${preferredInstanceName} as active for user ${userId}`);
+            await storage.setActiveWhatsappInstance(userId, preferredInstanceName);
+            return {
+              instanceName: preferredInstanceName,
+              instanceId: preferredInstance.id
+            };
+          }
+        }
       }
       
-      return {
-        instanceName: activeInstance.instanceName,
-        instanceId: activeInstance.id
-      };
+      // Step 3: Find any connected instance for the user
+      const userInstances = await storage.getUserWhatsappInstances(userId);
+      for (const instance of userInstances) {
+        const instanceStatus = await evolutionApiService.getInstanceStatus(instance.instanceName);
+        if (instanceStatus && instanceStatus.status === 'CONNECTED') {
+          console.log(`🔄 [DYNAMIC] Auto-setting instance ${instance.instanceName} as active for user ${userId}`);
+          await storage.setActiveWhatsappInstance(userId, instance.instanceName);
+          return {
+            instanceName: instance.instanceName,
+            instanceId: instance.id
+          };
+        }
+      }
+      
+      console.error(`❌ [DYNAMIC] No connected WhatsApp instance found for user ${userId}`);
+      return null;
     } catch (error) {
       console.error(`❌ [DYNAMIC] Error resolving active instance for user ${userId}:`, error);
       return null;
     }
   }
 
-  private async processWithAI(remoteJid: string, message: string, conversationId: string, userId: string) {
+  private async processWithAI(remoteJid: string, message: string, conversationId: string, userId: string, preferredInstanceName?: string) {
     try {
       console.log(`🚀 [INTERNAL AI] Starting AI processing`);
       console.log(`🚀 [INTERNAL AI] RemoteJid: ${remoteJid}`);
       console.log(`🚀 [INTERNAL AI] Message: "${message}"`);
       console.log(`🚀 [INTERNAL AI] ConversationId: ${conversationId}`);
       
-      // CHANGED: Dynamically resolve active instance for user
-      const activeInstanceInfo = await this.resolveActiveInstance(userId);
+      // CHANGED: Dynamically resolve active instance for user with preferred fallback
+      const activeInstanceInfo = await this.resolveActiveInstance(userId, preferredInstanceName);
       if (!activeInstanceInfo) {
         throw new Error(`No active WhatsApp instance available for user ${userId}`);
       }
@@ -787,6 +816,16 @@ class InternalWebhookService {
       await storage.updateWhatsappInstanceStatus(instanceName, status);
       
       console.log(`✅ Updated instance ${instanceName} status to ${status}`);
+      
+      // Auto-activate instance if user has no active instance and this one is connected
+      if (status === 'CONNECTED') {
+        const activeInstance = await storage.getActiveWhatsappInstance(userId);
+        if (!activeInstance) {
+          console.log(`🔄 [AUTO-ACTIVATE] No active instance for user ${userId}, setting ${instanceName} as active`);
+          await storage.setActiveWhatsappInstance(userId, instanceName);
+          console.log(`✅ [AUTO-ACTIVATE] Instance ${instanceName} is now active for user ${userId}`);
+        }
+      }
       
     } catch (error) {
       console.error('Error handling connection update:', error);
