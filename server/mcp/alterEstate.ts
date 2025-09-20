@@ -155,6 +155,85 @@ class AlterEstateMCPServer {
     return mappings[operation.toLowerCase()];
   }
 
+  // Geographic mapping for Dominican Republic
+  private getGeographicSearchTerms(location: string): string[] {
+    const locationLower = location.toLowerCase().trim();
+    
+    // Comprehensive mapping for Santo Domingo districts
+    const geoMappings: { [key: string]: string[] } = {
+      // Distrito Nacional (Central Santo Domingo)
+      'distrito nacional': ['Distrito Nacional', 'DN', 'Zona Colonial', 'Centro'],
+      'zona colonial': ['Zona Colonial', 'Distrito Nacional'],
+      'gazcue': ['Gazcue', 'Distrito Nacional'],
+      'bella vista': ['Bella Vista', 'Distrito Nacional'],
+      'naco': ['Naco', 'Distrito Nacional'],
+      'piantini': ['Piantini', 'Distrito Nacional'],
+      'mirador sur': ['Mirador Sur', 'Distrito Nacional'],
+      'mirador norte': ['Mirador Norte', 'Distrito Nacional'],
+      'ensanche julieta': ['Ensanche Julieta', 'Distrito Nacional'],
+      'ensanche serrallés': ['Ensanche Serrallés', 'Distrito Nacional'],
+      'ensanche luperon': ['Ensanche Luperon', 'Distrito Nacional'],
+      'renacimiento': ['Renacimiento', 'Distrito Nacional'],
+      'jardines del sur': ['Jardines del Sur', 'Distrito Nacional'],
+      
+      // Santo Domingo Norte
+      'santo domingo norte': ['Santo Domingo Norte', 'SDN'],
+      'villa mella': ['Villa Mella', 'Santo Domingo Norte'],
+      'sabana perdida': ['Sabana Perdida', 'Santo Domingo Norte'],
+      'ciudad satelite': ['Ciudad Satelite', 'Santo Domingo Norte'],
+      // 'villa altagracia': ['Villa Altagracia', 'Santo Domingo Norte'], // Removed: Villa Altagracia is San Cristóbal municipality
+      'herrera': ['Herrera', 'Santo Domingo Oeste'], // Fixed: Herrera is in Santo Domingo Oeste
+      
+      // Santo Domingo Este
+      'santo domingo este': ['Santo Domingo Este', 'SDE'],
+      'boca chica': ['Boca Chica', 'Santo Domingo Este'],
+      'san isidro': ['San Isidro', 'Santo Domingo Este'],
+      'villa duarte': ['Villa Duarte', 'Santo Domingo Este'],
+      'san luis': ['San Luis', 'Santo Domingo Este'],
+      'invivienda': ['Invivienda', 'Santo Domingo Este'],
+      'villa faro': ['Villa Faro', 'Santo Domingo Este'],
+      'mendoza': ['Mendoza', 'Santo Domingo Este'],
+      // 'villa hermosa': ['Villa Hermosa', 'Santo Domingo Este'], // Removed: Villa Hermosa is La Romana municipality
+      
+      // Santo Domingo Oeste
+      'santo domingo oeste': ['Santo Domingo Oeste', 'SDO'],
+      'engombe': ['Engombe', 'Santo Domingo Oeste'],
+      // 'haina': ['Haina', 'Santo Domingo Oeste'], // Removed: Haina is outside SDO municipality
+      // 'palenque': ['Palenque', 'Santo Domingo Oeste'], // Removed: Palenque is outside SDO
+      'los alcarrizos': ['Los Alcarrizos', 'Santo Domingo Oeste'], // Fixed: Correct name
+      'pedro brand': ['Pedro Brand', 'Santo Domingo Oeste'],
+      'pantoja': ['Pantoja', 'Santo Domingo Oeste'],
+      // 'nizao': ['Nizao', 'Santo Domingo Oeste'], // Removed: Nizao is outside SDO
+      
+      // Specific neighborhoods mentioned in user feedback
+      'jacobo majluta': ['Jacobo Majluta', 'Santo Domingo Norte'],
+      'cacique': ['Cacique', 'Distrito Nacional'],
+      'hidalgos': ['Hidalgos', 'Distrito Nacional'],
+      
+      // Other major cities
+      'santiago': ['Santiago', 'Santiago de los Caballeros'],
+      'punta cana': ['Punta Cana', 'Bavaro'],
+      'puerto plata': ['Puerto Plata'],
+      'jarabacoa': ['Jarabacoa'],
+      'la romana': ['La Romana'],
+      'cap cana': ['Cap Cana', 'Punta Cana'],
+      'bavaro': ['Bavaro', 'Punta Cana'],
+      
+      // Generic Santo Domingo
+      'santo domingo': ['Santo Domingo', 'Distrito Nacional', 'DN']
+    };
+    
+    // Find direct matches
+    for (const [key, searchTerms] of Object.entries(geoMappings)) {
+      if (locationLower.includes(key)) {
+        return searchTerms;
+      }
+    }
+    
+    // If no specific mapping found, return the original location
+    return [location];
+  }
+
   // Core search functionality
   async searchRaw(filters: any, page: number = 1): Promise<any> {
     return this.searchPropertiesRaw(filters, page);
@@ -166,6 +245,30 @@ class AlterEstateMCPServer {
     if (cached) return cached;
 
     try {
+      // EXPLICIT FILTER SANITIZATION - Remove disallowed keys to prevent 400 errors
+      const disallowedKeys = ['rooms_max', 'currency_max', 'category_max'];
+      const originalKeys = Object.keys(filters);
+      
+      disallowedKeys.forEach(key => {
+        if (filters[key] !== undefined) {
+          delete filters[key];
+        }
+      });
+      
+      const sanitizedKeys = Object.keys(filters);
+      
+      // Log sanitization for debugging
+      if (originalKeys.length !== sanitizedKeys.length) {
+        console.log(JSON.stringify({
+          event: 'mcp.filters.sanitized',
+          sessionId: sessionId || 'unknown',
+          original_keys: originalKeys,
+          sanitized_keys: sanitizedKeys,
+          removed_keys: originalKeys.filter(k => !sanitizedKeys.includes(k)),
+          timestamp: Date.now()
+        }));
+      }
+
       const queryParams = new URLSearchParams();
       
       Object.entries(filters).forEach(([key, value]) => {
@@ -376,13 +479,31 @@ class AlterEstateMCPServer {
         // Remove emoji logs - structured logging only
       }
       
-      // Location mapping - use search instead of city_name + sector
+      // Location mapping - use geographic search terms with comprehensive mapping
       if (params.location?.zones?.length) {
-        // Use first zone as search term (matches alterEstateService pattern)
-        filters.search = params.location.zones[0];
+        // Use geographic mapping to get optimized search terms
+        const geoTerms = this.getGeographicSearchTerms(params.location.zones[0]);
+        filters.search = geoTerms[0]; // Use primary mapped term
+        console.log(JSON.stringify({
+          event: 'mcp.geo.mapping',
+          sessionId: sessionId || 'unknown',
+          original_zone: params.location.zones[0],
+          mapped_search: filters.search,
+          all_terms: geoTerms,
+          timestamp: Date.now()
+        }));
       } else if (params.location?.city) {
-        // Fallback to city if no zones
-        filters.search = params.location.city;
+        // Apply geographic mapping to city as well
+        const geoTerms = this.getGeographicSearchTerms(params.location.city);
+        filters.search = geoTerms[0];
+        console.log(JSON.stringify({
+          event: 'mcp.geo.mapping',
+          sessionId: sessionId || 'unknown',
+          original_city: params.location.city,
+          mapped_search: filters.search,
+          all_terms: geoTerms,
+          timestamp: Date.now()
+        }));
       }
       
       // Specifications - no rooms_max to avoid API conflicts
@@ -487,10 +608,9 @@ class AlterEstateMCPServer {
           // Remove emoji logs - structured logging only
           const relaxedFilters2: any = {};
           
-          // Keep essential filters only
+          // Keep essential filters + GEOGRAPHIC (CRITICAL FIX)
           if (filters.listing_type) relaxedFilters2.listing_type = filters.listing_type;
-          if (filters.city_name) relaxedFilters2.city_name = filters.city_name;
-          if (filters.sector) relaxedFilters2.sector = filters.sector;
+          if (filters.search) relaxedFilters2.search = filters.search; // PRESERVE LOCATION
           if (filters.value_min) relaxedFilters2.value_min = filters.value_min;
           if (filters.value_max) relaxedFilters2.value_max = filters.value_max;
           if (filters.currency) relaxedFilters2.currency = filters.currency;
@@ -527,7 +647,7 @@ class AlterEstateMCPServer {
             // Strategy 3: Location only (fallback)
             // Remove emoji logs - structured logging only
             const fallbackFilters: any = {};
-            if (filters.city_name) fallbackFilters.city_name = filters.city_name;
+            if (filters.search) fallbackFilters.search = filters.search; // Use search instead of city_name
             if (filters.listing_type) fallbackFilters.listing_type = filters.listing_type;
             
             const attempt3StartTime = Date.now();

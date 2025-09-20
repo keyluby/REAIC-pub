@@ -1013,6 +1013,32 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
       if (properties.length >= 2) {
         console.log(`🎠 [AI] Found ${properties.length} properties, formatting as carousel`);
         
+        // HUMANIZATION: Send initial search message before recommendations
+        try {
+          const { evolutionApiService } = await import('./evolutionApiService');
+          let phoneNumber = context.phoneNumber;
+          
+          // Extract phone number from conversationId if not available
+          if (!phoneNumber) {
+            const phoneMatch = conversationId.match(/(\d{10,15})/);
+            phoneNumber = phoneMatch ? phoneMatch[1] : null;
+          }
+          
+          if (phoneNumber && context.instanceName) {
+            console.log(`💬 [HUMANIZE] Sending initial search message to ${phoneNumber}`);
+            
+            const initialMessage = "Perfecto, déjame buscar algo ideal para ti. Dame unos minutos...";
+            await evolutionApiService.sendMessage(context.instanceName, phoneNumber, initialMessage);
+            
+            // Wait 5 seconds before sending recommendations  
+            console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendations`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        } catch (humanizeError) {
+          console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
+          // Continue anyway - don't block recommendations
+        }
+        
         // Format properties for recommendations (limit to 6 as specified)
         const carouselProperties = alterEstateService.formatPropertiesForCarousel(
           properties.slice(0, 6), // Limit to 6 property recommendations
@@ -1203,6 +1229,32 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
       
       // Para una sola propiedad, también usar formato carrusel para consistencia
       console.log(`🎠 [AI] Found 1 property, formatting as single carousel card`);
+      
+      // HUMANIZATION: Send initial search message before single property recommendation
+      try {
+        const { evolutionApiService } = await import('./evolutionApiService');
+        let phoneNumber = context.phoneNumber;
+        
+        // Extract phone number from conversationId if not available
+        if (!phoneNumber) {
+          const phoneMatch = conversationId.match(/(\d{10,15})/);
+          phoneNumber = phoneMatch ? phoneMatch[1] : null;
+        }
+        
+        if (phoneNumber && context.instanceName) {
+          console.log(`💬 [HUMANIZE] Sending initial search message to ${phoneNumber}`);
+          
+          const initialMessage = "Perfecto, déjame buscar algo ideal para ti. Dame unos minutos...";
+          await evolutionApiService.sendMessage(context.instanceName, phoneNumber, initialMessage);
+          
+          // Wait 5 seconds before sending recommendation  
+          console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendation`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      } catch (humanizeError) {
+        console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
+        // Continue anyway - don't block recommendations
+      }
       
       // Format single property for carousel display
       const carouselProperties = alterEstateService.formatPropertiesForCarousel(

@@ -708,10 +708,20 @@ class EvolutionApiService {
       try {
         console.log(`🖼️ [SIMPLE] Property ${i + 1} image URL: ${property.imageUrl}`);
         
-        // Construir caption completo con enlace
+        // STEP 1: Send motivational description first (if available)
+        const motivationalDescription = this.extractMotivationalDescription(property);
+        if (motivationalDescription) {
+          console.log(`💬 [CONTEXTUAL] Sending motivational description for property ${i + 1}`);
+          await this.sendMessage(instanceName, number, motivationalDescription);
+          
+          // Small delay before sending structured card
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+        
+        // STEP 2: Construir caption completo con enlace
         const caption = this.buildCompletePropertyCaption(property);
         
-        // Enviar imagen con caption directamente (método simplificado)
+        // STEP 3: Enviar imagen con caption directamente (método simplificado)
         const result = await this.sendMedia(
           instanceName,
           number,
@@ -957,6 +967,48 @@ class EvolutionApiService {
    * Construir caption completo y humanizado según especificaciones AlterEstate
    * Incluye información detallada y formato profesional
    */
+  /**
+   * Extract motivational description from property details for contextual presentation
+   */
+  private extractMotivationalDescription(property: any): string | null {
+    try {
+      // Check for detailed description in various property fields
+      const fullDescription = property.description || property.short_description || property.details || '';
+      
+      if (!fullDescription || fullDescription.length < 50) {
+        return null;
+      }
+      
+      // Extract key amenities and features for motivational context
+      const amenityKeywords = [
+        'piscina', 'playa', 'beach', 'club', 'gym', 'gimnasio', 'restaurante', 
+        'senderos', 'caballos', 'buggies', 'tenis', 'golf', 'spa', 'jacuzzi',
+        'terraza', 'balcón', 'vista', 'mar', 'montaña', 'seguridad', 'estacionamiento',
+        'acabados', 'moderno', 'lujo', 'exclusivo', 'privado', 'acceso'
+      ];
+      
+      // Find sentences that contain amenity keywords
+      const sentences = fullDescription.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      const motivationalSentences = sentences.filter(sentence => 
+        amenityKeywords.some(keyword => 
+          sentence.toLowerCase().includes(keyword.toLowerCase())
+        )
+      );
+      
+      if (motivationalSentences.length === 0) {
+        // Fallback: use first meaningful sentences
+        return sentences.slice(0, 2).join('. ').trim() + '.';
+      }
+      
+      // Combine motivational sentences into compelling description
+      return motivationalSentences.slice(0, 3).join('. ').trim() + '.';
+      
+    } catch (error) {
+      console.warn(`⚠️ [MOTIVATIONAL] Failed to extract description:`, error.message);
+      return null;
+    }
+  }
+
   private buildCompletePropertyCaption(property: any): string {
     const propertyType = this.getPropertyTypeEmoji(property.title);
     
@@ -996,7 +1048,6 @@ class EvolutionApiService {
     
     // LLAMADA A LA ACCIÓN
     caption += `\n🔗 Ver detalles completos: ${property.propertyUrl}`;
-    caption += `\n\n💬 *¿Te interesa esta propiedad?* Puedo darte más información, fotos adicionales o agendar una visita.`;
 
     return caption;
   }
