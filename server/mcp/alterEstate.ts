@@ -385,18 +385,71 @@ class AlterEstateMCPServer {
       console.log('🔍 [MCP] Converted filters:', JSON.stringify(filters, null, 2));
       
       // Search properties
-      const results = await this.searchPropertiesRaw(filters, params.page);
+      let results = await this.searchPropertiesRaw(filters, params.page);
       
       if (!results.results || results.results.length === 0) {
-        console.log('⚠️ [MCP] No results found, attempting relaxation');
-        // TODO: Implement relaxation strategy
-        return {
-          count: 0,
-          recommendations: [],
-          rationale: 'No encontré propiedades que coincidan exactamente con tus criterios. Podrías ajustar el presupuesto o la ubicación para ver más opciones.',
-          hasMore: false,
-          relaxationApplied: []
-        };
+        console.log('⚠️ [MCP] No results found, attempting progressive relaxation');
+        
+        // Strategy 1: Remove optional specifications (area, exact bathrooms)
+        console.log('🔄 [MCP-RELAX] Attempt 1: Removing area and bathroom constraints');
+        const relaxedFilters1 = { ...filters };
+        delete relaxedFilters1.area_min;
+        delete relaxedFilters1.area_max; 
+        delete relaxedFilters1.bath_min;
+        
+        console.log('🔍 [MCP-RELAX] Relaxed filters (attempt 1):', JSON.stringify(relaxedFilters1, null, 2));
+        const relaxedResults1 = await this.searchPropertiesRaw(relaxedFilters1, params.page);
+        
+        if (relaxedResults1.results && relaxedResults1.results.length > 0) {
+          console.log(`✅ [MCP-RELAX] Found ${relaxedResults1.results.length} results with relaxed specs`);
+          results = relaxedResults1;
+          results.relaxationApplied = ['specs'];
+        } else {
+          // Strategy 2: Keep only essential filters (location, budget, operation)
+          console.log('🔄 [MCP-RELAX] Attempt 2: Keeping only essential filters');
+          const relaxedFilters2: any = {};
+          
+          // Keep essential filters only
+          if (filters.listing_type) relaxedFilters2.listing_type = filters.listing_type;
+          if (filters.city_name) relaxedFilters2.city_name = filters.city_name;
+          if (filters.sector) relaxedFilters2.sector = filters.sector;
+          if (filters.value_min) relaxedFilters2.value_min = filters.value_min;
+          if (filters.value_max) relaxedFilters2.value_max = filters.value_max;
+          if (filters.currency) relaxedFilters2.currency = filters.currency;
+          
+          console.log('🔍 [MCP-RELAX] Essential filters (attempt 2):', JSON.stringify(relaxedFilters2, null, 2));
+          const relaxedResults2 = await this.searchPropertiesRaw(relaxedFilters2, params.page);
+          
+          if (relaxedResults2.results && relaxedResults2.results.length > 0) {
+            console.log(`✅ [MCP-RELAX] Found ${relaxedResults2.results.length} results with essential filters`);
+            results = relaxedResults2;
+            results.relaxationApplied = ['essential'];
+          } else {
+            // Strategy 3: Location only (fallback)
+            console.log('🔄 [MCP-RELAX] Attempt 3: Location-only search');
+            const fallbackFilters: any = {};
+            if (filters.city_name) fallbackFilters.city_name = filters.city_name;
+            if (filters.listing_type) fallbackFilters.listing_type = filters.listing_type;
+            
+            console.log('🔍 [MCP-RELAX] Fallback filters (attempt 3):', JSON.stringify(fallbackFilters, null, 2));
+            const fallbackResults = await this.searchPropertiesRaw(fallbackFilters, params.page);
+            
+            if (fallbackResults.results && fallbackResults.results.length > 0) {
+              console.log(`✅ [MCP-RELAX] Found ${fallbackResults.results.length} results with location-only search`);
+              results = fallbackResults;
+              results.relaxationApplied = ['location-only'];
+            } else {
+              console.log('❌ [MCP-RELAX] No results found even with maximum relaxation');
+              return {
+                count: 0,
+                recommendations: [],
+                rationale: 'Lo siento, no encontré propiedades disponibles en la ubicación especificada. Te sugiero ampliar la zona de búsqueda o ajustar el presupuesto.',
+                hasMore: false,
+                relaxationApplied: ['specs', 'budget', 'location']
+              };
+            }
+          }
+        }
       }
       
       // Score and rank properties
@@ -429,15 +482,19 @@ class AlterEstateMCPServer {
         .sort((a: any, b: any) => b.score - a.score)
         .slice(0, Math.min(params.limit, 5)); // Max 5 recommendations
       
-      const rationale = `Encontré ${results.count} propiedades y seleccioné las ${topRecommendations.length} mejores opciones basándome en tus criterios de búsqueda.`;
+      const relaxationInfo = results.relaxationApplied || [];
+      const rationale = relaxationInfo.length > 0 
+        ? `Encontré ${results.count} propiedades ajustando algunos criterios para ofrecerte mejores opciones. Seleccioné las ${topRecommendations.length} mejores.`
+        : `Encontré ${results.count} propiedades que coinciden perfectamente con tus criterios. Seleccioné las ${topRecommendations.length} mejores opciones.`;
       
-      console.log(`✅ [MCP] Returning ${topRecommendations.length} recommendations`);
+      console.log(`✅ [MCP] Returning ${topRecommendations.length} recommendations (relaxation: ${relaxationInfo.join(', ') || 'none'})`);
       
       return {
         count: results.count,
         recommendations: topRecommendations,
         rationale,
-        hasMore: results.count > topRecommendations.length
+        hasMore: results.count > topRecommendations.length,
+        relaxationApplied: relaxationInfo
       };
       
     } catch (error) {
