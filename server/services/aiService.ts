@@ -551,7 +551,7 @@ Responde en formato JSON con esta estructura:
         console.log('⚠️ [AI] Property recommendations parsing warnings:', parseResult.issues.join(', '));
       }
 
-      console.log(`✅ [AI] Generated ${parseResult.data.recommendations.length} property recommendations`);
+      console.log(`✅ [AI] Generated ${parseResult.data.recommendations?.length || 0} property recommendations`);
       return parseResult.data;
     } catch (error) {
       console.error('Error generating property recommendations:', error);
@@ -963,7 +963,7 @@ Responde en formato JSON:
         }));
         
       } catch (mcpError) {
-        console.warn(`⚠️ [MCP-FALLBACK] MCP failed, using alterEstateService fallback:`, mcpError.message);
+        console.warn(`⚠️ [MCP-FALLBACK] MCP failed, using alterEstateService fallback:`, (mcpError as Error).message);
         
         // ESTRATEGIA FALLBACK: Usar alterEstateService original con conversión de moneda
         properties = await alterEstateService.intelligentPropertySearch(
@@ -1084,7 +1084,7 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             const { alterEstateService } = await import('./alterEstateService');
             const { storage } = await import('../storage');
             const conversation = await storage.getConversationById(conversationId);
-            const userSettings = await storage.getUserSettings(conversation?.userId);
+            const userSettings = conversation?.userId ? await storage.getUserSettings(conversation.userId) : null;
             
             if (userSettings?.alterEstateToken) {
               await this.sendConversationalPropertyIntros(
@@ -1100,7 +1100,7 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
         } catch (humanizeError) {
-          console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
+          console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, (humanizeError as Error).message);
           // Continue anyway - don't block recommendations
         }
         
@@ -1316,18 +1316,30 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendation`);
           await new Promise(resolve => setTimeout(resolve, 5000));
           
-          // 🎯 SEND "WHY IDEAL" CONTEXT MESSAGE BEFORE SINGLE PROPERTY
+          // 🎯 SEND CONVERSATIONAL MESSAGE FOR SINGLE PROPERTY
           const qualificationStatus = await this.assessClientQualification(message, conversationId);
-          const whyIdealMessage = await this.generateWhyIdealMessage(qualificationStatus.extractedCriteria, 1);
           
-          console.log(`💡 [WHY IDEAL] Sending context message for single property: "${whyIdealMessage}"`);
-          await evolutionApiService.sendMessage(context.instanceName, phoneNumber, whyIdealMessage);
+          // Get detailed property information with descriptions
+          const { alterEstateService } = await import('./alterEstateService');
+          const { storage } = await import('../storage');
+          const conversation = await storage.getConversationById(conversationId);
+          const userSettings = conversation?.userId ? await storage.getUserSettings(conversation.userId) : null;
+          
+          if (userSettings?.alterEstateToken && context.instanceName) {
+            await this.sendConversationalPropertyIntros(
+              [properties[0]], // Single property
+              userSettings.alterEstateToken,
+              context.instanceName,
+              phoneNumber,
+              qualificationStatus.extractedCriteria
+            );
+          }
           
           // Brief pause before sending property card
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (humanizeError) {
-        console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
+        console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, (humanizeError as Error).message);
         // Continue anyway - don't block recommendations
       }
       
@@ -2950,7 +2962,7 @@ IMPORTANTE:
           }
           
         } catch (propertyError) {
-          console.warn(`⚠️ [CONVERSATIONAL] Failed to get details for property ${property.slug}:`, propertyError.message);
+          console.warn(`⚠️ [CONVERSATIONAL] Failed to get details for property ${property.slug}:`, (propertyError as Error).message);
           
           // Fallback to basic message
           const basicMessage = i === 0 
