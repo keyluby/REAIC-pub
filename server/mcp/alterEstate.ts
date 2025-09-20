@@ -160,7 +160,7 @@ class AlterEstateMCPServer {
     return this.searchPropertiesRaw(filters, page);
   }
 
-  private async searchPropertiesRaw(filters: any, page: number = 1): Promise<any> {
+  private async searchPropertiesRaw(filters: any, page: number = 1, sessionId?: string): Promise<any> {
     const cacheKey = this.getCacheKey('/properties/filter', { ...filters, page });
     const cached = this.getCache(cacheKey);
     if (cached) return cached;
@@ -177,7 +177,7 @@ class AlterEstateMCPServer {
       queryParams.append('page', page.toString());
       
       const url = `${this.baseUrl}/properties/filter/`;
-      console.log(`🌐 [MCP] Query URL: ${url}?${queryParams.toString()}`);
+      // Remove emoji logs - structured logging only
       
       const response = await axios.get(url, {
         params: { ...filters, page }, // Include page parameter properly
@@ -191,8 +191,22 @@ class AlterEstateMCPServer {
       return response.data;
       
     } catch (error) {
-      console.error('Error searching properties:', error);
-      throw error;
+      // Secure error logging - never expose tokens or sensitive headers
+      const safeError = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error?.code || 'UNKNOWN_ERROR',
+        status: error?.response?.status || null
+      };
+      
+      console.log(JSON.stringify({
+        event: 'mcp.http.error',
+        sessionId: sessionId || 'unknown',
+        endpoint: '/properties/filter',
+        error: safeError,
+        timestamp: Date.now()
+      }));
+      
+      throw new Error('Failed to search properties');
     }
   }
 
@@ -303,8 +317,12 @@ class AlterEstateMCPServer {
 
   // Main MCP tool implementations
   async recommend(params: z.infer<typeof SearchFiltersSchema>): Promise<RecommendationResponse> {
+    // Create sessionId outside try for proper scoping in catch
+    const sessionId = Date.now() + '-' + Math.random().toString(36).slice(2);
+    let searchSession: any;
+    
     try {
-      console.log('🎯 [MCP] Starting property recommendation with params:', JSON.stringify(params, null, 2));
+      // Remove emoji logs - structured logging only
       
       // Convert criteria to AlterEstate filters
       const filters: any = {};
@@ -315,7 +333,7 @@ class AlterEstateMCPServer {
         if (categoryId) {
           filters.category = categoryId;
         }
-        console.log(`🏠 [MCP-CATEGORY] PropertyType: ${params.propertyType} -> Category: ${categoryId || 'ALL'}`);
+        // Remove emoji logs - structured logging only
       }
       // NO category filter = búsqueda incluye apartamentos, casas, y todos los tipos
       
@@ -355,7 +373,7 @@ class AlterEstateMCPServer {
           filters.currency = currency;
         }
         // NO currency parameter = API búsqueda en todas las monedas
-        console.log(`💰 [MCP-BUDGET] Budget filters: min=${filters.value_min}, max=${filters.value_max}, currency=${filters.currency || 'ALL'}`);
+        // Remove emoji logs - structured logging only
       }
       
       // Location mapping
@@ -382,31 +400,91 @@ class AlterEstateMCPServer {
         filters.area_max = params.specifications.areaMax;
       }
       
-      console.log('🔍 [MCP] Converted filters:', JSON.stringify(filters, null, 2));
+      // Remove emoji logs - structured logging only
       
-      // Search properties
-      let results = await this.searchPropertiesRaw(filters, params.page);
+      // Structured logging for debugging
+      searchSession = {
+        sessionId,
+        originalParams: params,
+        initialFilters: { ...filters },
+        attempts: [],
+        startTime: Date.now()
+      };
+      
+      // Structured JSON logging for production
+      console.log(JSON.stringify({
+        event: 'mcp.session.start',
+        sessionId: searchSession.sessionId,
+        filtersApplied: Object.keys(filters),
+        filterCount: Object.keys(filters).length,
+        timestamp: searchSession.startTime
+      }));
+      
+      // Search properties with timing
+      const attemptStartTime = Date.now();
+      let results = await this.searchPropertiesRaw(filters, params.page, sessionId);
+      const attemptDuration = Date.now() - attemptStartTime;
+      
+      const initialAttempt = {
+        attempt: 'initial',
+        filtersUsed: { ...filters },
+        resultCount: results.results?.length || 0,
+        totalAvailable: results.count || 0,
+        success: (results.results?.length || 0) > 0,
+        timestamp: Date.now(),
+        attemptMs: attemptDuration
+      };
+      
+      searchSession.attempts.push(initialAttempt);
+      
+      // Real-time per-attempt logging
+      console.log(JSON.stringify({
+        event: 'mcp.attempt',
+        sessionId: searchSession.sessionId,
+        ...initialAttempt
+      }));
       
       if (!results.results || results.results.length === 0) {
-        console.log('⚠️ [MCP] No results found, attempting progressive relaxation');
+        // Remove emoji logs - structured logging only
         
         // Strategy 1: Remove optional specifications (area, exact bathrooms)
-        console.log('🔄 [MCP-RELAX] Attempt 1: Removing area and bathroom constraints');
+        // Remove emoji logs - structured logging only
         const relaxedFilters1 = { ...filters };
         delete relaxedFilters1.area_min;
         delete relaxedFilters1.area_max; 
         delete relaxedFilters1.bath_min;
         
-        console.log('🔍 [MCP-RELAX] Relaxed filters (attempt 1):', JSON.stringify(relaxedFilters1, null, 2));
-        const relaxedResults1 = await this.searchPropertiesRaw(relaxedFilters1, params.page);
+        const attempt1StartTime = Date.now();
+        const relaxedResults1 = await this.searchPropertiesRaw(relaxedFilters1, params.page, sessionId);
+        const attempt1Duration = Date.now() - attempt1StartTime;
         
         if (relaxedResults1.results && relaxedResults1.results.length > 0) {
-          console.log(`✅ [MCP-RELAX] Found ${relaxedResults1.results.length} results with relaxed specs`);
+          // Remove emoji logs - structured logging only
           results = relaxedResults1;
           results.relaxationApplied = ['specs'];
+          
+          const attemptData = {
+            attempt: 'relax-specs',
+            filtersUsed: relaxedFilters1,
+            resultCount: relaxedResults1.results.length,
+            totalAvailable: relaxedResults1.count || 0,
+            success: true,
+            timestamp: Date.now(),
+            attemptMs: attempt1Duration,
+            relaxationType: 'removed area and bathroom constraints'
+          };
+          
+          searchSession.attempts.push(attemptData);
+          
+          // Real-time per-attempt logging
+          console.log(JSON.stringify({
+            event: 'mcp.attempt',
+            sessionId: searchSession.sessionId,
+            ...attemptData
+          }));
         } else {
           // Strategy 2: Keep only essential filters (location, budget, operation)
-          console.log('🔄 [MCP-RELAX] Attempt 2: Keeping only essential filters');
+          // Remove emoji logs - structured logging only
           const relaxedFilters2: any = {};
           
           // Keep essential filters only
@@ -417,29 +495,121 @@ class AlterEstateMCPServer {
           if (filters.value_max) relaxedFilters2.value_max = filters.value_max;
           if (filters.currency) relaxedFilters2.currency = filters.currency;
           
-          console.log('🔍 [MCP-RELAX] Essential filters (attempt 2):', JSON.stringify(relaxedFilters2, null, 2));
-          const relaxedResults2 = await this.searchPropertiesRaw(relaxedFilters2, params.page);
+          const attempt2StartTime = Date.now();
+          const relaxedResults2 = await this.searchPropertiesRaw(relaxedFilters2, params.page, sessionId);
+          const attempt2Duration = Date.now() - attempt2StartTime;
           
           if (relaxedResults2.results && relaxedResults2.results.length > 0) {
-            console.log(`✅ [MCP-RELAX] Found ${relaxedResults2.results.length} results with essential filters`);
+            // Remove emoji logs - structured logging only
             results = relaxedResults2;
             results.relaxationApplied = ['essential'];
+            
+            const attemptData = {
+              attempt: 'relax-essential',
+              filtersUsed: relaxedFilters2,
+              resultCount: relaxedResults2.results.length,
+              totalAvailable: relaxedResults2.count || 0,
+              success: true,
+              timestamp: Date.now(),
+              attemptMs: attempt2Duration,
+              relaxationType: 'kept only essential filters'
+            };
+            
+            searchSession.attempts.push(attemptData);
+            
+            // Real-time per-attempt logging
+            console.log(JSON.stringify({
+              event: 'mcp.attempt',
+              sessionId: searchSession.sessionId,
+              ...attemptData
+            }));
           } else {
             // Strategy 3: Location only (fallback)
-            console.log('🔄 [MCP-RELAX] Attempt 3: Location-only search');
+            // Remove emoji logs - structured logging only
             const fallbackFilters: any = {};
             if (filters.city_name) fallbackFilters.city_name = filters.city_name;
             if (filters.listing_type) fallbackFilters.listing_type = filters.listing_type;
             
-            console.log('🔍 [MCP-RELAX] Fallback filters (attempt 3):', JSON.stringify(fallbackFilters, null, 2));
-            const fallbackResults = await this.searchPropertiesRaw(fallbackFilters, params.page);
+            const attempt3StartTime = Date.now();
+            const fallbackResults = await this.searchPropertiesRaw(fallbackFilters, params.page, sessionId);
+            const attempt3Duration = Date.now() - attempt3StartTime;
             
             if (fallbackResults.results && fallbackResults.results.length > 0) {
-              console.log(`✅ [MCP-RELAX] Found ${fallbackResults.results.length} results with location-only search`);
+              // Remove emoji logs - structured logging only
               results = fallbackResults;
               results.relaxationApplied = ['location-only'];
+              
+              const attemptData = {
+                attempt: 'relax-fallback',
+                filtersUsed: fallbackFilters,
+                resultCount: fallbackResults.results.length,
+                totalAvailable: fallbackResults.count || 0,
+                success: true,
+                timestamp: Date.now(),
+                attemptMs: attempt3Duration,
+                relaxationType: 'location and operation only'
+              };
+              
+              searchSession.attempts.push(attemptData);
+              
+              // Real-time per-attempt logging
+              console.log(JSON.stringify({
+                event: 'mcp.attempt',
+                sessionId: searchSession.sessionId,
+                ...attemptData
+              }));
             } else {
-              console.log('❌ [MCP-RELAX] No results found even with maximum relaxation');
+              // Remove emoji logs - structured logging only
+              
+              // Log failed attempts for all strategies
+              searchSession.attempts.push({
+                attempt: 'relax-specs',
+                filtersUsed: relaxedFilters1,
+                resultCount: 0,
+                totalAvailable: 0,
+                success: false,
+                timestamp: Date.now(),
+                relaxationType: 'removed area and bathroom constraints'
+              });
+              
+              searchSession.attempts.push({
+                attempt: 'relax-essential',
+                filtersUsed: relaxedFilters2,
+                resultCount: 0,
+                totalAvailable: 0,
+                success: false,
+                timestamp: Date.now(),
+                relaxationType: 'kept only essential filters'
+              });
+              
+              searchSession.attempts.push({
+                attempt: 'relax-fallback',
+                filtersUsed: fallbackFilters,
+                resultCount: 0,
+                totalAvailable: 0,
+                success: false,
+                timestamp: Date.now(),
+                relaxationType: 'location and operation only'
+              });
+              
+              const sessionSummary = {
+                ...searchSession,
+                endTime: Date.now(),
+                totalDuration: Date.now() - searchSession.startTime,
+                finalResult: 'no_results_found',
+                totalAttempts: searchSession.attempts.length
+              };
+              
+              console.log(JSON.stringify({
+                event: 'mcp.session.end',
+                sessionId: sessionSummary.sessionId,
+                finalResult: sessionSummary.finalResult,
+                totalDuration: sessionSummary.totalDuration,
+                totalAttempts: sessionSummary.totalAttempts,
+                attempts: sessionSummary.attempts,
+                timestamp: sessionSummary.endTime
+              }));
+              
               return {
                 count: 0,
                 recommendations: [],
@@ -487,7 +657,32 @@ class AlterEstateMCPServer {
         ? `Encontré ${results.count} propiedades ajustando algunos criterios para ofrecerte mejores opciones. Seleccioné las ${topRecommendations.length} mejores.`
         : `Encontré ${results.count} propiedades que coinciden perfectamente con tus criterios. Seleccioné las ${topRecommendations.length} mejores opciones.`;
       
-      console.log(`✅ [MCP] Returning ${topRecommendations.length} recommendations (relaxation: ${relaxationInfo.join(', ') || 'none'})`);
+      // Remove emoji logs - structured logging only
+      
+      // Complete session logging
+      const sessionSummary = {
+        ...searchSession,
+        endTime: Date.now(),
+        totalDuration: Date.now() - searchSession.startTime,
+        finalResult: 'success',
+        finalResultCount: topRecommendations.length,
+        totalAttempts: searchSession.attempts.length,
+        relaxationApplied: relaxationInfo,
+        successfulAttempt: searchSession.attempts.find(a => a.success)?.attempt || 'initial'
+      };
+      
+      console.log(JSON.stringify({
+        event: 'mcp.session.end',
+        sessionId: sessionSummary.sessionId,
+        finalResult: sessionSummary.finalResult,
+        totalDuration: sessionSummary.totalDuration,
+        totalAttempts: sessionSummary.totalAttempts,
+        finalResultCount: sessionSummary.finalResultCount,
+        relaxationUsed: relaxationInfo.length > 0 ? relaxationInfo : ['none'],
+        successfulStrategy: sessionSummary.successfulAttempt,
+        attempts: sessionSummary.attempts,
+        timestamp: sessionSummary.endTime
+      }));
       
       return {
         count: results.count,
@@ -498,14 +693,27 @@ class AlterEstateMCPServer {
       };
       
     } catch (error) {
-      console.error('❌ [MCP] Error in recommend:', error);
-      throw new McpError(ErrorCode.InternalError, `Error generating recommendations: ${error}`);
+      // Secure error logging - never expose tokens or sensitive headers
+      const safeError = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error?.code || 'UNKNOWN_ERROR',
+        status: error?.response?.status || null
+      };
+      
+      console.log(JSON.stringify({
+        event: 'mcp.session.error',
+        sessionId: sessionId,
+        error: safeError,
+        timestamp: Date.now()
+      }));
+      
+      throw new McpError(ErrorCode.InternalError, 'Error generating property recommendations');
     }
   }
 
-  async getPropertyDetail(params: z.infer<typeof PropertyDetailSchema>): Promise<any> {
+  async getPropertyDetail(params: z.infer<typeof PropertyDetailSchema>, sessionId?: string): Promise<any> {
     try {
-      console.log(`🏠 [MCP] Getting property detail for: ${params.slug}`);
+      // Remove emoji logs - structured logging only
       
       const cacheKey = this.getCacheKey(`/properties/view/${params.slug}`);
       const cached = this.getCache(cacheKey);
@@ -561,19 +769,33 @@ class AlterEstateMCPServer {
       };
       
       this.setCache(cacheKey, enrichedProperty, 60); // 1 hour cache
-      console.log(`✅ [MCP] Property detail retrieved: ${enrichedProperty.title}`);
+      // Remove emoji logs - structured logging only
       
       return enrichedProperty;
       
     } catch (error) {
-      console.error('❌ [MCP] Error getting property detail:', error);
-      throw new McpError(ErrorCode.InternalError, `Error fetching property details: ${error}`);
+      // Secure error logging - never expose tokens or sensitive headers
+      const safeError = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: error?.code || 'UNKNOWN_ERROR',
+        status: error?.response?.status || null
+      };
+      
+      console.log(JSON.stringify({
+        event: 'mcp.http.error',
+        sessionId: sessionId || 'unknown',
+        endpoint: '/properties/view',
+        error: safeError,
+        timestamp: Date.now()
+      }));
+      
+      throw new McpError(ErrorCode.InternalError, 'Error fetching property details');
     }
   }
 
   async createLead(params: z.infer<typeof LeadDataSchema>): Promise<any> {
     try {
-      console.log('👤 [MCP] Creating lead:', params.fullName);
+      // Remove emoji logs - structured logging only
       
       const leadData = {
         full_name: params.fullName,
@@ -596,7 +818,7 @@ class AlterEstateMCPServer {
         }
       );
       
-      console.log(`✅ [MCP] Lead created successfully: ${response.data.id || 'N/A'}`);
+      // Remove emoji logs - structured logging only
       
       return {
         success: true,
@@ -605,14 +827,14 @@ class AlterEstateMCPServer {
       };
       
     } catch (error) {
-      console.error('❌ [MCP] Error creating lead:', error);
+      // Remove emoji logs - structured logging only
       throw new McpError(ErrorCode.InternalError, `Error creating lead: ${error}`);
     }
   }
 
   async getTaxonomy(): Promise<any> {
     try {
-      console.log('📚 [MCP] Getting taxonomy data');
+      // Remove emoji logs - structured logging only
       
       const cacheKey = 'taxonomy_data';
       const cached = this.getCache(cacheKey);
@@ -645,7 +867,7 @@ class AlterEstateMCPServer {
       return taxonomyData;
       
     } catch (error) {
-      console.error('❌ [MCP] Error getting taxonomy:', error);
+      // Remove emoji logs - structured logging only
       throw new McpError(ErrorCode.InternalError, `Error fetching taxonomy: ${error}`);
     }
   }
@@ -670,7 +892,7 @@ let mcpServer: AlterEstateMCPServer | null = null;
 // Initialize server with user context
 export function initializeMCPServer(aeToken: string, userSettings: any): AlterEstateMCPServer {
   mcpServer = new AlterEstateMCPServer(aeToken, userSettings);
-  console.log('🚀 [MCP] AlterEstate MCP Server initialized');
+  // Remove emoji logs - structured logging only
   return mcpServer;
 }
 
@@ -802,9 +1024,15 @@ export { server, AlterEstateMCPServer };
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.log('🎯 AlterEstate MCP Server running on stdio');
+  // Remove emoji logs - structured logging only
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(console.error);
+  main().catch((error) => {
+    console.log(JSON.stringify({
+      event: 'mcp.startup.error',
+      error: { message: error.message, code: error.code },
+      timestamp: Date.now()
+    }));
+  });
 }
