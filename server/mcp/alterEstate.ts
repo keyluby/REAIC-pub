@@ -363,15 +363,19 @@ class AlterEstateMCPServer {
     return { score: Math.round(score), reasons };
   }
 
-  // Property detail extraction (migrated from alterEstateService)
+  // CENTRALIZED Price extraction with robust logic for all property types
   private extractSmartPrice(property: any): { price: string; priceUSD: number; priceRD: number } {
     const exchangeRate = this.userSettings?.usdToRdRate || 62.0;
-    
-    // Check if it's a project
     const isProject = property.is_project_v2 === true;
+    const forSale = property.forSale || false;
+    const forRent = property.forRent || property.forRental || false;
+    const furnished = property.furnished || false;
     
+    console.log(`💰 [MCP PRICE] Extracting price for: ${property.name || 'unnamed'} (Project: ${isProject}, Sale: ${forSale}, Rent: ${forRent}, Furnished: ${furnished})`);
+    
+    // PROJECTS: Handle development pricing with variations
     if (isProject) {
-      // Handle project pricing
+      // First try direct min/max fields
       if (property.min_price && property.max_price) {
         const minUSD = property.min_price;
         const maxUSD = property.max_price;
@@ -381,32 +385,224 @@ class AlterEstateMCPServer {
           priceRD: minUSD * exchangeRate
         };
       }
+      
+      // Then try variations array
+      if (property.variations && Array.isArray(property.variations)) {
+        const priceData = property.variations
+          .map((v: any) => ({
+            price: v.sale_price || v.rent_price || v.price,
+            currency: v.currency_sale || v.currency_rent || v.currency || 'USD'
+          }))
+          .filter((p: any) => p.price && p.price > 0);
+        
+        if (priceData.length > 0) {
+          const prices = priceData.map((p: any) => p.price);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          const currency = priceData.find((p: any) => p.price === minPrice)?.currency || 'USD';
+          
+          const minUSD = currency === 'USD' ? minPrice : minPrice / exchangeRate;
+          const maxUSD = currency === 'USD' ? maxPrice : maxPrice / exchangeRate;
+          
+          if (minPrice === maxPrice) {
+            return {
+              price: `${currency} $${minPrice.toLocaleString()}`,
+              priceUSD: minUSD,
+              priceRD: minUSD * exchangeRate
+            };
+          } else {
+            return {
+              price: `${currency} $${minPrice.toLocaleString()} - $${maxPrice.toLocaleString()}`,
+              priceUSD: minUSD,
+              priceRD: minUSD * exchangeRate
+            };
+          }
+        }
+      }
     }
     
-    // Individual property pricing
-    const salePrice = property.sale_price;
-    const rentPrice = property.rent_price;
-    const currency = property.currency_sale || property.currency_rent || 'USD';
+    // INDIVIDUAL PROPERTIES: Prioritized price selection
+    const availablePrices = [];
     
-    let finalPrice = salePrice || rentPrice || 0;
-    let finalCurrency = currency;
+    // Sale prices (furnished has priority)
+    if (property.furnished_sale_price && furnished && forSale) {
+      const currency = property.currency_sale_furnished || property.currency_sale || 'USD';
+      availablePrices.push({
+        amount: property.furnished_sale_price,
+        currency,
+        type: 'Venta Amueblado',
+        priority: 1
+      });
+    }
     
-    if (finalPrice > 0) {
-      const priceUSD = finalCurrency === 'USD' ? finalPrice : finalPrice / exchangeRate;
-      const priceRD = finalCurrency === 'USD' ? finalPrice * exchangeRate : finalPrice;
+    if (property.sale_price && forSale) {
+      const currency = property.currency_sale || 'USD';
+      availablePrices.push({
+        amount: property.sale_price,
+        currency,
+        type: 'Venta',
+        priority: furnished ? 3 : 2
+      });
+    }
+    
+    // Rent prices (furnished has priority)
+    if (property.furnished_price && furnished && forRent) {
+      const currency = property.currency_furnished || property.currency_rent || 'USD';
+      availablePrices.push({
+        amount: property.furnished_price,
+        currency,
+        type: 'Alquiler Amueblado',
+        priority: 4
+      });
+    }
+    
+    if (property.rent_price && forRent) {
+      const currency = property.currency_rent || 'USD';
+      availablePrices.push({
+        amount: property.rent_price,
+        currency,
+        type: 'Alquiler',
+        priority: furnished ? 6 : 5
+      });
+    }
+    
+    if (property.rental_price && forRent) {
+      const currency = property.currency_rental || property.currency_rent || 'USD';
+      availablePrices.push({
+        amount: property.rental_price,
+        currency,
+        type: 'Alquiler',
+        priority: 7
+      });
+    }
+    
+    // Use best available price
+    if (availablePrices.length > 0) {
+      const bestPrice = availablePrices.sort((a, b) => a.priority - b.priority)[0];
+      const priceUSD = bestPrice.currency === 'USD' ? bestPrice.amount : bestPrice.amount / exchangeRate;
+      const priceRD = bestPrice.currency === 'USD' ? bestPrice.amount * exchangeRate : bestPrice.amount;
       
       return {
-        price: `${finalCurrency} ${finalPrice.toLocaleString()}`,
+        price: `${bestPrice.currency} $${bestPrice.amount.toLocaleString()} (${bestPrice.type})`,
         priceUSD,
         priceRD
       };
     }
     
+    // Fallbacks
+    if (property.price_formatted) {
+      const amount = this.parseFormattedPrice(property.price_formatted);
+      return {
+        price: property.price_formatted,
+        priceUSD: amount.amountUSD,
+        priceRD: amount.amountRD
+      };
+    }
+    
+    if (property.price) {
+      const currency = property.currency || 'USD';
+      const priceUSD = currency === 'USD' ? property.price : property.price / exchangeRate;
+      const priceRD = currency === 'USD' ? property.price * exchangeRate : property.price;
+      
+      return {
+        price: `${currency} $${property.price.toLocaleString()}`,
+        priceUSD,
+        priceRD
+      };
+    }
+    
+    console.log(`⚠️ [MCP PRICE] No price found for property ${property.name || property.uid}`);
     return {
       price: 'Precio a consultar',
       priceUSD: 0,
       priceRD: 0
     };
+  }
+  
+  // Helper to parse formatted prices 
+  private parseFormattedPrice(formatted: string): { amountUSD: number; amountRD: number } {
+    const exchangeRate = this.userSettings?.usdToRdRate || 62.0;
+    
+    // Extract number and currency from formatted string
+    const match = formatted.match(/(USD|RD\$|DOP)?\s*[\$]?\s*([\d,]+)/i);
+    if (match) {
+      const currency = match[1] || 'USD';
+      const amount = parseFloat(match[2].replace(/,/g, ''));
+      
+      if (!isNaN(amount)) {
+        const amountUSD = currency === 'USD' ? amount : amount / exchangeRate;
+        const amountRD = currency === 'USD' ? amount * exchangeRate : amount;
+        return { amountUSD, amountRD };
+      }
+    }
+    
+    return { amountUSD: 0, amountRD: 0 };
+  }
+
+  // CENTRALIZED Location extraction with fallbacks for address consistency
+  private extractNormalizedLocation(property: any): string {
+    const locationParts = [];
+    
+    // Priority order: sector/neighborhood -> city -> address -> fallback
+    if (property.sector) {
+      if (typeof property.sector === 'object' && property.sector.name) {
+        locationParts.push(property.sector.name);
+      } else if (typeof property.sector === 'string') {
+        locationParts.push(property.sector);
+      }
+    }
+    
+    if (property.city) {
+      if (typeof property.city === 'object' && property.city.name) {
+        locationParts.push(property.city.name);
+      } else if (typeof property.city === 'string') {
+        locationParts.push(property.city);
+      }
+    }
+    
+    // If we have sector and city, use them
+    if (locationParts.length >= 2) {
+      return locationParts.join(', ');
+    }
+    
+    // Otherwise try address fields
+    if (property.address) {
+      locationParts.push(property.address);
+    }
+    
+    if (property.neighborhood) {
+      if (typeof property.neighborhood === 'object' && property.neighborhood.name) {
+        locationParts.push(property.neighborhood.name);
+      } else if (typeof property.neighborhood === 'string') {
+        locationParts.push(property.neighborhood);
+      }
+    }
+    
+    if (property.province) {
+      if (typeof property.province === 'object' && property.province.name) {
+        locationParts.push(property.province.name);
+      } else if (typeof property.province === 'string') {
+        locationParts.push(property.province);
+      }
+    }
+    
+    // For projects, might have development name
+    if (property.is_project_v2 && property.development_name) {
+      locationParts.unshift(property.development_name);
+    }
+    
+    // Clean up and format
+    const cleanLocation = locationParts
+      .filter(part => part && part.trim().length > 0)
+      .map(part => part.trim())
+      .join(', ');
+    
+    // If still no location, try coordinates as fallback
+    if (!cleanLocation && (property.latitude && property.longitude)) {
+      return `Lat: ${property.latitude}, Lng: ${property.longitude}`;
+    }
+    
+    return cleanLocation || 'Ubicación no especificada';
   }
 
   private extractTechnicalSpecs(property: any): any {
@@ -758,7 +954,7 @@ class AlterEstateMCPServer {
           currency: property.currency_sale || property.currency_rent || 'USD',
           description: property.short_description || '',
           imageUrl: property.featured_image || 'https://via.placeholder.com/400x300?text=Sin+Imagen',
-          location: `${property.sector || ''} ${property.city || ''}`.trim() || 'Ubicación no especificada',
+          location: this.extractNormalizedLocation(property),
           specifications: specs,
           score,
           reasons,
@@ -866,7 +1062,8 @@ class AlterEstateMCPServer {
         location: {
           address: property.address || '',
           neighborhood: property.sector?.name || property.sector || '',
-          city: property.city || '',
+          city: property.city?.name || property.city || '',
+          fullLocation: this.extractNormalizedLocation(property),
           coordinates: {
             lat: property.latitude || null,
             lng: property.longitude || null

@@ -801,6 +801,49 @@ Responde en formato JSON:
         const qualificationStatus = await this.assessClientQualification(searchQuery, conversationId);
         console.log(`🎯 [AI] Qualification status:`, qualificationStatus);
         
+        // 🔒 HARD GATING: Block searches without mandatory budget AND location
+        const hasBudget = (qualificationStatus.extractedCriteria.budget_min || 
+                          qualificationStatus.extractedCriteria.budget_max || 
+                          qualificationStatus.extractedCriteria.budget?.min || 
+                          qualificationStatus.extractedCriteria.budget?.max);
+        const hasLocation = (qualificationStatus.extractedCriteria.zones || 
+                           qualificationStatus.extractedCriteria.location?.zones);
+        
+        if (!hasBudget || !hasLocation) {
+          console.log(`🔒 [AI] MANDATORY GATING: Blocking search - Budget: ${!!hasBudget}, Location: ${!!hasLocation}`);
+          
+          // Generate targeted request for missing mandatory data
+          let missingItems = [];
+          if (!hasBudget) missingItems.push("presupuesto");
+          if (!hasLocation) missingItems.push("ubicación");
+          
+          const mandatoryResponse = `Para ofrecerte las mejores opciones, necesito información esencial:\n\n` +
+            (!hasBudget ? `💰 **Presupuesto**: ¿Cuál es tu rango de presupuesto? (ej: entre 150k-250k USD)\n\n` : '') +
+            (!hasLocation ? `📍 **Ubicación**: ¿En qué zona te gustaría? (ej: Piantini, Naco, o toda Santo Domingo)\n\n` : '') +
+            `¡Con esta información podré mostrarte propiedades que realmente se ajusten a lo que necesitas! 🎯`;
+          
+          // Update conversation context with mandatory request
+          const { storage } = await import('../storage');
+          const conversation = await storage.getConversationById(conversationId);
+          const conversationContext = (conversation?.context as any)?.messages || [];
+          conversationContext.push(
+            { role: "user", content: message },
+            { role: "assistant", content: mandatoryResponse }
+          );
+          
+          if (conversationContext.length > 20) {
+            conversationContext.splice(0, conversationContext.length - 20);
+          }
+          
+          await storage.updateConversationContext(conversationId, { 
+            messages: conversationContext,
+            lastUpdated: new Date().toISOString()
+          });
+          
+          console.log(`🔒 [AI] Blocked search and requested mandatory data: ${missingItems.join(', ')}`);
+          return mandatoryResponse;
+        }
+        
         if (!qualificationStatus.isQualified) {
           console.log(`❓ [AI] Client not qualified yet, asking qualifying questions`);
           const qualifyingResponse = await this.askQualifyingQuestions(qualificationStatus, context);
@@ -1033,6 +1076,16 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             // Wait 5 seconds before sending recommendations  
             console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendations`);
             await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            // 🎯 SEND "WHY IDEAL" CONTEXT MESSAGE BEFORE PROPERTIES
+            const qualificationStatus = await this.assessClientQualification(message, conversationId);
+            const whyIdealMessage = await this.generateWhyIdealMessage(qualificationStatus.extractedCriteria, properties.length);
+            
+            console.log(`💡 [WHY IDEAL] Sending context message: "${whyIdealMessage}"`);
+            await evolutionApiService.sendMessage(context.instanceName, phoneNumber, whyIdealMessage);
+            
+            // Brief pause before sending property cards
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         } catch (humanizeError) {
           console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
@@ -1250,6 +1303,16 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           // Wait 5 seconds before sending recommendation  
           console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendation`);
           await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // 🎯 SEND "WHY IDEAL" CONTEXT MESSAGE BEFORE SINGLE PROPERTY
+          const qualificationStatus = await this.assessClientQualification(message, conversationId);
+          const whyIdealMessage = await this.generateWhyIdealMessage(qualificationStatus.extractedCriteria, 1);
+          
+          console.log(`💡 [WHY IDEAL] Sending context message for single property: "${whyIdealMessage}"`);
+          await evolutionApiService.sendMessage(context.instanceName, phoneNumber, whyIdealMessage);
+          
+          // Brief pause before sending property card
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (humanizeError) {
         console.warn(`⚠️ [HUMANIZE] Failed to send initial message:`, humanizeError.message);
@@ -2340,9 +2403,14 @@ SISTEMA DE CALIFICACIÓN DE 7 PASOS:
    - Timeline para decisión
 
 CALIFICACIÓN:
-- CALIFICADO: Pasos 2, 3, 4, 5 completados (mínimo para búsqueda efectiva)
+- CALIFICADO: Pasos 2, 3, 4, 5 completados (mínimo para búsqueda efectiva) + PRESUPUESTO Y UBICACIÓN OBLIGATORIOS
 - PARCIALMENTE CALIFICADO: 2-3 pasos completados
 - NO CALIFICADO: 0-1 pasos completados
+
+REGLAS CRÍTICAS OBLIGATORIAS:
+- PRESUPUESTO: Debe tener budget.min O budget.max definido (no null)
+- UBICACIÓN: Debe tener location.zones definido (puede ser ["cualquier_zona"] pero NO null)
+- NO permitir búsquedas sin ambos campos definidos
 
 Responde en JSON:
 {
@@ -2390,12 +2458,13 @@ Responde en JSON:
 }
 
 IMPORTANTE:
-- isQualified=true solo si completedSteps incluye al menos: "step2", "step3", "step4", "step5"
+- isQualified=true solo si completedSteps incluye al menos: "step2", "step3", "step4", "step5" Y tiene presupuesto Y ubicación definidos
 - qualificationStep = próximo paso a completar (1-7)
-- Si zones contiene ["cualquier_zona"], NO incluir ubicación en missingCriteria
+- SIEMPRE requerir presupuesto (budget.min/max) y ubicación (location.zones) antes de calificar como listo
 - Extraer información específica de toda la conversación, no solo el mensaje actual
-- REGLA CRÍTICA: Si el cliente dice "cualquier zona de [ciudad]", "en toda la ciudad", "cualquier zona", "no importa la zona", etc., extraer como zones: ["cualquier_zona"] y considerar ubicación como COMPLETADA
-- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad", "cualquier zona", "no importa donde"`;
+- Si el cliente dice "cualquier zona de [ciudad]", "en toda la ciudad", "cualquier zona", "no importa la zona", etc., extraer como zones: ["cualquier_zona"] 
+- Ejemplos de zonas válidas: "Piantini", "Naco", "cualquier zona de Santo Domingo", "toda la ciudad", "cualquier zona", "no importa donde"
+- Pero SIEMPRE verificar que también tenga presupuesto antes de considerar calificado`;
 
       const response = await this.openaiClient.chat.completions.create({
         model: "gpt-4o",
@@ -2453,11 +2522,28 @@ IMPORTANTE:
         parking: result.extractedCriteria?.specifications?.parking || null
       };
 
-      // REGLA CRÍTICA: "cualquier zona" es válida - no incluir en missingCriteria
-      if (legacyExtractedCriteria.zones && legacyExtractedCriteria.zones.includes("cualquier_zona")) {
-        result.missingCriteria = result.missingCriteria.filter((criteria: string) => criteria !== "ubicacion" && criteria !== "zona");
-        console.log('✅ [AI] "Cualquier zona" detected - removing location from missing criteria');
+      // VERIFICACIÓN OBLIGATORIA: PRESUPUESTO Y UBICACIÓN SIEMPRE REQUERIDOS
+      const hasBudget = (legacyExtractedCriteria.budget_min || legacyExtractedCriteria.budget_max || 
+                        result.extractedCriteria?.budget?.min || result.extractedCriteria?.budget?.max);
+      const hasLocation = (legacyExtractedCriteria.zones || result.extractedCriteria?.location?.zones);
+      
+      if (!hasBudget) {
+        if (!result.missingCriteria.includes("presupuesto")) {
+          result.missingCriteria.push("presupuesto");
+        }
+        result.isQualified = false;
+        console.log('❌ [AI] Missing mandatory budget - search not allowed');
       }
+      
+      if (!hasLocation) {
+        if (!result.missingCriteria.includes("ubicacion")) {
+          result.missingCriteria.push("ubicacion");
+        }
+        result.isQualified = false;
+        console.log('❌ [AI] Missing mandatory location - search not allowed');
+      }
+      
+      console.log(`🔒 [AI] Mandatory check - Budget: ${hasBudget}, Location: ${hasLocation}, Qualified: ${result.isQualified}`);
 
       // Fusionar datos nuevos y legacy para compatibilidad completa
       result.extractedCriteria = {
@@ -2657,6 +2743,121 @@ IMPORTANTE:
       console.log(`🗑️ [AI] Cleared conversation context for ${conversationId}`);
     } catch (error) {
       console.error('❌ [AI] Error clearing conversation context:', error);
+    }
+  }
+
+  /**
+   * Generar mensaje explicativo de por qué las propiedades son ideales para el cliente
+   */
+  private async generateWhyIdealMessage(extractedCriteria: any, propertyCount: number): Promise<string> {
+    try {
+      console.log(`💡 [WHY IDEAL] Generating context for ${propertyCount} properties based on criteria:`, extractedCriteria);
+      
+      const criteria = [];
+      
+      // Analizar presupuesto
+      if (extractedCriteria.budget_min || extractedCriteria.budget_max || extractedCriteria.budget?.min || extractedCriteria.budget?.max) {
+        const budgetMin = extractedCriteria.budget_min || extractedCriteria.budget?.min;
+        const budgetMax = extractedCriteria.budget_max || extractedCriteria.budget?.max;
+        const currency = extractedCriteria.currency || extractedCriteria.budget?.currency || 'USD';
+        
+        if (budgetMin && budgetMax) {
+          criteria.push(`tu presupuesto de ${currency} ${budgetMin.toLocaleString()}-${budgetMax.toLocaleString()}`);
+        } else if (budgetMax) {
+          criteria.push(`tu presupuesto máximo de ${currency} ${budgetMax.toLocaleString()}`);
+        } else if (budgetMin) {
+          criteria.push(`tu presupuesto desde ${currency} ${budgetMin.toLocaleString()}`);
+        }
+      }
+      
+      // Analizar ubicación
+      if (extractedCriteria.zones || extractedCriteria.location?.zones) {
+        const zones = extractedCriteria.zones || extractedCriteria.location?.zones;
+        if (zones && zones.length > 0) {
+          if (zones.includes("cualquier_zona")) {
+            criteria.push("tu flexibilidad de ubicación");
+          } else if (zones.length === 1) {
+            criteria.push(`tu preferencia por la zona de ${zones[0]}`);
+          } else {
+            criteria.push(`tus zonas preferidas: ${zones.join(', ')}`);
+          }
+        }
+      }
+      
+      // Analizar especificaciones
+      if (extractedCriteria.rooms || extractedCriteria.specifications?.rooms) {
+        const rooms = extractedCriteria.rooms || extractedCriteria.specifications?.rooms;
+        criteria.push(`tu necesidad de ${rooms} habitaciones`);
+      }
+      
+      if (extractedCriteria.bathrooms || extractedCriteria.specifications?.bathrooms) {
+        const bathrooms = extractedCriteria.bathrooms || extractedCriteria.specifications?.bathrooms;
+        criteria.push(`${bathrooms} baños`);
+      }
+      
+      // Analizar tipo de operación
+      const operation = extractedCriteria.operation || extractedCriteria.searchObjective?.operation;
+      let operationText = "";
+      if (operation === "compra") {
+        operationText = "para comprar";
+      } else if (operation === "alquiler") {
+        operationText = "para alquilar";
+      } else if (operation === "inversion") {
+        operationText = "como inversión";
+      }
+      
+      // Analizar situación familiar
+      const familySituation = extractedCriteria.personalInfo?.familySituation;
+      let familyContext = "";
+      if (familySituation === "familia") {
+        familyContext = "perfectas para tu familia";
+      } else if (familySituation === "pareja") {
+        familyContext = "ideales para ti y tu pareja";
+      } else if (familySituation === "soltero") {
+        familyContext = "perfectas para ti";
+      }
+      
+      // Construir mensaje personalizado
+      let message = "";
+      
+      if (propertyCount === 1) {
+        message = "✨ **Encontré la propiedad perfecta para ti**\n\n";
+      } else {
+        message = `✨ **Seleccioné estas ${propertyCount} propiedades especialmente para ti**\n\n`;
+      }
+      
+      message += "🎯 **¿Por qué son ideales?**\n";
+      
+      if (criteria.length > 0) {
+        message += `Consideré ${criteria.join(', ')}`;
+        if (operationText) {
+          message += ` ${operationText}`;
+        }
+        if (familyContext) {
+          message += ` - ${familyContext}`;
+        }
+        message += ".\n\n";
+      } else {
+        message += "Basándome en el perfil que construimos juntos, estas opciones se ajustan perfectamente a lo que necesitas.\n\n";
+      }
+      
+      if (propertyCount === 1) {
+        message += "📋 **Te comparto los detalles:**";
+      } else {
+        message += "📋 **Te comparto las mejores opciones:**";
+      }
+      
+      console.log(`💡 [WHY IDEAL] Generated message: "${message}"`);
+      return message;
+      
+    } catch (error) {
+      console.error('❌ [WHY IDEAL] Error generating context message:', error);
+      // Fallback message
+      if (propertyCount === 1) {
+        return "✨ **Encontré una propiedad perfecta que se ajusta a lo que buscas**\n\n📋 **Te comparto los detalles:**";
+      } else {
+        return `✨ **Seleccioné estas ${propertyCount} propiedades especialmente para ti**\n\n📋 **Te comparto las mejores opciones:**`;
+      }
     }
   }
 }
