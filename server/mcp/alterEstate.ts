@@ -376,19 +376,19 @@ class AlterEstateMCPServer {
         // Remove emoji logs - structured logging only
       }
       
-      // Location mapping
-      if (params.location?.city) {
-        filters.city_name = params.location.city;
-      }
+      // Location mapping - use search instead of city_name + sector
       if (params.location?.zones?.length) {
-        // Use first zone as sector for now
-        filters.sector = params.location.zones[0];
+        // Use first zone as search term (matches alterEstateService pattern)
+        filters.search = params.location.zones[0];
+      } else if (params.location?.city) {
+        // Fallback to city if no zones
+        filters.search = params.location.city;
       }
       
-      // Specifications
+      // Specifications - no rooms_max to avoid API conflicts
       if (params.specifications?.rooms) {
         filters.rooms_min = params.specifications.rooms;
-        filters.rooms_max = params.specifications.rooms + 1; // Allow some flexibility
+        // Remove rooms_max to match alterEstateService pattern
       }
       if (params.specifications?.bathrooms) {
         filters.bath_min = params.specifications.bathrooms;
