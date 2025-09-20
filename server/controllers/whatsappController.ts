@@ -251,13 +251,15 @@ class WhatsAppController {
     try {
       const { instanceName } = req.params;
       
-      // Primero eliminar todas las conversaciones y mensajes asociados
-      await storage.deleteInstanceConversationsAndMessages(instanceName);
+      // 🎯 RESOLVER: Use InstanceResolver for proper instance deletion with migration
+      const { instanceResolver } = await import('../services/instanceResolver');
+      await instanceResolver.handleInstanceDeletion(instanceName);
       
-      // Luego eliminar la instancia
+      // Delete from storage after resolver handles migration
+      await storage.deleteInstanceConversationsAndMessages(instanceName);
       await storage.deleteWhatsappInstance(instanceName);
 
-      res.json({ success: true, message: 'Instance and associated data deleted from local database' });
+      res.json({ success: true, message: 'Instance and associated data deleted with automatic migration' });
     } catch (error) {
       console.error('Error force deleting instance:', error);
       res.status(500).json({ message: 'Failed to delete instance' });

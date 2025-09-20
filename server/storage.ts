@@ -50,6 +50,7 @@ export interface IStorage {
   getConversationById(id: string): Promise<Conversation | undefined>;
   getConversationByPhone(whatsappInstanceId: string, clientPhone: string): Promise<Conversation | undefined>;
   getConversationByUserAndPhone(userId: string, clientPhone: string): Promise<Conversation | undefined>;
+  getConversationsByInstance(instanceName: string): Promise<Conversation[]>;
   getUserConversations(userId: string): Promise<Conversation[]>;
   updateConversationStatus(id: string, status: string): Promise<void>;
   updateConversationContext(id: string, context: any): Promise<void>;
@@ -276,6 +277,18 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(conversations.lastMessageAt));
     return conversation;
+  }
+
+  async getConversationsByInstance(instanceName: string): Promise<Conversation[]> {
+    // First get the instance to find its ID
+    const instance = await this.getWhatsappInstance(instanceName);
+    if (!instance) return [];
+
+    return await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.whatsappInstanceId, instance.id))
+      .orderBy(desc(conversations.lastMessageAt));
   }
 
   async getUserConversations(userId: string): Promise<Conversation[]> {
