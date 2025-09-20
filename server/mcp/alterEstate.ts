@@ -16,7 +16,7 @@ const SearchFiltersSchema = z.object({
   budget: z.object({
     min: z.number().optional(),
     max: z.number().optional(),
-    currency: z.enum(['USD', 'RD$', 'DOP']).default('USD')
+    currency: z.enum(['USD', 'RD$', 'DOP']).optional() // REMOVED DEFAULT: permite búsquedas sin currency específico
   }).optional(),
   location: z.object({
     zones: z.array(z.string()).optional(),
@@ -309,24 +309,53 @@ class AlterEstateMCPServer {
       // Convert criteria to AlterEstate filters
       const filters: any = {};
       
+      // Only filter by category if EXPLICITLY specified (allows apartments AND houses)
       if (params.propertyType) {
-        filters.category = this.mapPropertyTypeToCategory(params.propertyType);
+        const categoryId = this.mapPropertyTypeToCategory(params.propertyType);
+        if (categoryId) {
+          filters.category = categoryId;
+        }
+        console.log(`🏠 [MCP-CATEGORY] PropertyType: ${params.propertyType} -> Category: ${categoryId || 'ALL'}`);
       }
+      // NO category filter = búsqueda incluye apartamentos, casas, y todos los tipos
       
       if (params.operation) {
         filters.listing_type = this.mapOperationToListingType(params.operation);
       }
       
-      // Handle budget with currency conversion
+      // Handle budget WITHOUT forcing currency conversion (CRITICAL FIX)
       if (params.budget) {
+        // Use currency if specified, otherwise search ALL currencies (USD, DOP, RD$)
+        const currency = params.budget.currency;
+        
         if (params.budget.min) {
-          const minUSD = this.convertCurrency(params.budget.min, params.budget.currency, 'USD');
-          filters.value_min = Math.round(minUSD);
+          if (currency) {
+            // Convert to USD for API consistency if currency specified
+            const minUSD = this.convertCurrency(params.budget.min, currency, 'USD');
+            filters.value_min = Math.round(minUSD);
+          } else {
+            // No currency = use raw amount (searches all currencies)
+            filters.value_min = Math.round(params.budget.min);
+          }
         }
+        
         if (params.budget.max) {
-          const maxUSD = this.convertCurrency(params.budget.max, params.budget.currency, 'USD');
-          filters.value_max = Math.round(maxUSD);
+          if (currency) {
+            // Convert to USD for API consistency if currency specified
+            const maxUSD = this.convertCurrency(params.budget.max, currency, 'USD');
+            filters.value_max = Math.round(maxUSD);
+          } else {
+            // No currency = use raw amount (searches all currencies)
+            filters.value_max = Math.round(params.budget.max);
+          }
         }
+        
+        // Only add currency filter if explicitly specified
+        if (currency) {
+          filters.currency = currency;
+        }
+        // NO currency parameter = API búsqueda en todas las monedas
+        console.log(`💰 [MCP-BUDGET] Budget filters: min=${filters.value_min}, max=${filters.value_max}, currency=${filters.currency || 'ALL'}`);
       }
       
       // Location mapping
