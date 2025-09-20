@@ -1077,12 +1077,24 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             console.log(`⏱️ [HUMANIZE] Waiting 5 seconds before sending recommendations`);
             await new Promise(resolve => setTimeout(resolve, 5000));
             
-            // 🎯 SEND "WHY IDEAL" CONTEXT MESSAGE BEFORE PROPERTIES
+            // 🎯 SEND CONVERSATIONAL MESSAGES FOR EACH PROPERTY
             const qualificationStatus = await this.assessClientQualification(message, conversationId);
-            const whyIdealMessage = await this.generateWhyIdealMessage(qualificationStatus.extractedCriteria, properties.length);
             
-            console.log(`💡 [WHY IDEAL] Sending context message: "${whyIdealMessage}"`);
-            await evolutionApiService.sendMessage(context.instanceName, phoneNumber, whyIdealMessage);
+            // Get detailed property information with descriptions
+            const { alterEstateService } = await import('./alterEstateService');
+            const { storage } = await import('../storage');
+            const conversation = await storage.getConversationById(conversationId);
+            const userSettings = await storage.getUserSettings(conversation?.userId);
+            
+            if (userSettings?.alterEstateToken) {
+              await this.sendConversationalPropertyIntros(
+                properties.slice(0, 3), // Limit to first 3 properties
+                userSettings.alterEstateToken,
+                context.instanceName,
+                phoneNumber,
+                qualificationStatus.extractedCriteria
+              );
+            }
             
             // Brief pause before sending property cards
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1394,8 +1406,8 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
             lastUpdated: new Date().toISOString()
           });
           
-          // Return success message for internal tracking
-          return `Propiedad enviada en formato carrusel con foto y botones`;
+          // Return success confirmation for internal tracking
+          return "Propiedades enviadas exitosamente";
         } else {
           console.error('❌ [AI] Failed to send single property carousel, falling back to text format');
           throw new Error('Single property carousel send failed');
@@ -2859,6 +2871,230 @@ IMPORTANTE:
         return `✨ **Seleccioné estas ${propertyCount} propiedades especialmente para ti**\n\n📋 **Te comparto las mejores opciones:**`;
       }
     }
+  }
+
+  /**
+   * Send conversational property introductions with variations and descriptions
+   */
+  private async sendConversationalPropertyIntros(
+    properties: any[],
+    aeToken: string,
+    instanceName: string,
+    phoneNumber: string,
+    criteria: any
+  ): Promise<void> {
+    try {
+      const { alterEstateService } = await import('./alterEstateService');
+      const { evolutionApiService } = await import('./evolutionApiService');
+      
+      console.log(`💬 [CONVERSATIONAL] Creating personalized intros for ${properties.length} properties`);
+      
+      const messageVariations = {
+        first: [
+          "Tengo {propertyType} en {location}. {description} {ideal_reason}",
+          "Encontré {propertyType} en {location} que me parece perfecto para ti. {description} {ideal_reason}",
+          "Te tengo {propertyType} en {location}. {description} {ideal_reason}"
+        ],
+        second: [
+          "También tengo {propertyType} en {location}, que es posible que te guste. {description}",
+          "Además, hay {propertyType} en {location} que podría interesarte. {description}",
+          "También encontré {propertyType} en {location}. {description}"
+        ],
+        third: [
+          "Adicionalmente, puedo ofrecerte {propertyType} en {location}, que tiene {description}",
+          "Por último, tengo {propertyType} en {location}. {description}",
+          "Y también está {propertyType} en {location}, con {description}"
+        ]
+      };
+
+      for (let i = 0; i < Math.min(properties.length, 3); i++) {
+        const property = properties[i];
+        
+        try {
+          // Get detailed property information
+          const propertyDetail = await alterEstateService.getPropertyDetail(aeToken, property.slug);
+          
+          // Extract key information
+          const propertyType = this.getPropertyTypeInSpanish(property);
+          const location = this.getFormattedLocation(property);
+          const description = this.createPropertyDescription(propertyDetail, criteria);
+          const idealReason = i === 0 ? this.createIdealReason(criteria) : '';
+          
+          // Select message template based on position
+          let templates;
+          if (i === 0) templates = messageVariations.first;
+          else if (i === 1) templates = messageVariations.second;
+          else templates = messageVariations.third;
+          
+          // Pick a random variation
+          const template = templates[Math.floor(Math.random() * templates.length)];
+          
+          // Fill template with property information
+          let message = template
+            .replace('{propertyType}', propertyType)
+            .replace('{location}', location)
+            .replace('{description}', description)
+            .replace('{ideal_reason}', idealReason);
+          
+          // Add call-to-action
+          message += ". Aquí te envío los detalles.";
+          
+          console.log(`💬 [CONVERSATIONAL] Sending intro ${i + 1}: "${message.substring(0, 100)}..."`);
+          
+          // Send the conversational message
+          await evolutionApiService.sendMessage(instanceName, phoneNumber, message);
+          
+          // Staggered timing for natural conversation flow
+          if (i < properties.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 3000 + (i * 1000)));
+          }
+          
+        } catch (propertyError) {
+          console.warn(`⚠️ [CONVERSATIONAL] Failed to get details for property ${property.slug}:`, propertyError.message);
+          
+          // Fallback to basic message
+          const basicMessage = i === 0 
+            ? `Tengo una propiedad en ${property.sector || 'excelente ubicación'} que podría interesarte. Aquí te envío los detalles.`
+            : `También tengo otra opción en ${property.sector || 'buena zona'}. Te comparto la información.`;
+          
+          await evolutionApiService.sendMessage(instanceName, phoneNumber, basicMessage);
+          
+          if (i < properties.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+      
+      console.log(`✅ [CONVERSATIONAL] Successfully sent ${Math.min(properties.length, 3)} conversational intros`);
+      
+    } catch (error) {
+      console.error('❌ [CONVERSATIONAL] Error sending property intros:', error);
+      // Don't throw - allow carousel to continue
+    }
+  }
+
+  /**
+   * Get property type in Spanish for conversational messages
+   */
+  private getPropertyTypeInSpanish(property: any): string {
+    const category = property.category?.name || property.category || '';
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes('apartment') || categoryLower.includes('apartamento')) {
+      return Math.random() > 0.5 ? 'un apartamento' : 'un apartamento nuevo';
+    }
+    if (categoryLower.includes('house') || categoryLower.includes('casa')) {
+      return Math.random() > 0.5 ? 'una casa' : 'una casa hermosa';
+    }
+    if (categoryLower.includes('penthouse')) {
+      return 'un penthouse';
+    }
+    if (categoryLower.includes('studio') || categoryLower.includes('estudio')) {
+      return 'un estudio';
+    }
+    
+    return 'una propiedad';
+  }
+
+  /**
+   * Format location for conversational messages
+   */
+  private getFormattedLocation(property: any): string {
+    if (property.is_project_v2 && property.development_name) {
+      return `el ${property.development_name}`;
+    }
+    
+    const sector = property.sector?.name || property.sector || '';
+    if (sector) {
+      return sector;
+    }
+    
+    const city = property.city?.name || property.city || '';
+    if (city) {
+      return city;
+    }
+    
+    return 'excelente ubicación';
+  }
+
+  /**
+   * Create property description from AlterEstate details
+   */
+  private createPropertyDescription(propertyDetail: any, criteria: any): string {
+    const parts = [];
+    
+    // Basic specs
+    if (propertyDetail.technical?.rooms && propertyDetail.technical.rooms > 0) {
+      parts.push(`${propertyDetail.technical.rooms} habitaciones`);
+    }
+    
+    if (propertyDetail.technical?.bathrooms && propertyDetail.technical.bathrooms > 0) {
+      const bathroomText = propertyDetail.technical.bathrooms === 1 ? 'baño' : 'baños';
+      
+      // Check for master bathroom
+      if (propertyDetail.technical.rooms >= 2 && propertyDetail.technical.bathrooms >= 2) {
+        parts.push(`${propertyDetail.technical.bathrooms} ${bathroomText} (1 de ellos en la habitación principal)`);
+      } else {
+        parts.push(`${propertyDetail.technical.bathrooms} ${bathroomText}`);
+      }
+    }
+    
+    // Use property description if available
+    if (propertyDetail.basic?.description) {
+      const cleanDescription = propertyDetail.basic.description
+        .replace(/\n/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 200);
+      
+      if (cleanDescription.length > 50) {
+        return `Tiene ${parts.join(' y ')}. ${cleanDescription}`;
+      }
+    }
+    
+    // Location benefits
+    const locationBenefits = [
+      'Esta ubicado en una zona de fácil acceso a comercios, supermercados, colegios y vías principales',
+      'La zona tiene excelente conectividad y servicios cercanos',
+      'Está en una ubicación estratégica con fácil acceso a todo',
+      'La zona es muy tranquila y con buena valorización'
+    ];
+    
+    const selectedBenefit = locationBenefits[Math.floor(Math.random() * locationBenefits.length)];
+    
+    if (parts.length > 0) {
+      return `Tiene ${parts.join(' y ')}. ${selectedBenefit}`;
+    } else {
+      return selectedBenefit;
+    }
+  }
+
+  /**
+   * Create ideal reason for first property
+   */
+  private createIdealReason(criteria: any): string {
+    const reasons = [];
+    
+    // Budget match
+    if (criteria.budget_min || criteria.budget_max) {
+      reasons.push('se ajusta a tu presupuesto');
+    }
+    
+    // Family-oriented
+    if (criteria.rooms >= 2 || criteria.specifications?.rooms >= 2) {
+      reasons.push('ideal para tu familia');
+    }
+    
+    // Location match
+    if (criteria.zones || criteria.location?.zones) {
+      reasons.push('está en la zona que buscas');
+    }
+    
+    if (reasons.length > 0) {
+      return `. ${reasons[0].charAt(0).toUpperCase() + reasons[0].slice(1)}`;
+    }
+    
+    return '. Ideal para lo que necesitas';
   }
 }
 
