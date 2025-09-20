@@ -16,6 +16,8 @@ import NodeCache from 'node-cache';
 import path from 'path';
 import fs from 'fs';
 import { EventEmitter } from 'events';
+import { MessageBufferService } from './messageBufferService';
+import { storage } from '../storage';
 
 interface WhatsAppInstance {
   socket: WASocket | null;
@@ -43,6 +45,7 @@ interface IncomingMessage {
 class EvolutionApiService {
   private instances: Map<string, WhatsAppInstance> = new Map();
   private qrCodeCache = new NodeCache({ stdTTL: 300 }); // 5 minutos
+  private messageBufferService = new MessageBufferService();
   private instancesPath: string;
   
   constructor() {
@@ -463,44 +466,69 @@ class EvolutionApiService {
    * Enviar propiedades recomendadas (formato simple sin botones)
    */
   async sendPropertyCarousel(instanceName: string, number: string, properties: any[]): Promise<{ success: boolean; messageIds: string[] }> {
-    console.log(`🏠 Sending ${properties.length} property recommendations via ${instanceName} to ${number}`);
+    console.log(`🏠 Sending ${properties.length} property recommendations via ${instanceName} to ${number} (HUMANIZED)`);
     
     const messageIds: string[] = [];
     
-    // Enviar cada propiedad como imagen + caption simple
+    // Enviar cada propiedad como imagen corta + detalles humanizados
     for (let i = 0; i < Math.min(properties.length, 10); i++) {
       const property = properties[i];
       
       try {
-        // Construir caption en el formato especificado por el usuario
-        const caption = this.buildSimplePropertyCaption(property);
+        console.log(`📤 [HUMANIZED] Sending property ${i + 1}/${Math.min(properties.length, 10)}: ${property.title}`);
 
-        // Enviar imagen con caption simple
+        // 1. Enviar imagen con caption ULTRA-CORTO (solo título)
+        const shortCaption = this.buildShortPropertyCaption(property);
         const mediaResult = await this.sendMedia(
           instanceName,
           number,
           property.imageUrl,
           'image',
-          caption
+          shortCaption
         );
 
         if (mediaResult.messageId) messageIds.push(mediaResult.messageId);
 
-        // Pausa entre propiedades para mejor experiencia
-        if (i < properties.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+        // 2. Enviar detalles fragmentados usando humanizeResponse
+        const propertyDetails = this.buildPropertyDetailsForHumanization(property);
+        
+        // Obtener userId para las configuraciones de humanización
+        const userId = await this.getUserIdByInstance(instanceName);
+        
+        if (userId) {
+          console.log(`🤖 [HUMANIZED] Fragmenting property details for user ${userId}`);
+          
+          await this.messageBufferService.humanizeResponse(
+            propertyDetails,
+            userId,
+            async (chunk: string) => {
+              const textResult = await this.sendMessage(instanceName, number, chunk);
+              if (textResult.messageId) messageIds.push(textResult.messageId);
+            }
+          );
+        } else {
+          // Fallback: enviar detalles como mensaje único
+          console.log(`⚠️ [HUMANIZED] No userId found, sending details as single message`);
+          const detailsResult = await this.sendMessage(instanceName, number, propertyDetails);
+          if (detailsResult.messageId) messageIds.push(detailsResult.messageId);
+        }
+
+        // Pausa entre propiedades solo si no es la última
+        if (i < Math.min(properties.length, 10) - 1) {
+          console.log(`⏱️ [HUMANIZED] Waiting 3s before next property...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
       } catch (error) {
-        console.error(`Error sending property ${i + 1}:`, error);
+        console.error(`❌ [HUMANIZED] Error sending property ${i + 1}:`, error);
         
-        // Fallback: enviar como texto simple
+        // Fallback: enviar como texto simple tradicional
         try {
           const caption = this.buildSimplePropertyCaption(property);
           const fallbackResult = await this.sendMessage(instanceName, number, caption);
           if (fallbackResult.messageId) messageIds.push(fallbackResult.messageId);
         } catch (fallbackError) {
-          console.error(`Fallback also failed for property ${i + 1}:`, fallbackError);
+          console.error(`❌ [HUMANIZED] Fallback also failed for property ${i + 1}:`, fallbackError);
         }
       }
     }
@@ -516,7 +544,7 @@ class EvolutionApiService {
       }
     }
 
-    console.log(`✅ Property recommendations sent: ${messageIds.length} messages delivered`);
+    console.log(`✅ [HUMANIZED] Property recommendations sent: ${messageIds.length} messages delivered`);
 
     return {
       success: messageIds.length > 0,
@@ -1291,6 +1319,51 @@ class EvolutionApiService {
   }
 
   /**
+   * Construir caption ULTRA-CORTO para imágenes (solo título para humanización)
+   */
+  private buildShortPropertyCaption(property: any): string {
+    return `🏢 *${property.title}*`;
+  }
+
+  /**
+   * Construir detalles completos para envío fragmentado (formato especificado por usuario)
+   * 💰 Información de precio
+   * 🏠 X hab • ❤️ X baños
+   * 📐 X m²
+   * 📍 Ubicación específica
+   * 🔗 Ver detalles: [link personalizado]
+   */
+  private buildPropertyDetailsForHumanization(property: any): string {
+    // Precio principal (sin repetir título que ya va en imagen)
+    let details = `💰 ${property.price}\n\n`;
+    
+    // Especificaciones técnicas con formato exacto del usuario
+    const specs = this.parsePropertyDetails(property.description);
+    
+    if (specs.rooms || specs.bathrooms) {
+      const specsArray = [];
+      if (specs.rooms) specsArray.push(`🏠 ${specs.rooms} hab`);
+      if (specs.bathrooms) specsArray.push(`❤️ ${specs.bathrooms} baños`);
+      details += specsArray.join(' • ') + '\n\n';
+    }
+    
+    // Área en línea separada
+    if (specs.area) {
+      details += `📐 ${specs.area}\n\n`;
+    }
+    
+    // Ubicación específica
+    if (specs.location) {
+      details += `📍 ${specs.location}\n\n`;
+    }
+    
+    // Link personalizado al final
+    details += `🔗 Ver detalles: ${property.propertyUrl}`;
+    
+    return details;
+  }
+
+  /**
    * Construir caption simple para propiedades (formato especificado por usuario)
    * 🏢 Título descriptivo con precio principal
    * 💰 Información de precio alternativa  
@@ -1330,6 +1403,19 @@ class EvolutionApiService {
     caption += `🔗 Ver detalles: ${property.propertyUrl}`;
     
     return caption;
+  }
+
+  /**
+   * Obtener userId a partir del instanceName
+   */
+  private async getUserIdByInstance(instanceName: string): Promise<string | null> {
+    try {
+      const dbInstance = await storage.getWhatsappInstance(instanceName);
+      return dbInstance?.userId || null;
+    } catch (error) {
+      console.error(`Error getting userId for instance ${instanceName}:`, error);
+      return null;
+    }
   }
 
   private chunkArray<T>(array: T[], size: number): T[][] {
