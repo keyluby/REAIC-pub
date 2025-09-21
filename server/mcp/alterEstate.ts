@@ -293,7 +293,7 @@ class AlterEstateMCPServer {
       this.setCache(cacheKey, response.data, 30); // 30 minutes cache
       return response.data;
       
-    } catch (error) {
+    } catch (error: any) {
       // Secure error logging - never expose tokens or sensitive headers
       const safeError = {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -489,7 +489,7 @@ class AlterEstateMCPServer {
       };
     }
     
-    // Fallbacks
+    // Enhanced fallbacks for common rental price patterns
     if (property.price_formatted) {
       const amount = this.parseFormattedPrice(property.price_formatted);
       return {
@@ -499,13 +499,38 @@ class AlterEstateMCPServer {
       };
     }
     
+    // Check for rental price in generic price field when operation suggests rental
     if (property.price) {
       const currency = property.currency || 'USD';
       const priceUSD = currency === 'USD' ? property.price : property.price / exchangeRate;
       const priceRD = currency === 'USD' ? property.price * exchangeRate : property.price;
       
+      // If this is likely a rental (price is reasonable for monthly rent)
+      const operationType = property.operation_type || property.type || '';
+      const isRentalOperation = operationType.toLowerCase().includes('alquiler') || 
+                               operationType.toLowerCase().includes('rent') ||
+                               (property.price < 10000 && property.price > 500); // Likely monthly rent range
+      
+      const priceDisplay = isRentalOperation ? 
+        `${currency === 'USD' ? 'USD' : 'RD$'} $${property.price.toLocaleString()}` :
+        `${currency} $${property.price.toLocaleString()}`;
+      
       return {
-        price: `${currency} $${property.price.toLocaleString()}`,
+        price: priceDisplay,
+        priceUSD,
+        priceRD
+      };
+    }
+    
+    // Additional fallbacks for rental-specific fields that might exist
+    if (property.monthly_rent || property.monthly_price) {
+      const monthlyAmount = property.monthly_rent || property.monthly_price;
+      const currency = property.currency || 'RD$';
+      const priceUSD = currency === 'USD' ? monthlyAmount : monthlyAmount / exchangeRate;
+      const priceRD = currency === 'USD' ? monthlyAmount * exchangeRate : monthlyAmount;
+      
+      return {
+        price: `${currency} $${monthlyAmount.toLocaleString()} mensual`,
         priceUSD,
         priceRD
       };
@@ -984,7 +1009,7 @@ class AlterEstateMCPServer {
         finalResultCount: topRecommendations.length,
         totalAttempts: searchSession.attempts.length,
         relaxationApplied: relaxationInfo,
-        successfulAttempt: searchSession.attempts.find(a => a.success)?.attempt || 'initial'
+        successfulAttempt: searchSession.attempts.find((a: any) => a.success)?.attempt || 'initial'
       };
       
       console.log(JSON.stringify({
@@ -1008,7 +1033,7 @@ class AlterEstateMCPServer {
         relaxationApplied: relaxationInfo
       };
       
-    } catch (error) {
+    } catch (error: any) {
       // Secure error logging - never expose tokens or sensitive headers
       const safeError = {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -1090,7 +1115,7 @@ class AlterEstateMCPServer {
       
       return enrichedProperty;
       
-    } catch (error) {
+    } catch (error: any) {
       // Secure error logging - never expose tokens or sensitive headers
       const safeError = {
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -1143,7 +1168,7 @@ class AlterEstateMCPServer {
         message: 'Lead creado exitosamente'
       };
       
-    } catch (error) {
+    } catch (error: any) {
       // Remove emoji logs - structured logging only
       throw new McpError(ErrorCode.InternalError, `Error creating lead: ${error}`);
     }
@@ -1183,7 +1208,7 @@ class AlterEstateMCPServer {
       
       return taxonomyData;
       
-    } catch (error) {
+    } catch (error: any) {
       // Remove emoji logs - structured logging only
       throw new McpError(ErrorCode.InternalError, `Error fetching taxonomy: ${error}`);
     }

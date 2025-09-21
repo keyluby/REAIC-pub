@@ -801,25 +801,33 @@ Responde en formato JSON:
         const qualificationStatus = await this.assessClientQualification(searchQuery, conversationId);
         console.log(`🎯 [AI] Qualification status:`, qualificationStatus);
         
-        // 🔒 HARD GATING: Block searches without mandatory budget AND location
+        // 🔒 HARD GATING: Block searches without mandatory budget, location, rooms, AND bathrooms
         const hasBudget = (qualificationStatus.extractedCriteria.budget_min || 
                           qualificationStatus.extractedCriteria.budget_max || 
                           qualificationStatus.extractedCriteria.budget?.min || 
                           qualificationStatus.extractedCriteria.budget?.max);
         const hasLocation = (qualificationStatus.extractedCriteria.zones || 
                            qualificationStatus.extractedCriteria.location?.zones);
+        const hasRooms = (qualificationStatus.extractedCriteria.rooms || 
+                         qualificationStatus.extractedCriteria.specifications?.rooms);
+        const hasBathrooms = (qualificationStatus.extractedCriteria.bathrooms || 
+                             qualificationStatus.extractedCriteria.specifications?.bathrooms);
         
-        if (!hasBudget || !hasLocation) {
-          console.log(`🔒 [AI] MANDATORY GATING: Blocking search - Budget: ${!!hasBudget}, Location: ${!!hasLocation}`);
+        if (!hasBudget || !hasLocation || !hasRooms || !hasBathrooms) {
+          console.log(`🔒 [AI] MANDATORY GATING: Blocking search - Budget: ${!!hasBudget}, Location: ${!!hasLocation}, Rooms: ${!!hasRooms}, Bathrooms: ${!!hasBathrooms}`);
           
           // Generate targeted request for missing mandatory data
           let missingItems = [];
           if (!hasBudget) missingItems.push("presupuesto");
           if (!hasLocation) missingItems.push("ubicación");
+          if (!hasRooms) missingItems.push("habitaciones");
+          if (!hasBathrooms) missingItems.push("baños");
           
           const mandatoryResponse = `Para ofrecerte las mejores opciones, necesito información esencial:\n\n` +
             (!hasBudget ? `💰 **Presupuesto**: ¿Cuál es tu rango de presupuesto? (ej: entre 150k-250k USD)\n\n` : '') +
             (!hasLocation ? `📍 **Ubicación**: ¿En qué zona te gustaría? (ej: Piantini, Naco, o toda Santo Domingo)\n\n` : '') +
+            (!hasRooms ? `🛏️ **Habitaciones**: ¿Cuántas habitaciones necesitas? (ej: 2 o 3 habitaciones)\n\n` : '') +
+            (!hasBathrooms ? `🚿 **Baños**: ¿Cuántos baños necesitas? (ej: 2 o 3 baños)\n\n` : '') +
             `¡Con esta información podré mostrarte propiedades que realmente se ajusten a lo que necesitas! 🎯`;
           
           // Update conversation context with mandatory request
@@ -1419,7 +1427,7 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
           });
           
           // Return success confirmation for internal tracking
-          return "Propiedades enviadas exitosamente";
+          return ""; // Silent success - no message needed as properties are sent directly
         } else {
           console.error('❌ [AI] Failed to send single property carousel, falling back to text format');
           throw new Error('Single property carousel send failed');
