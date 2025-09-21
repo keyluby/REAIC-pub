@@ -215,7 +215,7 @@ class EvolutionApiService {
           // Use a timeout to avoid immediate reconnection and allow cleanup
           setTimeout(async () => {
             try {
-              await this.createInstance(instanceName, webhookUrl);
+              await this.createInstance(instanceName, undefined);
             } catch (error) {
               console.error(`Failed to reconnect instance ${instanceName}:`, error);
             }
@@ -988,8 +988,8 @@ class EvolutionApiService {
       ];
       
       // Find sentences that contain amenity keywords
-      const sentences = fullDescription.split(/[.!?]+/).filter(s => s.trim().length > 10);
-      const motivationalSentences = sentences.filter(sentence => 
+      const sentences = fullDescription.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
+      const motivationalSentences = sentences.filter((sentence: string) => 
         amenityKeywords.some(keyword => 
           sentence.toLowerCase().includes(keyword.toLowerCase())
         )
@@ -1003,7 +1003,7 @@ class EvolutionApiService {
       // Combine motivational sentences into compelling description
       return motivationalSentences.slice(0, 3).join('. ').trim() + '.';
       
-    } catch (error) {
+    } catch (error: any) {
       console.warn(`⚠️ [MOTIVATIONAL] Failed to extract description:`, error.message);
       return null;
     }

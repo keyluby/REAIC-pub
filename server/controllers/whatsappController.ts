@@ -25,10 +25,9 @@ class WhatsAppController {
         return res.status(400).json({ message: 'Instance name is required' });
       }
 
-      // Create instance in internal Evolution API with proper webhook URL
-      const webhookUrl = constructWebhookUrl(`/api/whatsapp/webhook/${instanceName}`);
-      console.log(`🔗 Webhook URL: ${webhookUrl}`);
-      const result = await whatsappService.createInstance(instanceName, webhookUrl);
+      // Create instance in internal Evolution API using only internal events (no HTTP webhooks)
+      console.log(`🔗 Using internal events only for ${instanceName} (no HTTP webhooks)`);
+      const result = await whatsappService.createInstance(instanceName, undefined);
 
       // Store in database
       await storage.createWhatsappInstance({

@@ -5,32 +5,15 @@ export class WhatsAppService {
     console.log('🔥 WhatsApp Service initialized with internal Evolution API');
   }
 
-  async createInstance(instanceName: string, webhookUrl: string) {
+  async createInstance(instanceName: string, webhookUrl?: string) {
     try {
       console.log(`🚀 Creating internal WhatsApp instance: ${instanceName}`);
-      console.log(`🔗 Webhook URL: ${webhookUrl}`);
+      console.log(`🔗 Using internal events only (no HTTP webhooks)`);
 
       const result = await evolutionApiService.createInstance(instanceName, webhookUrl);
       
-      // Configurar eventos internos para este webhook
-      const events = evolutionApiService.getInstanceEvents(instanceName);
-      if (events) {
-        // Reenviar eventos como webhooks HTTP si es necesario
-        events.on('message.received', async (messageData) => {
-          if (webhookUrl) {
-            await this.sendWebhookNotification(webhookUrl, 'MESSAGES_UPSERT', messageData);
-          }
-        });
-
-        events.on('connection.open', async () => {
-          if (webhookUrl) {
-            await this.sendWebhookNotification(webhookUrl, 'CONNECTION_UPDATE', {
-              instanceName,
-              state: 'open'
-            });
-          }
-        });
-      }
+      // Events are handled internally by evolutionApiService and internalWebhookService
+      // No need to set up additional HTTP webhook forwarding
 
       return {
         success: result.success,
