@@ -885,10 +885,15 @@ Responde en formato JSON:
       // NUEVO: Buscar propiedades usando MCP con inteligencia mejorada
       console.log('🎯 [MCP-AI] Starting intelligent property search via MCP');
       
-      // Inicializar cliente MCP con configuración del usuario
+      // Inicializar cliente MCP con configuración del usuario y obtener contexto
       const { storage } = await import('../storage');
       const userSettings = await storage.getUserSettings(context.userId);
       const mcpClient = getMCPClient(context.userId, context.alterEstateToken, userSettings);
+      
+      // Property exclusion: Get previously sent properties from conversation context
+      const conversation = await storage.getConversationById(conversationId);
+      const conversationContext = (conversation?.context as any) || {};
+      const sentPropertyIds = conversationContext.sentPropertyIds || [];
       
       // Extraer criterios de la búsqueda usando la calificación existente
       const qualificationStatus = await this.assessClientQualification(searchQuery, conversationId);
@@ -944,9 +949,18 @@ Responde en formato JSON:
       
       let properties: any[] = [];
       
+      // Add exclusion to MCP criteria if there are previously sent properties
+      if (sentPropertyIds.length > 0) {
+        mcpCriteria.excludeIds = sentPropertyIds;
+        console.log(`🚫 [MCP-AI] Excluding ${sentPropertyIds.length} previously sent properties:`, sentPropertyIds);
+      }
+
       try {
         // ESTRATEGIA PRIMARIA: Usar MCP para recomendaciones inteligentes
-        const mcpResponse = await mcpClient.getRecommendations(mcpCriteria);
+        const mcpResponse = await mcpClient.getRecommendations({
+          ...mcpCriteria,
+          limit: 8  // Request 8 properties to ensure multiple options
+        });
         
         console.log(`✅ [MCP-AI] MCP returned ${mcpResponse.recommendations.length} recommendations`);
         console.log(`🧠 [MCP-AI] MCP rationale: ${mcpResponse.rationale}`);
@@ -1163,6 +1177,16 @@ Responde de manera empática y constructiva. Explica brevemente por qué no hay 
             carouselProperties
           );
           
+          // Structured logging for end-to-end verification
+          console.log(JSON.stringify({
+            event: "send.batch.summary",
+            requested: carouselProperties.length,
+            sentCount: result.success ? result.messageIds.length : 0,
+            errors: result.success ? [] : [result.error || 'Unknown error'],
+            carouselPropertiesHaveUids: carouselProperties.every(p => p.uid),
+            timestamp: Date.now()
+          }));
+          
           if (result.success) {
             console.log(`✅ [AI] Property recommendations sent successfully: ${result.messageIds.length} messages`);
             
@@ -1183,11 +1207,20 @@ ${carouselProperties.map((p, i) => `${i + 1}. "${p.title}" - ${p.price} - ${p.de
               conversationContext.splice(0, conversationContext.length - 20);
             }
 
-            // Save updated context to database
+            // Track sent property UIDs for exclusion in future searches
+            const currentContext = (conversation?.context as any) || {};
+            const existingSentIds = currentContext.sentPropertyIds || [];
+            const newSentIds = carouselProperties.map(p => p.uid).filter(uid => uid && !existingSentIds.includes(uid));
+            const updatedSentIds = [...existingSentIds, ...newSentIds];
+            
+            // Save updated context to database including sent property IDs
             await storage.updateConversationContext(conversationId, { 
               messages: conversationContext,
+              sentPropertyIds: updatedSentIds,
               lastUpdated: new Date().toISOString()
             });
+            
+            console.log(`📝 [AI] Tracked ${newSentIds.length} new property UIDs for exclusion. Total: ${updatedSentIds.length}`);
             
             // Return success message for internal tracking
             return `Propiedades enviadas como recomendaciones: ${carouselProperties.length} mensajes individuales con fotos`;

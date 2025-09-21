@@ -32,7 +32,8 @@ const SearchFiltersSchema = z.object({
   }).optional(),
   amenities: z.array(z.string()).optional(),
   page: z.number().default(1),
-  limit: z.number().default(10)
+  limit: z.number().default(10),
+  excludeIds: z.array(z.string()).optional() // Array of property UIDs to exclude
 });
 
 const PropertyDetailSchema = z.object({
@@ -988,10 +989,26 @@ class AlterEstateMCPServer {
         };
       });
       
+      // Filter out excluded properties if specified
+      let filteredProperties = scoredProperties;
+      if (params.excludeIds && params.excludeIds.length > 0) {
+        filteredProperties = scoredProperties.filter((prop: any) => {
+          return !params.excludeIds!.includes(prop.uid);
+        });
+        console.log(JSON.stringify({
+          event: 'mcp.exclusion.applied',
+          sessionId: sessionId,
+          originalCount: scoredProperties.length,
+          filteredCount: filteredProperties.length,
+          excludedCount: params.excludeIds.length,
+          timestamp: Date.now()
+        }));
+      }
+
       // Sort by score and take top results
-      const topRecommendations = scoredProperties
+      const topRecommendations = filteredProperties
         .sort((a: any, b: any) => b.score - a.score)
-        .slice(0, Math.min(params.limit, 5)); // Max 5 recommendations
+        .slice(0, Math.min(params.limit, 10)); // Max 10 recommendations
       
       const relaxationInfo = results.relaxationApplied || [];
       const rationale = relaxationInfo.length > 0 
